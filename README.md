@@ -8,6 +8,21 @@
 
 基於 Vue 3 的 AIQuiz 單頁應用程式，提供**工作分頁**與**儀表板**介面，適合數據展示、工作流程與儀表板類專案。程式碼含中文註解，便於維護與擴充。
 
+### 上傳到新 Repository（aiquiz_frontend）
+
+本專案已改為獨立 Git 儲存庫。若要推送到 GitHub 上的新 repository `aiquiz_frontend`：
+
+1. 在 GitHub 建立新 repository，名稱設為 **aiquiz_frontend**（不要勾選「Add a README」）。
+2. 在專案目錄執行：
+
+```bash
+git remote add origin https://github.com/kevin7261/aiquiz_frontend.git
+git branch -M main
+git push -u origin main
+```
+
+若使用 SSH：`git remote add origin git@github.com:kevin7261/aiquiz_frontend.git`
+
 ---
 
 ## 目錄
