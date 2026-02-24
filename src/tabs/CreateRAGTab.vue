@@ -290,10 +290,93 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-function confirmAnswer(item) {
+async function confirmAnswer(item) {
   if (!item.answer.trim()) return;
+  const key = openaiApiKey.value?.trim();
+  if (!key) {
+    item.confirmed = true;
+    item.gradingResult = '請先在「Pack Folders」區塊輸入 OpenAI API Key 後再進行評分。';
+    return;
+  }
+  const gradeZip = uploadedZipFile.value;
+  if (!gradeZip) {
+    item.confirmed = true;
+    item.gradingResult = '評分需要參考講義：請先在「上傳 ZIP 檔」區塊上傳 RAG/講義 ZIP 後再進行評分。（或於伺服器放置 rag_db.zip）';
+    return;
+  }
   item.confirmed = true;
-  item.gradingResult = '批改結果將顯示於此（待後端串接）';
+  item.gradingResult = '批改中...';
+  try {
+    const form = new FormData();
+    form.append('file', gradeZip);
+    form.append('question_text', item.question);
+    form.append('student_answer', item.answer.trim());
+    form.append('qtype', filterQuestionType.value);
+    form.append('openai_api_key', key);
+    const res = await fetch(`${API_BASE}/api/grade_submission`, {
+      method: 'POST',
+      body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = res.statusText;
+      if (text) {
+        try {
+          const errBody = JSON.parse(text);
+          msg = errBody.detail != null ? (typeof errBody.detail === 'string' ? errBody.detail : JSON.stringify(errBody.detail)) : text;
+        } catch (_) {
+          msg = text;
+        }
+      }
+      const statusHint = res.status === 500 ? '（後端 500 錯誤，請檢查伺服器日誌或 API 設定）\n\n' : '';
+      item.gradingResult = `評分失敗：${statusHint}${msg}`;
+      return;
+    }
+    item.gradingResult = formatGradingResult(text) || '（無批改內容）';
+  } catch (err) {
+    item.gradingResult = `評分失敗：${err.message || '網路錯誤'}`;
+  }
+}
+
+/** 將評分 API 回傳的 JSON 轉成易讀文字 */
+function formatGradingResult(text) {
+  if (!text || typeof text !== 'string') return text;
+  const t = text.trim();
+  if (!t.startsWith('{')) return text;
+  try {
+    const data = JSON.parse(text);
+    const lines = [];
+    if (data.score != null) lines.push(`總分：${data.score} / 10`);
+    if (data.level) lines.push(`等級：${data.level}`);
+    if (lines.length) lines.push('');
+
+    const rubric = data.rubric;
+    if (Array.isArray(rubric) && rubric.length > 0) {
+      lines.push('【評分項目】');
+      rubric.forEach((r) => {
+        const criteria = r.criteria ?? '';
+        const score = r.score != null ? ` (${r.score}分)` : '';
+        const comment = r.comment ? `\n  ${r.comment}` : '';
+        lines.push(`• ${criteria}${score}${comment}`);
+      });
+      lines.push('');
+    }
+
+    const section = (title, arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      lines.push(`【${title}】`);
+      arr.forEach((s) => lines.push(`• ${s}`));
+      lines.push('');
+    };
+    section('優點', data.strengths);
+    section('待改進', data.weaknesses);
+    section('遺漏項目', data.missing_items);
+    section('建議後續', data.action_items);
+
+    return lines.join('\n').trim() || text;
+  } catch (_) {
+    return text;
+  }
 }
 
 function rewriteAnswer(item) {
@@ -578,7 +661,7 @@ function rewriteAnswer(item) {
             </div>
             <div class="border rounded my-bgcolor-gray-50 p-3">
               <div class="my-title-xs-gray mb-1">批改結果</div>
-              <div class="my-content-sm-black">{{ item.gradingResult || '尚未批改' }}</div>
+              <div class="my-content-sm-black" style="white-space: pre-wrap;">{{ item.gradingResult || '尚未批改' }}</div>
             </div>
           </div>
         </div>
