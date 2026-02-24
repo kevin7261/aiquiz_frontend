@@ -359,15 +359,33 @@ async function confirmAnswer(item) {
       }
       const maxPolls = 60; // 約 2 分鐘
       const intervalMs = 2000;
+      const maxRetries = 3;
+      const retryDelayMs = 2000;
+      const friendlyUnavailable = '評分失敗：後端暫時無法連線，可能是服務喚醒中，請稍後再試或重新送出。';
+
       for (let i = 0; i < maxPolls; i++) {
         await new Promise((r) => setTimeout(r, intervalMs));
-        const pollRes = await fetch(`${API_BASE}/api/grade_result/${jobId}`);
-        const pollText = await pollRes.text();
+        let pollRes = null;
+        let pollText = '';
+        for (let r = 0; r <= maxRetries; r++) {
+          if (r > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
+          try {
+            pollRes = await fetch(`${API_BASE}/api/grade_result/${jobId}`);
+            pollText = await pollRes.text();
+            if (pollRes.status !== 502 && pollRes.status !== 504) break;
+          } catch (_) {
+            // 網路錯誤也重試，最後一輪會由下方判斷 pollRes 為 null
+          }
+        }
+        if (!pollRes || pollRes.status === 502 || pollRes.status === 504) {
+          item.gradingResult = friendlyUnavailable;
+          return;
+        }
         let pollData;
         try {
           pollData = JSON.parse(pollText);
         } catch (_) {
-          item.gradingResult = `評分失敗：輪詢回應無法解析 (${pollRes.status})`;
+          item.gradingResult = friendlyUnavailable;
           return;
         }
         if (pollData.status === 'ready') {
@@ -378,7 +396,7 @@ async function confirmAnswer(item) {
           item.gradingResult = `評分失敗：${pollData.error || '未知錯誤'}`;
           return;
         }
-        // pending：繼續輪詢，可更新為「批改中... (第 N 次)」等
+        // pending：繼續輪詢
       }
       item.gradingResult = '評分逾時：請稍後再試或重新送出';
       return;
