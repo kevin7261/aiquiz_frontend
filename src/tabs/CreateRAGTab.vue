@@ -381,6 +381,11 @@ async function confirmAnswer(item) {
           item.gradingResult = friendlyUnavailable;
           return;
         }
+        // 404：job 不存在（例如服務重啟／冷啟動），顯示友善說明
+        if (pollRes.status === 404) {
+          item.gradingResult = '評分任務不存在或已過期（伺服器可能曾休眠或重啟），請重新送出評分。';
+          return;
+        }
         let pollData;
         try {
           pollData = JSON.parse(pollText);
@@ -393,7 +398,12 @@ async function confirmAnswer(item) {
           return;
         }
         if (pollData.status === 'error') {
-          item.gradingResult = `評分失敗：${pollData.error || '未知錯誤'}`;
+          // 404 有時被代理轉成 200，body 仍為 status/error；統一顯示友善說明
+          const errMsg = pollData.error || '';
+          const isJobNotFound = errMsg.includes('job not found');
+          item.gradingResult = isJobNotFound
+            ? '評分任務不存在或已過期（伺服器可能曾休眠或重啟），請重新送出評分。'
+            : `評分失敗：${pollData.error || '未知錯誤'}`;
           return;
         }
         // pending：繼續輪詢
