@@ -62,5 +62,20 @@ module.exports = defineConfig({
      * 'localhost' 僅允許本機訪問
      */
     host: '0.0.0.0',
+
+    /**
+     * 🔀 開發環境 API 代理（避開 CORS）
+     * 將 /api、/zip 轉發到 Render 後端，瀏覽器視為同源請求
+     */
+    proxy: {
+      '/api': {
+        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        changeOrigin: true,
+      },
+      '/zip': {
+        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        changeOrigin: true,
+      },
+    },
   },
 });
