@@ -15,7 +15,7 @@ function nextCardId() {
 const defaultQuestion = '什麼是空間分析（Spatial Analysis）？請簡述其在地理資訊系統中的應用和重要性。';
 const defaultHint = '空間分析是一組技術和方法，用於分析地理數據中的空間模式和關係。它可以幫助解決與位置相關的問題，並在城市規劃、環境管理和資源分配等領域中具有重要應用。';
 
-/** 每個 card：{ id, question, hint, answer, hintVisible, confirmed, gradingResult }；預設無題目 */
+/** 每個 card：{ id, question, hint, referenceAnswer, answer, hintVisible, confirmed, gradingResult }；預設無題目 */
 const cardList = ref([]);
 
 const API_BASE = 'http://127.0.0.1:8000';
@@ -176,6 +176,8 @@ async function confirmPack() {
         tasks,
         with_rag: withRag.value,
         openai_api_key: openaiApiKey.value?.trim() || undefined,
+        chunk_size: Number(chunkSize.value) || 1000,
+        chunk_overlap: Number(chunkOverlap.value) || 200,
       }),
     });
     const text = await res.text();
@@ -213,15 +215,17 @@ const filterQuestionType = ref('簡答題');
 const difficultyOptions = ['入門', '進階', '困難'];
 const questionTypeOptions = ['簡答題', '申論題', '選擇題'];
 
-function addCard(question = null, hint = null, sourceFilename = null) {
+function addCard(question = null, hint = null, sourceFilename = null, referenceAnswer = null) {
   const q = question ?? (cardList.value.length > 0 ? cardList.value[0].question : defaultQuestion);
   const h = hint ?? (cardList.value.length > 0 ? cardList.value[0].hint : defaultHint);
+  const refAns = referenceAnswer ?? (cardList.value.length > 0 ? cardList.value[0].referenceAnswer : '');
   cardList.value = [
     ...cardList.value,
     {
       id: nextCardId(),
       question: q,
       hint: h,
+      referenceAnswer: refAns,
       sourceFilename: sourceFilename ?? null,
       answer: '',
       hintVisible: false,
@@ -270,10 +274,11 @@ async function generateQuestion() {
     const data = text ? JSON.parse(text) : {};
     const questionContent = data.question_content ?? data.question ?? '';
     const hintText = data.hint ?? '';
+    const answerText = data.answer ?? '';
     const selectedUnit = generateQuestionUnits.value.find((u) => u.file_id === fileId);
     const zipName = selectedUnit?.filename ?? '';
-    if (questionContent) addCard(questionContent, hintText, zipName);
-    else addCard(null, null, zipName);
+    if (questionContent) addCard(questionContent, hintText, zipName, answerText);
+    else addCard(null, null, zipName, answerText);
   } catch (err) {
     generateQuestionError.value = err.message || '產生題目失敗';
   } finally {
@@ -387,6 +392,26 @@ function rewriteAnswer(item) {
                 autocomplete="off"
               >
             </div>
+            <div style="width: 100px;">
+              <label class="form-label my-title-xs-gray mb-1">chunk_size</label>
+              <input
+                v-model.number="chunkSize"
+                type="number"
+                min="1"
+                class="form-control form-control-sm"
+                placeholder="1000"
+              >
+            </div>
+            <div style="width: 100px;">
+              <label class="form-label my-title-xs-gray mb-1">chunk_overlap</label>
+              <input
+                v-model.number="chunkOverlap"
+                type="number"
+                min="0"
+                class="form-control form-control-sm"
+                placeholder="200"
+              >
+            </div>
             <button
               type="button"
               class="btn btn-sm btn-primary"
@@ -433,28 +458,6 @@ function rewriteAnswer(item) {
           <div v-if="packResponseJson !== null" class="mt-2">
             <div class="my-title-xs-gray mb-1">Pack API 完整回傳：</div>
             <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 240px;">{{ typeof packResponseJson === 'string' ? packResponseJson : JSON.stringify(packResponseJson, null, 2) }}</pre>
-          </div>
-        </div>
-        <div class="d-flex align-items-center gap-3 flex-wrap mt-3">
-          <div>
-            <label class="form-label my-title-xs-gray mb-1">chunk_size</label>
-            <input
-              v-model.number="chunkSize"
-              type="number"
-              min="1"
-              class="form-control form-control-sm"
-              style="width: 120px;"
-            >
-          </div>
-          <div>
-            <label class="form-label my-title-xs-gray mb-1">chunk_overlap</label>
-            <input
-              v-model.number="chunkOverlap"
-              type="number"
-              min="0"
-              class="form-control form-control-sm"
-              style="width: 120px;"
-            >
           </div>
         </div>
       </div>
@@ -530,6 +533,12 @@ function rewriteAnswer(item) {
               </button>
               <div v-show="item.hintVisible" class="rounded my-bgcolor-gray-100 my-title-xs-gray mt-2 p-2">
                 {{ item.hint }}
+              </div>
+            </div>
+            <div v-if="item.referenceAnswer" class="mb-3">
+              <div class="my-title-xs-gray mb-1">參考答案</div>
+              <div class="rounded my-bgcolor-gray-100 my-content-sm-black p-2">
+                {{ item.referenceAnswer }}
               </div>
             </div>
             <div class="mb-3">
