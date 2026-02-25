@@ -11,6 +11,7 @@
   import CreateRAGTab from '../tabs/CreateRAGTab.vue';
   import UserManagementTab from '../tabs/UserManagementTab.vue';
   import { useDataStore } from '../stores/dataStore.js';
+  import { useAuthStore } from '../stores/authStore.js';
 
   const TAB_LABELS = { work: '試題', dashboard: '儀表板', answerAnalysis: '答題分析', profile: '個資修改', createRAG: '建立 RAG', userManagement: '使用者管理' };
   let tabIdSeq = 0;
@@ -21,11 +22,12 @@
 
     setup() {
       const dataStore = useDataStore();
+      const authStore = useAuthStore();
       const tabs = ref([]);
       const activeTabId = ref(null);
-      /** 右上角顯示用：帳號與名稱（範例，之後可改為登入者資料） */
-      const userAccount = ref('user@example.com');
-      const userName = ref('王小明');
+      /** 右上角顯示：登入者 ID 與名稱 */
+      const userAccount = computed(() => (authStore.user ? `ID ${authStore.user.user_id}` : '未登入'));
+      const userName = computed(() => (authStore.user && authStore.user.name ? authStore.user.name : '—'));
 
       const hasOpenTabs = computed(() => tabs.value.length > 0);
 
