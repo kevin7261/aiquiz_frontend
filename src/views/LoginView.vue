@@ -1,6 +1,6 @@
 <script>
   /**
-   * LoginView - 登入頁，以 user_id 與 password 呼叫 POST /users/login，成功後寫入 authStore 並跳轉 /main。
+   * LoginView - 登入頁，以 person_id 與 password 呼叫 POST /users/login，成功後寫入 authStore 並跳轉 /main。
    */
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
@@ -13,28 +13,19 @@
     setup() {
       const router = useRouter();
       const authStore = useAuthStore();
-      const userId = ref('');
+      const personId = ref('');
       const password = ref('');
       const loading = ref(false);
       const error = ref('');
 
       const onLogin = async () => {
         error.value = '';
-        const id = parseInt(userId.value, 10);
-        if (Number.isNaN(id) || id < 1) {
-          error.value = '請輸入有效的使用者 ID（數字）';
-          return;
-        }
-        if (!password.value.trim()) {
-          error.value = '請輸入密碼';
-          return;
-        }
         loading.value = true;
         try {
           const res = await fetch(`${API_BASE}/users/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: id, password: password.value }),
+            body: JSON.stringify({ person_id: personId.value, password: password.value }),
           });
           const text = await res.text();
           if (!res.ok) {
@@ -49,7 +40,9 @@
             return;
           }
           const data = JSON.parse(text);
-          authStore.setUser(data.user);
+          // 支援回傳 { user: {...} } 或直接回傳使用者物件
+          const userData = data.user != null ? data.user : data;
+          authStore.setUser(userData);
           router.push('/main');
         } catch (e) {
           error.value = e.message || '無法連線，請確認後端已啟動';
@@ -58,7 +51,7 @@
         }
       };
 
-      return { userId, password, loading, error, onLogin };
+      return { personId, password, loading, error, onLogin };
     },
   };
 </script>
@@ -70,14 +63,13 @@
         <h4 class="card-title text-center mb-4">AIQuiz 登入</h4>
         <form @submit.prevent="onLogin">
           <div class="mb-3">
-            <label class="form-label" for="login-user-id">使用者 ID</label>
+            <label class="form-label" for="login-person-id">使用者 ID</label>
             <input
-              id="login-user-id"
-              v-model="userId"
+              id="login-person-id"
+              v-model="personId"
               type="text"
-              inputmode="numeric"
               class="form-control"
-              placeholder="請輸入使用者 ID（數字）"
+              placeholder="請輸入使用者 ID"
               autocomplete="username"
             />
           </div>
@@ -86,7 +78,7 @@
             <input
               id="login-password"
               v-model="password"
-              type="password"
+              type="text"
               class="form-control"
               placeholder="請輸入密碼"
               autocomplete="current-password"
