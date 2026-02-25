@@ -9,14 +9,15 @@
   import AnswerAnalysisTab from '../tabs/AnswerAnalysisTab.vue';
   import ProfileTab from '../tabs/ProfileTab.vue';
   import CreateRAGTab from '../tabs/CreateRAGTab.vue';
+  import UserManagementTab from '../tabs/UserManagementTab.vue';
   import { useDataStore } from '../stores/dataStore.js';
 
-  const TAB_LABELS = { work: '試題', dashboard: '儀表板', answerAnalysis: '答題分析', profile: '個資修改', createRAG: '建立 RAG' };
+  const TAB_LABELS = { work: '試題', dashboard: '儀表板', answerAnalysis: '答題分析', profile: '個資修改', createRAG: '建立 RAG', userManagement: '使用者管理' };
   let tabIdSeq = 0;
 
   export default {
     name: 'HomeView',
-    components: { LoadingOverlay, TestTab, DashboardTab, AnswerAnalysisTab, ProfileTab, CreateRAGTab },
+    components: { LoadingOverlay, TestTab, DashboardTab, AnswerAnalysisTab, ProfileTab, CreateRAGTab, UserManagementTab },
 
     setup() {
       const dataStore = useDataStore();
@@ -164,6 +165,9 @@
                 <a class="nav-link" href="#" @click.prevent="openTab('createRAG')">建立 RAG</a>
               </li>
               <li class="nav-item">
+                <a class="nav-link" href="#" @click.prevent="openTab('userManagement')">使用者管理</a>
+              </li>
+              <li class="nav-item">
                 <span class="text-muted small">{{ userAccount }} / {{ userName }}</span>
               </li>
             </ul>
@@ -212,6 +216,7 @@
               <AnswerAnalysisTab v-else-if="tab.type === 'answerAnalysis'" />
               <ProfileTab v-else-if="tab.type === 'profile'" />
               <CreateRAGTab v-else-if="tab.type === 'createRAG'" :tabId="tab.id" />
+              <UserManagementTab v-else-if="tab.type === 'userManagement'" />
             </div>
           </template>
         </main>
