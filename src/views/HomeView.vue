@@ -3,6 +3,7 @@
    * HomeView - 標題 AIQuiz；右上角「工作」「儀表板」按鈕開啟 tab（工作可開多個）；tab 列可切換與個別關閉。
    */
   import { ref, computed, onMounted } from 'vue';
+  import { useRouter } from 'vue-router';
   import LoadingOverlay from '../components/LoadingOverlay.vue';
   import TestTab from '../tabs/TestTab.vue';
   import DashboardTab from '../tabs/DashboardTab.vue';
@@ -21,6 +22,7 @@
     components: { LoadingOverlay, TestTab, DashboardTab, AnswerAnalysisTab, ProfileTab, CreateRAGTab, UserManagementTab },
 
     setup() {
+      const router = useRouter();
       const dataStore = useDataStore();
       const authStore = useAuthStore();
       const tabs = ref([]);
@@ -98,6 +100,11 @@
         dropTargetIndex.value = null;
       };
 
+      const onLogout = () => {
+        authStore.logout();
+        router.push('/login');
+      };
+
       onMounted(() => {
         openTab('work');
       });
@@ -119,6 +126,7 @@
         onTabDragLeave,
         onTabDrop,
         onTabDragEnd,
+        onLogout,
       };
     },
   };
@@ -137,7 +145,8 @@
     <div class="d-flex flex-column h-100">
       <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
-          <a class="navbar-brand" href="#">AIQuiz</a>
+          <span class="navbar-brand mb-0">AIQuiz</span>
+          <span v-if="userName" class="navbar-text ms-2">{{ userName }}</span>
           <button
             class="navbar-toggler"
             type="button"
@@ -171,6 +180,9 @@
               </li>
               <li class="nav-item">
                 <span class="text-muted small">{{ userAccount }} / {{ userName }}</span>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#" @click.prevent="onLogout">登出</a>
               </li>
             </ul>
           </div>
