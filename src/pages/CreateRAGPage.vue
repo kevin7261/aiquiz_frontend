@@ -148,15 +148,15 @@ function getDownloadUrl(url) {
   return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
 }
 
-/** 載入 RAG 列表（GET /zip/rag） */
+/** 載入 RAG 列表：GET /zip/rag 列出 Rag 表全部內容（與 GET /users 一樣回傳全部資料），每一筆一個 tab。 */
 async function fetchRagList() {
   ragListLoading.value = true;
   ragListError.value = '';
   try {
-    const res = await fetch(`${API_BASE}/zip/rag`);
+    const res = await fetch(`${API_BASE}/zip/rag`, { method: 'GET' });
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    ragList.value = Array.isArray(data) ? data : (data?.items ?? []);
+    ragList.value = Array.isArray(data) ? data : (data?.rags ?? data?.items ?? []);
   } catch (err) {
     ragListError.value = err.message || '無法載入 RAG 列表';
     ragList.value = [];
@@ -165,24 +165,30 @@ async function fetchRagList() {
   }
 }
 
+/** 畫面一打開就抓 GET /zip/rag，每一筆 RAG 一個 tab */
 onMounted(() => {
   fetchRagList();
 });
 
-/** 呼叫 POST /zip/create-rag：傳入 file_id 建立 Rag 表一筆資料（寫入 person_id）。person_id 由 Header X-Person-Id 傳入。若 file_id 尚未上傳則回傳 404。 */
+/** 呼叫 POST /zip/create-rag：僅傳入 person_id（Form 或 Header X-Person-Id），後端生成 file_id 並 insert 一筆到 Rag 表。回傳 rag_id、file_id、created_at。 */
 const createRagLoading = ref(false);
 const createRagError = ref('');
-async function callCreateRagApi(fileId) {
+/** create-rag 成功回傳的 created_at，用於 tab 標籤（key = rag_id） */
+const ragCreatedAtMap = ref({});
+/** @returns {{ rag_id, file_id, created_at } | null} */
+async function callCreateRagApi() {
   createRagLoading.value = true;
   createRagError.value = '';
   try {
-    const headers = { 'Content-Type': 'application/json' };
     const personId = authStore.user?.person_id;
+    const form = new URLSearchParams();
+    if (personId != null) form.append('person_id', String(personId));
+    const headers = {};
     if (personId != null) headers['X-Person-Id'] = String(personId);
     const res = await fetch(`${API_BASE}/zip/create-rag`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ file_id: fileId }),
+      body: form,
     });
     const text = await res.text();
     if (!res.ok) {
@@ -194,22 +200,25 @@ async function callCreateRagApi(fileId) {
       } catch (_) {
         if (text) msg = text;
       }
-      if (res.status === 404) {
-        msg = '該 file_id 在 RAG 表尚無紀錄（請先上傳 ZIP 取得 file_id 後再建立 RAG）。';
-      }
       throw new Error(msg);
     }
     await fetchRagList();
-    let newFileId = null;
+    let result = null;
     if (text) {
       try {
         const data = JSON.parse(text);
-        newFileId = data?.file_id ?? data?.id ?? null;
+        const ragId = data?.rag_id ?? data?.id ?? null;
+        const fileId = data?.file_id ?? null;
+        const createdAt = data?.created_at ?? null;
+        if (ragId != null && createdAt != null) {
+          ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(ragId)]: createdAt };
+        }
+        result = { rag_id: ragId, file_id: fileId, created_at: createdAt };
       } catch {
         // 回傳非 JSON 時忽略
       }
     }
-    return newFileId;
+    return result;
   } catch (err) {
     createRagError.value = err.message || '請求失敗';
     return null;
@@ -218,7 +227,7 @@ async function callCreateRagApi(fileId) {
   }
 }
 
-/** 點「新增」：多一個「新增」tab 並切過去 */
+/** 點「新增」：只加一個新 tab（不 call API），在該 tab 內點「建立RAG」才呼叫 create-rag */
 function addNewTab() {
   const id = 'new-' + generateTabFileId();
   newTabIds.value = [...newTabIds.value, id];
@@ -226,22 +235,26 @@ function addNewTab() {
   if (ragList.value.length === 0) showFormWhenNoData.value = true;
 }
 
-/** file_id 後的「新增」：用當前 file_id 呼叫 /create-rag */
-async function onCreateRagFromFileId() {
-  const fid = currentState.value.tabFileId || currentState.value.zipFileId || '';
-  if (!fid.trim()) {
-    createRagError.value = '請先有 file_id（上傳 ZIP 或選取 RAG tab）';
-    return;
+/** 建立 RAG：僅傳 person_id，由 API 回傳 file_id，成功後切到新 RAG tab 並移除「新增」tab */
+async function onCreateRag() {
+  const currentTabId = activeTabId.value;
+  const result = await callCreateRagApi();
+  if (result != null && result.file_id != null) {
+    if (isNewTabId(currentTabId)) {
+      newTabIds.value = newTabIds.value.filter((id) => id !== currentTabId);
+    }
+    activeTabId.value = result.file_id;
   }
-  await callCreateRagApi(fid.trim());
 }
 
-/** 取得 RAG 顯示名稱（用於 tab 標籤） */
+/** 取得 RAG 顯示名稱（用於 tab 標籤）；create-rag 成功後優先顯示 created_at */
 function getRagTabLabel(rag) {
   if (rag == null) return 'RAG';
-  if (typeof rag === 'string') return rag;
+  if (typeof rag === 'string') return ragCreatedAtMap.value[rag] ?? String(rag);
   if (typeof rag !== 'object') return String(rag);
-  return rag.filename ?? rag.name ?? rag.file_id ?? 'RAG';
+  const id = rag.rag_id ?? rag.file_id ?? rag.id;
+  const fromMap = id != null ? ragCreatedAtMap.value[String(id)] : undefined;
+  return fromMap ?? rag.created_at ?? rag.filename ?? rag.name ?? rag.file_id ?? 'RAG';
 }
 
 function onZipChange(e) {
@@ -324,7 +337,7 @@ async function confirmUploadZip() {
 /** 按下確定：將 OpenAI API Key 上傳到資料庫（PUT /zip/llm-api-key） */
 async function confirmSetLlmApiKey() {
   const state = currentState.value;
-  const fileId = state.zipFileId?.trim();
+  const fileId = String(state.zipFileId ?? '').trim();
   const key = openaiApiKey.value?.trim();
   if (!fileId) {
     state.llmKeyError = '請先上傳 ZIP 檔取得 file_id';
@@ -372,7 +385,7 @@ async function confirmSetLlmApiKey() {
 /** 呼叫 /zip/pack */
 async function confirmPack() {
   const state = currentState.value;
-  const fileId = state.zipFileId?.trim();
+  const fileId = String(state.zipFileId ?? '').trim();
   const tasks = state.packTasks?.trim();
   if (!fileId) {
     state.packError = '請輸入 file_id（或先上傳 ZIP 取得）';
@@ -673,7 +686,7 @@ function rewriteAnswer(item) {
 <template>
   <div class="d-flex flex-column my-bgcolor-gray-200 h-100">
     <div class="flex-grow-1 overflow-auto my-bgcolor-white p-4">
-      <!-- 每個 tab = 一筆 /zip/rag 資料；tab 旁「新增」= 切到全新的建立 RAG 畫面（不 call API） -->
+      <!-- 每個 tab = 一筆 /zip/rag 資料；「新增」= 只加新 tab，在該 tab 內點「建立RAG」才 call API -->
       <div class="d-flex align-items-center gap-2 mb-3">
         <template v-if="ragListLoading">
           <span class="small text-muted">載入中...</span>
@@ -727,19 +740,19 @@ function rewriteAnswer(item) {
 
       <!-- 無資料時不顯示表單，點「新增」後才顯示；有資料時一律顯示 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
-      <!-- 本頁 file_id：建立時生成／當前 RAG 的 file_id；後方「建立RAG」按鈕呼叫 POST /zip/create-rag -->
-      <div class="my-bgcolor-gray-100 rounded text-start p-3 mb-3 d-flex align-items-center gap-2 flex-wrap">
-        <span class="my-title-xs-gray">file_id：</span>
-        <code class="my-content-sm-black">{{ currentState.tabFileId }}</code>
+      <div v-if="createRagError" class="alert alert-danger py-2 small mb-3">
+        {{ createRagError }}
+      </div>
+      <!-- 僅在「新增」tab 顯示：建立 RAG 按鈕（僅傳 person_id，API 回傳 file_id 後切到該 RAG tab） -->
+      <div v-if="isNewTabId(activeTabId)" class="my-bgcolor-gray-100 rounded text-start p-3 mb-3 d-flex align-items-center gap-2 flex-wrap">
         <button
           type="button"
           class="btn btn-sm btn-primary"
-          :disabled="createRagLoading || !(currentState.tabFileId || currentState.zipFileId)?.trim()"
-          @click="onCreateRagFromFileId"
+          :disabled="createRagLoading"
+          @click="onCreateRag"
         >
           {{ createRagLoading ? '處理中...' : '建立RAG' }}
         </button>
-        <span v-if="createRagError" class="text-danger small">{{ createRagError }}</span>
       </div>
       <!-- 上傳 ZIP 檔：置頂 -->
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
@@ -809,7 +822,7 @@ function rewriteAnswer(item) {
           <button
             type="button"
             class="btn btn-sm btn-primary"
-            :disabled="currentState.llmKeyLoading || !currentState.zipFileId?.trim() || !openaiApiKey?.trim()"
+            :disabled="currentState.llmKeyLoading || !String(currentState.zipFileId ?? '').trim() || !openaiApiKey?.trim()"
             @click="confirmSetLlmApiKey"
           >
             {{ currentState.llmKeyLoading ? '上傳中...' : '確定' }}
