@@ -71,14 +71,18 @@ module.exports = defineConfig({
 
     /**
      * 🔀 開發環境 API 代理（避開 CORS）
-     * 將 /api、/zip 轉發到 Render 後端，瀏覽器視為同源請求
+     * 將 /api、/rag、/user 轉發到 Render 後端，瀏覽器視為同源請求
      */
     proxy: {
       '/api': {
         target: 'https://aiquiz-backend-z4mo.onrender.com',
         changeOrigin: true,
       },
-      '/zip': {
+      '/rag': {
+        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        changeOrigin: true,
+      },
+      '/user': {
         target: 'https://aiquiz-backend-z4mo.onrender.com',
         changeOrigin: true,
       },

@@ -1,6 +1,6 @@
 <script>
   /**
-   * LoginView - 登入頁，以 person_id 與 password 呼叫 POST /users/login，成功後寫入 authStore 並跳轉 /main。
+   * LoginView - 登入頁，以 person_id 與 password 呼叫 POST /user/login，成功後寫入 authStore 並跳轉 /main。
    */
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
@@ -22,7 +22,7 @@
         error.value = '';
         loading.value = true;
         try {
-          const res = await fetch(`${API_BASE}/users/login`, {
+          const res = await fetch(`${API_BASE}/user/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ person_id: personId.value, password: password.value }),
