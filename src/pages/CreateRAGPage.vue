@@ -1,6 +1,6 @@
 <script setup>
-/** 建立 RAG 頁面。使用 tabId 與資料對應，card 列表含題目、提示、回答與唯一 id。 */
-import { ref, computed, watch, onMounted } from 'vue';
+/** 建立 RAG 頁面。使用 tab 對應每筆 RAG 資料（GET /zip/rag），每個 tab 獨立狀態。 */
+import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 
 defineProps({
@@ -12,7 +12,6 @@ function generateTabFileId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // 無 crypto.randomUUID 時模擬 UUID v4 格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
   const hex = () => Math.floor(Math.random() * 16).toString(16);
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) =>
     (c === 'x' ? hex() : (parseInt(hex(), 16) & 0x3) | 0x8).toString(16)
@@ -28,53 +27,81 @@ function nextCardId() {
 const defaultQuestion = '什麼是空間分析（Spatial Analysis）？請簡述其在地理資訊系統中的應用和重要性。';
 const defaultHint = '空間分析是一組技術和方法，用於分析地理數據中的空間模式和關係。它可以幫助解決與位置相關的問題，並在城市規劃、環境管理和資源分配等領域中具有重要應用。';
 
-/** 每個 card：{ id, question, hint, referenceAnswer, answer, hintVisible, confirmed, gradingResult }；預設無題目 */
-const cardList = ref([]);
-
 /** 後端網址 */
 const API_BASE = 'http://127.0.0.1:8000';
 const authStore = useAuthStore();
 
-/** 上傳的 zip 檔案 */
-const uploadedZipFile = ref(null);
-const zipFileName = ref('');
+/** RAG 列表（GET /zip/rag）、載入中、錯誤 */
+const ragList = ref([]);
+const ragListLoading = ref(false);
+const ragListError = ref('');
+/** 當前 tab：為 RAG 的 file_id 或「新增」tab 的 id（new-xxx） */
+const activeTabId = ref(null);
+/** 無資料時，點「新增」後才顯示建立 RAG 表單 */
+const showFormWhenNoData = ref(false);
+/** 每次點「新增」產生一個新 tab，存這些 tab 的 id（new-xxx） */
+const newTabIds = ref([]);
 
-/** ZIP 上傳 API：第二層資料夾清單、完整回傳 JSON、載入中、錯誤訊息 */
-const zipSecondFolders = ref([]);
-const zipResponseJson = ref(null);
-const zipLoading = ref(false);
-const zipError = ref('');
+/** 是否為「新增」用的 tab id（未存在於 DB） */
+function isNewTabId(id) {
+  return id === 'new' || (typeof id === 'string' && id.startsWith('new-'));
+}
 
-/** 本頁建立時生成的 file_id，固定顯示在最上方（上傳 ZIP 後 API 回傳的 file_id 寫入 zipFileId，供 Pack／LLM Key 等使用） */
-const tabFileId = ref('');
-/** Pack Folders：上傳後取得的 file_id、tasks、是否一併產生 RAG、OpenAI API key、完整回傳、載入中、錯誤 */
-const zipFileId = ref('');
+/** 每個 tab 的狀態（key = file_id 或 new-xxx） */
+const tabStateMap = reactive({});
 
-onMounted(() => {
-  tabFileId.value = generateTabFileId();
+function getTabState(id) {
+  if (!id) return getTabState(newTabIds.value[0] || ragList.value[0]?.file_id || 'new');
+  if (!tabStateMap[id]) {
+    const isNew = isNewTabId(id);
+    tabStateMap[id] = reactive({
+      tabFileId: isNew ? generateTabFileId() : id,
+      uploadedZipFile: null,
+      zipFileName: '',
+      zipSecondFolders: [],
+      zipResponseJson: null,
+      zipLoading: false,
+      zipError: '',
+      zipFileId: isNew ? '' : id,
+      packTasks: '',
+      withRag: true,
+      packResponseJson: null,
+      packLoading: false,
+      packError: '',
+      llmKeyLoading: false,
+      llmKeyError: '',
+      llmKeySuccess: '',
+      generateQuestionFileId: '',
+      generateQuestionLoading: false,
+      generateQuestionError: '',
+      cardList: [],
+    });
+  }
+  return tabStateMap[id];
+}
+
+/** 當前 tab 的狀態（template 與方法內使用） */
+const currentState = computed(() => {
+  const id = activeTabId.value;
+  if (id) return getTabState(id);
+  const firstNew = newTabIds.value[0];
+  const firstRag = ragList.value[0];
+  return getTabState(firstNew || (firstRag && (firstRag.file_id ?? firstRag.id ?? firstRag)) || 'new');
 });
-const packTasks = ref('');
-const withRag = ref(true);
+
+/** 全畫面共用 */
 const openaiApiKey = ref('');
-const packResponseJson = ref(null);
-const packLoading = ref(false);
-const packError = ref('');
 
-/** 上傳 API Key 到資料庫（PUT /zip/llm-api-key）：載入中、錯誤、成功訊息 */
-const llmKeyLoading = ref(false);
-const llmKeyError = ref('');
-const llmKeySuccess = ref('');
-
-/** Pack 回傳的 outputs 陣列，供表格顯示每個 ZIP 的壓縮檔與 RAG 下載連結 */
+/** Pack 回傳的 outputs 陣列（依當前 tab 的 packResponseJson） */
 const packOutputs = computed(() => {
-  const data = packResponseJson.value;
+  const data = currentState.value.packResponseJson;
   if (!data || typeof data !== 'object') return [];
   return Array.isArray(data.outputs) ? data.outputs : [];
 });
 
-/** 產生題目：選擇單元 = 壓縮檔名下拉（來自 Pack 的 outputs，顯示 filename 如 220222.zip，非 RAG 名） */
+/** 產生題目：選擇單元 = 壓縮檔名下拉 */
 const generateQuestionUnits = computed(() => {
-  const data = packResponseJson.value;
+  const data = currentState.value.packResponseJson;
   const out = packOutputs.value;
   const singleFileId = data && typeof data === 'object' && data.file_id != null ? data.file_id : null;
   const withId = out.filter((o) => o && (o.file_id != null || o.rag_file_id != null));
@@ -92,13 +119,24 @@ const generateQuestionUnits = computed(() => {
   }
   return [];
 });
-const generateQuestionFileId = ref('');
-const generateQuestionLoading = ref(false);
-const generateQuestionError = ref('');
+
+/** 難度、題型、chunk 參數（共用） */
+const filterDifficulty = ref('入門');
+const filterQuestionType = ref('簡答題');
+const chunkSize = ref(1000);
+const chunkOverlap = ref(200);
 
 watch(generateQuestionUnits, (units) => {
-  if (units.length && !generateQuestionFileId.value) {
-    generateQuestionFileId.value = units[0].file_id;
+  const state = currentState.value;
+  if (units.length && !state.generateQuestionFileId) {
+    state.generateQuestionFileId = units[0].file_id;
+  }
+}, { immediate: true });
+
+/** 有 RAG 資料時預設選第一個 tab */
+watch(ragList, (list) => {
+  if (list.length > 0 && activeTabId.value == null) {
+    activeTabId.value = list[0].file_id ?? list[0].id ?? list[0];
   }
 }, { immediate: true });
 
@@ -110,47 +148,145 @@ function getDownloadUrl(url) {
   return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
 }
 
+/** 載入 RAG 列表（GET /zip/rag） */
+async function fetchRagList() {
+  ragListLoading.value = true;
+  ragListError.value = '';
+  try {
+    const res = await fetch(`${API_BASE}/zip/rag`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    ragList.value = Array.isArray(data) ? data : (data?.items ?? []);
+  } catch (err) {
+    ragListError.value = err.message || '無法載入 RAG 列表';
+    ragList.value = [];
+  } finally {
+    ragListLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchRagList();
+});
+
+/** 呼叫 POST /zip/create-rag：傳入 file_id 建立 Rag 表一筆資料（寫入 person_id）。person_id 由 Header X-Person-Id 傳入。若 file_id 尚未上傳則回傳 404。 */
+const createRagLoading = ref(false);
+const createRagError = ref('');
+async function callCreateRagApi(fileId) {
+  createRagLoading.value = true;
+  createRagError.value = '';
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    const personId = authStore.user?.person_id;
+    if (personId != null) headers['X-Person-Id'] = String(personId);
+    const res = await fetch(`${API_BASE}/zip/create-rag`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const errBody = JSON.parse(text);
+        msg = errBody.detail ?? errBody.message ?? msg;
+        if (typeof msg !== 'string') msg = JSON.stringify(msg);
+      } catch (_) {
+        if (text) msg = text;
+      }
+      if (res.status === 404) {
+        msg = '該 file_id 在 RAG 表尚無紀錄（請先上傳 ZIP 取得 file_id 後再建立 RAG）。';
+      }
+      throw new Error(msg);
+    }
+    await fetchRagList();
+    let newFileId = null;
+    if (text) {
+      try {
+        const data = JSON.parse(text);
+        newFileId = data?.file_id ?? data?.id ?? null;
+      } catch {
+        // 回傳非 JSON 時忽略
+      }
+    }
+    return newFileId;
+  } catch (err) {
+    createRagError.value = err.message || '請求失敗';
+    return null;
+  } finally {
+    createRagLoading.value = false;
+  }
+}
+
+/** 點「新增」：多一個「新增」tab 並切過去 */
+function addNewTab() {
+  const id = 'new-' + generateTabFileId();
+  newTabIds.value = [...newTabIds.value, id];
+  activeTabId.value = id;
+  if (ragList.value.length === 0) showFormWhenNoData.value = true;
+}
+
+/** file_id 後的「新增」：用當前 file_id 呼叫 /create-rag */
+async function onCreateRagFromFileId() {
+  const fid = currentState.value.tabFileId || currentState.value.zipFileId || '';
+  if (!fid.trim()) {
+    createRagError.value = '請先有 file_id（上傳 ZIP 或選取 RAG tab）';
+    return;
+  }
+  await callCreateRagApi(fid.trim());
+}
+
+/** 取得 RAG 顯示名稱（用於 tab 標籤） */
+function getRagTabLabel(rag) {
+  if (rag == null) return 'RAG';
+  if (typeof rag === 'string') return rag;
+  if (typeof rag !== 'object') return String(rag);
+  return rag.filename ?? rag.name ?? rag.file_id ?? 'RAG';
+}
+
 function onZipChange(e) {
+  const state = currentState.value;
   const file = e.target.files?.[0];
   if (file) {
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      uploadedZipFile.value = null;
-      zipFileName.value = '';
-      zipSecondFolders.value = [];
-      zipResponseJson.value = null;
-      zipFileId.value = '';
-      zipError.value = '請選擇 .zip 檔案';
+      state.uploadedZipFile = null;
+      state.zipFileName = '';
+      state.zipSecondFolders = [];
+      state.zipResponseJson = null;
+      state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
+      state.zipError = '請選擇 .zip 檔案';
       return;
     }
-    uploadedZipFile.value = file;
-    zipFileName.value = file.name;
-    zipSecondFolders.value = [];
-    zipResponseJson.value = null;
-    zipError.value = '';
+    state.uploadedZipFile = file;
+    state.zipFileName = file.name;
+    state.zipSecondFolders = [];
+    state.zipResponseJson = null;
+    state.zipError = '';
   } else {
-    uploadedZipFile.value = null;
-    zipFileName.value = '';
-    zipSecondFolders.value = [];
-    zipResponseJson.value = null;
-    zipFileId.value = '';
-    zipError.value = '';
+    state.uploadedZipFile = null;
+    state.zipFileName = '';
+    state.zipSecondFolders = [];
+    state.zipResponseJson = null;
+    state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
+    state.zipError = '';
   }
 }
 
 /** 按下確定：上傳 ZIP（/zip/upload-zip）並取得 file_id、第二層資料夾清單 */
 async function confirmUploadZip() {
-  if (!uploadedZipFile.value) {
-    zipError.value = '請先選擇 ZIP 檔案';
+  const state = currentState.value;
+  if (!state.uploadedZipFile) {
+    state.zipError = '請先選擇 ZIP 檔案';
     return;
   }
-  zipLoading.value = true;
-  zipError.value = '';
-  zipSecondFolders.value = [];
-  zipResponseJson.value = null;
-  zipFileId.value = '';
+  state.zipLoading = true;
+  state.zipError = '';
+  state.zipSecondFolders = [];
+  state.zipResponseJson = null;
+  state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
   try {
     const formData = new FormData();
-    formData.append('file', uploadedZipFile.value);
+    formData.append('file', state.uploadedZipFile);
     const personId = authStore.user?.person_id;
     if (personId != null) formData.append('person_id', String(personId));
     const headers = {};
@@ -166,43 +302,43 @@ async function confirmUploadZip() {
       throw new Error(`${res.status}: ${msg}`);
     }
     const data = await res.json();
-    // 後端回傳 { file_id?, filename?, second_folders: [...] }
-    zipResponseJson.value = data;
-    if (data?.file_id != null) zipFileId.value = String(data.file_id);
-    zipSecondFolders.value = Array.isArray(data?.second_folders)
+    state.zipResponseJson = data;
+    if (data?.file_id != null) state.zipFileId = String(data.file_id);
+    state.zipSecondFolders = Array.isArray(data?.second_folders)
       ? data.second_folders
       : Array.isArray(data)
         ? data
         : [];
   } catch (err) {
     const is504 = err.message?.includes('504') || (err.name === 'TypeError' && err.message?.includes('Failed to fetch'));
-    zipError.value = is504
+    state.zipError = is504
       ? '後端正在啟動中（約需 1 分鐘），請稍後再試一次'
       : err.message || '上傳失敗';
-    zipSecondFolders.value = [];
-    zipResponseJson.value = null;
+    state.zipSecondFolders = [];
+    state.zipResponseJson = null;
   } finally {
-    zipLoading.value = false;
+    state.zipLoading = false;
   }
 }
 
-/** 按下確定：將 OpenAI API Key 上傳到資料庫（PUT /zip/llm-api-key），需先上傳 ZIP 取得 file_id */
+/** 按下確定：將 OpenAI API Key 上傳到資料庫（PUT /zip/llm-api-key） */
 async function confirmSetLlmApiKey() {
-  const fileId = zipFileId.value?.trim();
+  const state = currentState.value;
+  const fileId = state.zipFileId?.trim();
   const key = openaiApiKey.value?.trim();
   if (!fileId) {
-    llmKeyError.value = '請先上傳 ZIP 檔取得 file_id';
-    llmKeySuccess.value = '';
+    state.llmKeyError = '請先上傳 ZIP 檔取得 file_id';
+    state.llmKeySuccess = '';
     return;
   }
   if (!key) {
-    llmKeyError.value = '請輸入 OpenAI API Key';
-    llmKeySuccess.value = '';
+    state.llmKeyError = '請輸入 OpenAI API Key';
+    state.llmKeySuccess = '';
     return;
   }
-  llmKeyLoading.value = true;
-  llmKeyError.value = '';
-  llmKeySuccess.value = '';
+  state.llmKeyLoading = true;
+  state.llmKeyError = '';
+  state.llmKeySuccess = '';
   try {
     const res = await fetch(`${API_BASE}/zip/llm-api-key`, {
       method: 'PUT',
@@ -212,7 +348,7 @@ async function confirmSetLlmApiKey() {
     const text = await res.text();
     if (!res.ok) {
       if (res.status === 404) {
-        llmKeyError.value = '該 file_id 在 RAG 表尚無紀錄，請先執行 Pack 產生 RAG 後再儲存 API Key。';
+        state.llmKeyError = '該 file_id 在 RAG 表尚無紀錄，請先執行 Pack 產生 RAG 後再儲存 API Key。';
       } else {
         let msg = res.statusText;
         try {
@@ -221,33 +357,34 @@ async function confirmSetLlmApiKey() {
         } catch (_) {
           if (text) msg = text;
         }
-        llmKeyError.value = msg;
+        state.llmKeyError = msg;
       }
       return;
     }
-    llmKeySuccess.value = 'API Key 已成功寫入資料庫。';
+    state.llmKeySuccess = 'API Key 已成功寫入資料庫。';
   } catch (err) {
-    llmKeyError.value = err.message || '上傳失敗';
+    state.llmKeyError = err.message || '上傳失敗';
   } finally {
-    llmKeyLoading.value = false;
+    state.llmKeyLoading = false;
   }
 }
 
-/** 呼叫 /zip/pack：依 file_id 與 tasks 壓縮指定資料夾，回傳新 file_id、filename 等 */
+/** 呼叫 /zip/pack */
 async function confirmPack() {
-  const fileId = zipFileId.value?.trim();
-  const tasks = packTasks.value?.trim();
+  const state = currentState.value;
+  const fileId = state.zipFileId?.trim();
+  const tasks = state.packTasks?.trim();
   if (!fileId) {
-    packError.value = '請輸入 file_id（或先上傳 ZIP 取得）';
+    state.packError = '請輸入 file_id（或先上傳 ZIP 取得）';
     return;
   }
   if (!tasks) {
-    packError.value = '請輸入 tasks（例：220222+220301 或 220222,220301+220302）';
+    state.packError = '請輸入 tasks（例：220222+220301 或 220222,220301+220302）';
     return;
   }
-  packLoading.value = true;
-  packError.value = '';
-  packResponseJson.value = null;
+  state.packLoading = true;
+  state.packError = '';
+  state.packResponseJson = null;
   try {
     const res = await fetch(`${API_BASE}/zip/pack`, {
       method: 'POST',
@@ -255,7 +392,7 @@ async function confirmPack() {
       body: JSON.stringify({
         file_id: fileId,
         tasks,
-        with_rag: withRag.value,
+        with_rag: state.withRag,
         openai_api_key: openaiApiKey.value?.trim() || undefined,
         chunk_size: Number(chunkSize.value) || 1000,
         chunk_overlap: Number(chunkOverlap.value) || 200,
@@ -273,35 +410,29 @@ async function confirmPack() {
       throw new Error(msg);
     }
     try {
-      packResponseJson.value = text ? JSON.parse(text) : null;
+      state.packResponseJson = text ? JSON.parse(text) : null;
     } catch (_) {
-      packResponseJson.value = text;
+      state.packResponseJson = text;
     }
   } catch (err) {
-    packError.value = err.message || '壓縮失敗';
-    packResponseJson.value = null;
+    state.packError = err.message || '壓縮失敗';
+    state.packResponseJson = null;
   } finally {
-    packLoading.value = false;
+    state.packLoading = false;
   }
 }
-
-/** RAG 分塊參數 */
-const chunkSize = ref(1000);
-const chunkOverlap = ref(200);
-
-/** 難度、題型（用於 RAG 產生題目 API） */
-const filterDifficulty = ref('入門');
-const filterQuestionType = ref('簡答題');
 
 const difficultyOptions = ['入門', '進階', '困難'];
 const questionTypeOptions = ['簡答題', '申論題', '選擇題'];
 
 function addCard(question = null, hint = null, sourceFilename = null, referenceAnswer = null) {
-  const q = question ?? (cardList.value.length > 0 ? cardList.value[0].question : defaultQuestion);
-  const h = hint ?? (cardList.value.length > 0 ? cardList.value[0].hint : defaultHint);
-  const refAns = referenceAnswer ?? (cardList.value.length > 0 ? cardList.value[0].referenceAnswer : '');
-  cardList.value = [
-    ...cardList.value,
+  const state = currentState.value;
+  const list = state.cardList;
+  const q = question ?? (list.length > 0 ? list[0].question : defaultQuestion);
+  const h = hint ?? (list.length > 0 ? list[0].hint : defaultHint);
+  const refAns = referenceAnswer ?? (list.length > 0 ? list[0].referenceAnswer : '');
+  state.cardList = [
+    ...list,
     {
       id: nextCardId(),
       question: q,
@@ -316,20 +447,21 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
   ];
 }
 
-/** 呼叫 /zip/generate-question：依 RAG file_id 產生題目，使用同一 OpenAI API Key */
+/** 呼叫 /zip/generate-question */
 async function generateQuestion() {
-  const fileId = generateQuestionFileId.value?.trim();
+  const state = currentState.value;
+  const fileId = state.generateQuestionFileId?.trim();
   const key = openaiApiKey.value?.trim();
   if (!fileId) {
-    generateQuestionError.value = '請先選擇單元（需先執行 Pack 取得 RAG 壓縮檔）';
+    state.generateQuestionError = '請先選擇單元（需先執行 Pack 取得 RAG 壓縮檔）';
     return;
   }
   if (!key) {
-    generateQuestionError.value = '請輸入 OpenAI API Key';
+    state.generateQuestionError = '請輸入 OpenAI API Key';
     return;
   }
-  generateQuestionLoading.value = true;
-  generateQuestionError.value = '';
+  state.generateQuestionLoading = true;
+  state.generateQuestionError = '';
   try {
     const res = await fetch(`${API_BASE}/zip/generate-question`, {
       method: 'POST',
@@ -361,9 +493,9 @@ async function generateQuestion() {
     if (questionContent) addCard(questionContent, hintText, zipName, answerText);
     else addCard(null, null, zipName, answerText);
   } catch (err) {
-    generateQuestionError.value = err.message || '產生題目失敗';
+    state.generateQuestionError = err.message || '產生題目失敗';
   } finally {
-    generateQuestionLoading.value = false;
+    state.generateQuestionLoading = false;
   }
 }
 
@@ -379,7 +511,7 @@ async function confirmAnswer(item) {
     item.gradingResult = '請先在畫面上方輸入 OpenAI API Key 後再進行評分。';
     return;
   }
-  const gradeZip = uploadedZipFile.value;
+  const gradeZip = currentState.value.uploadedZipFile;
   if (!gradeZip) {
     item.confirmed = true;
     item.gradingResult = '評分需要參考講義：請先在「上傳 ZIP 檔」區塊上傳 RAG/講義 ZIP 後再進行評分。（或於伺服器放置 rag_db.zip）';
@@ -541,10 +673,73 @@ function rewriteAnswer(item) {
 <template>
   <div class="d-flex flex-column my-bgcolor-gray-200 h-100">
     <div class="flex-grow-1 overflow-auto my-bgcolor-white p-4">
-      <!-- 本頁 file_id：建立時生成，顯示最上方 -->
-      <div class="my-bgcolor-gray-100 rounded text-start p-3 mb-3">
+      <!-- 每個 tab = 一筆 /zip/rag 資料；tab 旁「新增」= 切到全新的建立 RAG 畫面（不 call API） -->
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <template v-if="ragListLoading">
+          <span class="small text-muted">載入中...</span>
+        </template>
+        <template v-else-if="ragList.length === 0 && newTabIds.length === 0">
+          <button
+            type="button"
+            class="btn btn-sm btn-primary"
+            @click="addNewTab"
+          >
+            新增
+          </button>
+        </template>
+        <template v-else>
+          <ul class="nav nav-tabs mb-0">
+            <li v-for="rag in ragList" :key="'rag-' + (rag.file_id ?? rag.id ?? rag)" class="nav-item">
+              <button
+                type="button"
+                class="nav-link"
+                :class="{ active: activeTabId === (rag.file_id ?? rag.id ?? rag) }"
+                @click="activeTabId = (rag.file_id ?? rag.id ?? String(rag))"
+              >
+                {{ getRagTabLabel(rag) }}
+              </button>
+            </li>
+            <li v-for="(tid, idx) in newTabIds" :key="'new-' + tid" class="nav-item">
+              <button
+                type="button"
+                class="nav-link"
+                :class="{ active: activeTabId === tid }"
+                @click="activeTabId = tid"
+              >
+                新增{{ newTabIds.length > 1 ? ' ' + (idx + 1) : '' }}
+              </button>
+            </li>
+            <li class="nav-item ms-2 align-self-center">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                @click="addNewTab"
+              >
+                新增
+              </button>
+            </li>
+          </ul>
+        </template>
+      </div>
+      <div v-if="ragListError" class="alert alert-warning py-2 small mb-3">
+        {{ ragListError }}
+      </div>
+
+      <!-- 無資料時不顯示表單，點「新增」後才顯示；有資料時一律顯示 -->
+      <template v-if="ragList.length > 0 || showFormWhenNoData">
+      <!-- 本頁 file_id：建立時生成／當前 RAG 的 file_id；後方「建立RAG」按鈕呼叫 POST /zip/create-rag -->
+      <div class="my-bgcolor-gray-100 rounded text-start p-3 mb-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="my-title-xs-gray">file_id：</span>
-        <code class="my-content-sm-black">{{ tabFileId }}</code>
+        <code class="my-content-sm-black">{{ currentState.tabFileId }}</code>
+        <button
+          type="button"
+          class="btn btn-sm btn-primary"
+          :disabled="createRagLoading || !(currentState.tabFileId || currentState.zipFileId)?.trim()"
+          @click="onCreateRagFromFileId"
+        >
+          {{ createRagLoading ? '處理中...' : '建立RAG' }}
+        </button>
+        <span v-if="createRagError" class="text-danger small">{{ createRagError }}</span>
       </div>
       <!-- 上傳 ZIP 檔：置頂 -->
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
@@ -556,31 +751,31 @@ function rewriteAnswer(item) {
             accept=".zip"
             class="form-control form-control-sm"
             style="max-width: 240px;"
-            :disabled="zipLoading"
+            :disabled="currentState.zipLoading"
             @change="onZipChange"
           >
-          <span v-if="zipFileName" class="my-content-sm-black">{{ zipFileName }}</span>
+          <span v-if="currentState.zipFileName" class="my-content-sm-black">{{ currentState.zipFileName }}</span>
           <button
             type="button"
             class="btn btn-sm btn-primary"
-            :disabled="!uploadedZipFile || zipLoading"
+            :disabled="!currentState.uploadedZipFile || currentState.zipLoading"
             @click="confirmUploadZip"
           >
-            {{ zipLoading ? '上傳中...' : '確定' }}
+            {{ currentState.zipLoading ? '上傳中...' : '確定' }}
           </button>
         </div>
-        <div v-if="zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
-          {{ zipError }}
+        <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
+          {{ currentState.zipError }}
         </div>
-        <div v-if="zipFileId" class="mt-2">
+        <div v-if="currentState.zipFileId" class="mt-2">
           <span class="my-title-xs-gray">file_id：</span>
-          <code class="my-content-sm-black">{{ zipFileId }}</code>
+          <code class="my-content-sm-black">{{ currentState.zipFileId }}</code>
         </div>
-        <div v-if="zipSecondFolders.length > 0" class="mt-3">
+        <div v-if="currentState.zipSecondFolders.length > 0" class="mt-3">
           <div class="my-title-xs-gray mb-2">ZIP 內第二層資料夾名稱：</div>
           <ul class="list-group list-group-flush small">
             <li
-              v-for="(name, i) in zipSecondFolders"
+              v-for="(name, i) in currentState.zipSecondFolders"
               :key="i"
               class="list-group-item py-1 px-2 my-bgcolor-gray-50"
             >
@@ -588,18 +783,18 @@ function rewriteAnswer(item) {
             </li>
           </ul>
         </div>
-        <div v-if="zipResponseJson !== null" class="mt-3">
+        <div v-if="currentState.zipResponseJson !== null" class="mt-3">
           <div class="my-title-xs-gray mb-2">API 完整回傳 JSON：</div>
-          <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 320px;">{{ JSON.stringify(zipResponseJson, null, 2) }}</pre>
+          <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 320px;">{{ JSON.stringify(currentState.zipResponseJson, null, 2) }}</pre>
         </div>
       </div>
       <!-- 全畫面共用的 OpenAI API Key（放在上傳 ZIP 檔下面） -->
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
         <div class="my-title-xs-gray mb-2">OpenAI API Key</div>
         <p class="form-text text-muted small mb-2">本頁共用（Pack、產生題目、評分）。依上傳 ZIP 取得的 file_id 可將 API Key 寫入 RAG 表。</p>
-        <div v-if="zipFileId" class="mb-2">
+        <div v-if="currentState.zipFileId" class="mb-2">
           <span class="my-title-xs-gray">file_id：</span>
-          <code class="my-content-sm-black">{{ zipFileId }}</code>
+          <code class="my-content-sm-black">{{ currentState.zipFileId }}</code>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <div style="max-width: 400px;">
@@ -614,17 +809,17 @@ function rewriteAnswer(item) {
           <button
             type="button"
             class="btn btn-sm btn-primary"
-            :disabled="llmKeyLoading || !zipFileId?.trim() || !openaiApiKey?.trim()"
+            :disabled="currentState.llmKeyLoading || !currentState.zipFileId?.trim() || !openaiApiKey?.trim()"
             @click="confirmSetLlmApiKey"
           >
-            {{ llmKeyLoading ? '上傳中...' : '確定' }}
+            {{ currentState.llmKeyLoading ? '上傳中...' : '確定' }}
           </button>
         </div>
-        <div v-if="llmKeyError" class="alert alert-danger mt-2 mb-0 py-2 small">
-          {{ llmKeyError }}
+        <div v-if="currentState.llmKeyError" class="alert alert-danger mt-2 mb-0 py-2 small">
+          {{ currentState.llmKeyError }}
         </div>
-        <div v-if="llmKeySuccess" class="alert alert-success mt-2 mb-0 py-2 small">
-          {{ llmKeySuccess }}
+        <div v-if="currentState.llmKeySuccess" class="alert alert-success mt-2 mb-0 py-2 small">
+          {{ currentState.llmKeySuccess }}
         </div>
       </div>
       <!-- 壓縮資料夾 (Pack) 與 RAG -->
@@ -635,7 +830,7 @@ function rewriteAnswer(item) {
             <div style="min-width: 200px;">
               <label class="form-label my-title-xs-gray mb-1">file_id</label>
               <input
-                v-model="zipFileId"
+                v-model="currentState.zipFileId"
                 type="text"
                 class="form-control form-control-sm"
                 placeholder="上傳成功後自動帶入或手動輸入"
@@ -644,7 +839,7 @@ function rewriteAnswer(item) {
             <div class="flex-grow-1" style="min-width: 240px;">
               <label class="form-label my-title-xs-gray mb-1">tasks</label>
               <input
-                v-model="packTasks"
+                v-model="currentState.packTasks"
                 type="text"
                 class="form-control form-control-sm"
                 placeholder="例：220222+220301"
@@ -652,12 +847,12 @@ function rewriteAnswer(item) {
             </div>
             <div class="d-flex align-items-center">
               <input
-                id="with-rag-check"
-                v-model="withRag"
+                :id="`with-rag-check-${activeTabId}`"
+                v-model="currentState.withRag"
                 type="checkbox"
                 class="form-check-input me-2"
               >
-              <label for="with-rag-check" class="form-check-label my-title-xs-gray mb-0">一併產生 RAG</label>
+              <label :for="`with-rag-check-${activeTabId}`" class="form-check-label my-title-xs-gray mb-0">一併產生 RAG</label>
             </div>
             <div style="width: 100px;">
               <label class="form-label my-title-xs-gray mb-1">chunk_size</label>
@@ -682,14 +877,14 @@ function rewriteAnswer(item) {
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="packLoading"
+              :disabled="currentState.packLoading"
               @click="confirmPack"
             >
-              {{ packLoading ? '處理中...' : '執行 Pack' }}
+              {{ currentState.packLoading ? '處理中...' : '執行 Pack' }}
             </button>
           </div>
-          <div v-if="packError" class="alert alert-danger py-2 small mb-2">
-            {{ packError }}
+          <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">
+            {{ currentState.packError }}
           </div>
           <!-- 每個 output：壓縮檔下載 + RAG 下載連結 -->
           <div v-if="packOutputs.length > 0" class="mt-3">
@@ -722,9 +917,9 @@ function rewriteAnswer(item) {
               </table>
             </div>
           </div>
-          <div v-if="packResponseJson !== null" class="mt-2">
+          <div v-if="currentState.packResponseJson !== null" class="mt-2">
             <div class="my-title-xs-gray mb-1">Pack API 完整回傳：</div>
-            <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 240px;">{{ typeof packResponseJson === 'string' ? packResponseJson : JSON.stringify(packResponseJson, null, 2) }}</pre>
+            <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 240px;">{{ typeof currentState.packResponseJson === 'string' ? currentState.packResponseJson : JSON.stringify(currentState.packResponseJson, null, 2) }}</pre>
           </div>
       </div>
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
@@ -733,7 +928,7 @@ function rewriteAnswer(item) {
         <div class="d-flex flex-wrap align-items-end gap-3">
           <div>
             <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-            <select v-model="generateQuestionFileId" class="form-select form-select-sm">
+            <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm">
               <option value="">— 請先執行 Pack —</option>
               <option
                 v-for="(opt, idx) in generateQuestionUnits"
@@ -759,21 +954,21 @@ function rewriteAnswer(item) {
           <button
             type="button"
             class="btn btn-sm btn-primary"
-            :disabled="generateQuestionLoading || !generateQuestionFileId"
+            :disabled="currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
             @click="generateQuestion"
           >
-            {{ generateQuestionLoading ? '產生中...' : '產生題目' }}
+            {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
           </button>
         </div>
-        <div v-if="generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
-          {{ generateQuestionError }}
+        <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
+          {{ currentState.generateQuestionError }}
         </div>
       </div>
-      <template v-if="cardList.length === 0">
+      <template v-if="currentState.cardList.length === 0">
       </template>
       <template v-else>
         <div
-          v-for="(item, idx) in cardList"
+          v-for="(item, idx) in currentState.cardList"
           :key="item.id"
           class="card mb-3"
         >
@@ -848,6 +1043,7 @@ function rewriteAnswer(item) {
         </div>
       </template>
       <div class="button" role="button" tabindex="0" @click="addCard">產生題目</div>
+      </template>
     </div>
   </div>
 </template>
