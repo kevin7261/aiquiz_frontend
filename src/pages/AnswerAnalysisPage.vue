@@ -1,5 +1,5 @@
 <script setup>
-/** 答題分析分頁內容。 */
+/** 答題分析頁面。 */
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-/** 儀表板分頁內容。 */
+/** 儀表板頁面。 */
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-/** 個資修改分頁。 */
+/** 個資修改頁面。 */
 import { ref } from 'vue';
 
 const account = ref('user@example.com');

@@ -1,5 +1,5 @@
 <script setup>
-/** 使用者管理分頁：呼叫 GET /users 取得使用者列表並以表格顯示。 */
+/** 使用者管理頁面：呼叫 GET /users 取得使用者列表並以表格顯示。 */
 import { ref, onMounted } from 'vue';
 
 const API_BASE = 'http://127.0.0.1:8000';

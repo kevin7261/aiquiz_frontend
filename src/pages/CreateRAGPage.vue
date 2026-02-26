@@ -1,5 +1,5 @@
 <script setup>
-/** 建立 RAG 分頁。每個分頁有唯一 tabId，card 列表含題目、提示、回答與唯一 id。 */
+/** 建立 RAG 頁面。使用 tabId 與資料對應，card 列表含題目、提示、回答與唯一 id。 */
 import { ref, computed, watch, onMounted } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 
@@ -7,7 +7,7 @@ defineProps({
   tabId: { type: String, required: true },
 });
 
-/** 每個分頁建立時生成唯一 file_id，規格與後端一致：str(uuid.uuid4()) */
+/** 本頁建立時生成唯一 file_id，規格與後端一致：str(uuid.uuid4()) */
 function generateTabFileId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -45,7 +45,7 @@ const zipResponseJson = ref(null);
 const zipLoading = ref(false);
 const zipError = ref('');
 
-/** 本分頁建立時生成的 file_id，固定顯示在最上方（上傳 ZIP 後 API 回傳的 file_id 寫入 zipFileId，供 Pack／LLM Key 等使用） */
+/** 本頁建立時生成的 file_id，固定顯示在最上方（上傳 ZIP 後 API 回傳的 file_id 寫入 zipFileId，供 Pack／LLM Key 等使用） */
 const tabFileId = ref('');
 /** Pack Folders：上傳後取得的 file_id、tasks、是否一併產生 RAG、OpenAI API key、完整回傳、載入中、錯誤 */
 const zipFileId = ref('');
@@ -541,7 +541,7 @@ function rewriteAnswer(item) {
 <template>
   <div class="d-flex flex-column my-bgcolor-gray-200 h-100">
     <div class="flex-grow-1 overflow-auto my-bgcolor-white p-4">
-      <!-- 本分頁 file_id：每個分頁建立時生成，顯示最上方 -->
+      <!-- 本頁 file_id：建立時生成，顯示最上方 -->
       <div class="my-bgcolor-gray-100 rounded text-start p-3 mb-3">
         <span class="my-title-xs-gray">file_id：</span>
         <code class="my-content-sm-black">{{ tabFileId }}</code>

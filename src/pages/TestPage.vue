@@ -1,5 +1,5 @@
 <script setup>
-/** 試題分頁內容。每個分頁有唯一 tabId，card 列表含題目、提示、回答與唯一 id。 */
+/** 試題頁面。使用 tabId 與 dataStore 對應，card 列表含題目、提示、回答與唯一 id。 */
 import { ref } from 'vue';
 
 defineProps({

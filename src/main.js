@@ -21,7 +21,8 @@ app.use(router);
 app.use(pinia);
 
 router.beforeEach((to, _from, next) => {
-  if (to.name === 'Main' && !useAuthStore().user) {
+  const isMainArea = to.name === 'Main' || to.path === '/main' || to.path.startsWith('/main/');
+  if (isMainArea && !useAuthStore().user) {
     next('/login');
     return;
   }
