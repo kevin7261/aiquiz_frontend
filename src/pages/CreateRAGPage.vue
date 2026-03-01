@@ -2,6 +2,7 @@
 /** 建立 RAG 頁面。使用 tab 對應每筆 RAG 資料（GET /rag/rags），每個 tab 獨立狀態。 */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
+import { API_BASE } from '../constants/api.js';
 
 defineProps({
   tabId: { type: String, required: true },
@@ -27,8 +28,6 @@ function nextCardId() {
 const defaultQuestion = '什麼是空間分析（Spatial Analysis）？請簡述其在地理資訊系統中的應用和重要性。';
 const defaultHint = '空間分析是一組技術和方法，用於分析地理數據中的空間模式和關係。它可以幫助解決與位置相關的問題，並在城市規劃、環境管理和資源分配等領域中具有重要應用。';
 
-/** 後端網址 */
-const API_BASE = 'http://127.0.0.1:8000';
 const authStore = useAuthStore();
 
 /** RAG 列表（GET /rag/rags）、載入中、錯誤 */
@@ -88,8 +87,8 @@ const currentState = computed(() => {
 });
 
 /** 全畫面共用 */
-/** 由使用者在畫面上方輸入，不儲存於專案 */
-const openaiApiKey = ref('');
+/** 從環境變數或留空（由使用者於頁面輸入）；勿將真實 key 寫入程式碼 */
+const openaiApiKey = ref(import.meta.env.VITE_OPENAI_API_KEY ?? '');
 
 /** Pack 回傳的 outputs 陣列（依當前 tab 的 packResponseJson） */
 const packOutputs = computed(() => {
