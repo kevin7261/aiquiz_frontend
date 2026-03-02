@@ -549,6 +549,7 @@ async function confirmPack() {
     } catch (_) {
       state.packResponseJson = text;
     }
+    state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
   } catch (err) {
     state.packError = err.message || '壓縮失敗';
     state.packResponseJson = null;
@@ -1041,22 +1042,18 @@ function rewriteAnswer(item) {
             </button>
           </div>
           <div class="mt-3">
-            <label class="form-label my-title-xs-gray mb-1">rag_metadata</label>
+            <label class="form-label my-title-xs-gray mb-1">rag_metadata（Pack API 回傳）</label>
             <textarea
               v-model="currentState.ragMetadata"
-              class="form-control form-control-sm"
-              rows="3"
-              placeholder="選填"
+              class="form-control form-control-sm font-monospace small"
+              rows="6"
+              placeholder="執行 Pack 後由 API 回傳顯示"
               readonly
-              style="resize: vertical; background-color: var(--bs-secondary-bg, #e9ecef);"
+              style="resize: vertical; background-color: var(--bs-secondary-bg, #e9ecef); max-height: 280px;"
             />
           </div>
           <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">
             {{ currentState.packError }}
-          </div>
-          <div v-if="currentState.packResponseJson !== null" class="mt-2">
-            <div class="my-title-xs-gray mb-1">Pack API 完整回傳：</div>
-            <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 240px;">{{ typeof currentState.packResponseJson === 'string' ? currentState.packResponseJson : JSON.stringify(currentState.packResponseJson, null, 2) }}</pre>
           </div>
       </div>
       <!-- RAG 產生題目：未輸入 API key、未上傳 ZIP 或未執行 Pack 時 disable -->
