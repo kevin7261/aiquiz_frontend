@@ -27,6 +27,9 @@ function nextCardId() {
 /** 預設題目／提示（產生第一題時使用） */
 const authStore = useAuthStore();
 
+/** generate-question API 的 system_instruction 預設內容 */
+const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過50字';
+
 /** RAG 列表（GET /rag/rags）、載入中、錯誤 */
 const ragList = ref([]);
 const ragListLoading = ref(false);
@@ -61,6 +64,7 @@ function getTabState(id) {
       zipError: '',
       zipFileId: isNew ? '' : id,
       packTasks: '',
+      ragMetadata: '',
       withRag: true,
       packResponseJson: null,
       packLoading: false,
@@ -72,6 +76,7 @@ function getTabState(id) {
       cardList: [],
       updateNameLoading: false,
       updateNameError: '',
+      systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     });
   }
   return tabStateMap[id];
@@ -90,8 +95,18 @@ const currentState = computed(() => {
 /** 僅由使用者於頁面輸入，不從環境變數或任何儲存讀取 */
 const openaiApiKey = ref('');
 
-/** 未輸入 API key 或當前 tab 未上傳 ZIP 時，Pack、RAG 產生題目、產生題目按鈕皆 disable */
+/** 當前 RAG（來自 /rag/rags）是否有 rag_list 或 rag_metadata；有則壓縮資料夾 (Pack) 與 RAG 不 disable */
+const hasRagListOrMetadata = computed(() => {
+  const r = currentRagItem.value;
+  if (!r || typeof r !== 'object') return false;
+  const hasList = r.rag_list != null && String(r.rag_list).trim() !== '';
+  const hasMeta = r.rag_metadata != null && (typeof r.rag_metadata === 'string' ? String(r.rag_metadata).trim() !== '' : true);
+  return hasList || hasMeta;
+});
+
+/** 未輸入 API key 或當前 tab 未上傳 ZIP 時，Pack、RAG 產生題目、產生題目按鈕皆 disable；若有 rag_list 或 rag_metadata 則不 disable */
 const packAndGenerateDisabled = computed(() => {
+  if (hasRagListOrMetadata.value) return false;
   if (!openaiApiKey.value?.trim()) return true;
   const id = activeTabId.value;
   if (!id) return true;
@@ -102,8 +117,16 @@ const packAndGenerateDisabled = computed(() => {
   return false;
 });
 
-/** 未執行 Pack 時，RAG 產生題目區塊與產生題目按鈕 disable（需有 packResponseJson） */
+/** 當前 RAG 是否有 rag_metadata；有則 RAG 產生題目區塊 enable */
+const hasRagMetadata = computed(() => {
+  const r = currentRagItem.value;
+  if (!r || typeof r !== 'object') return false;
+  return r.rag_metadata != null && (typeof r.rag_metadata === 'string' ? String(r.rag_metadata).trim() !== '' : true);
+});
+
+/** 未執行 Pack 時，RAG 產生題目區塊與產生題目按鈕 disable（需有 packResponseJson）；若有 rag_metadata 則 enable */
 const ragGenerateDisabled = computed(() => {
+  if (hasRagMetadata.value) return false;
   return packAndGenerateDisabled.value || currentState.value.packResponseJson == null;
 });
 
@@ -212,11 +235,14 @@ const generateQuestionUnitsFromRag = computed(() => {
     });
 });
 
-/** 當切換到既有 tab 時，從 /rags 資料初始化 packTasks、chunkSize、chunkOverlap、zipUploadName（name） */
+/** 當切換到既有 tab 時，從 /rags 資料填入壓縮資料夾 (Pack) 與 RAG：rag_list、rag_metadata、chunk_size、chunk_overlap、name */
 watch(currentRagItem, (rag) => {
   if (!rag || typeof rag !== 'object') return;
   const state = currentState.value;
-  if (!state.packTasks && rag.rag_list) state.packTasks = String(rag.rag_list);
+  if (rag.rag_list != null && String(rag.rag_list).trim() !== '') state.packTasks = String(rag.rag_list).trim();
+  if (rag.rag_metadata != null) {
+    state.ragMetadata = typeof rag.rag_metadata === 'string' ? rag.rag_metadata : JSON.stringify(rag.rag_metadata, null, 2);
+  }
   if (rag.chunk_size != null) chunkSize.value = Number(rag.chunk_size);
   if (rag.chunk_overlap != null) chunkOverlap.value = Number(rag.chunk_overlap);
   if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
@@ -558,7 +584,7 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
   ];
 }
 
-/** 呼叫 /rag/generate-question（body: file_id, rag_name, openai_api_key, qtype, level） */
+/** 呼叫 /rag/generate-question（body: file_id, rag_name, openai_api_key, qtype, level, system_instruction） */
 async function generateQuestion() {
   const state = currentState.value;
   const key = openaiApiKey.value?.trim();
@@ -580,6 +606,7 @@ async function generateQuestion() {
   state.generateQuestionLoading = true;
   state.generateQuestionError = '';
   state.generateQuestionResponseJson = null;
+  const systemInstruction = (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION;
   try {
     const res = await fetch(`${API_BASE}/rag/generate-question`, {
       method: 'POST',
@@ -590,6 +617,7 @@ async function generateQuestion() {
         openai_api_key: key,
         qtype: filterQuestionType.value,
         level: filterDifficulty.value,
+        system_instruction: systemInstruction,
       }),
     });
     const text = await res.text();
@@ -981,16 +1009,6 @@ function rewriteAnswer(item) {
                 :disabled="packAndGenerateDisabled"
               >
             </div>
-            <div class="d-flex align-items-center">
-              <input
-                :id="`with-rag-check-${activeTabId}`"
-                v-model="currentState.withRag"
-                type="checkbox"
-                class="form-check-input me-2"
-                :disabled="packAndGenerateDisabled"
-              >
-              <label :for="`with-rag-check-${activeTabId}`" class="form-check-label my-title-xs-gray mb-0">一併產生 RAG</label>
-            </div>
             <div style="width: 100px;">
               <label class="form-label my-title-xs-gray mb-1">chunk_size</label>
               <input
@@ -1021,6 +1039,17 @@ function rewriteAnswer(item) {
             >
               {{ currentState.packLoading ? '處理中...' : '執行 Pack' }}
             </button>
+          </div>
+          <div class="mt-3">
+            <label class="form-label my-title-xs-gray mb-1">rag_metadata</label>
+            <textarea
+              v-model="currentState.ragMetadata"
+              class="form-control form-control-sm"
+              rows="3"
+              placeholder="選填"
+              readonly
+              style="resize: vertical; background-color: var(--bs-secondary-bg, #e9ecef);"
+            />
           </div>
           <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">
             {{ currentState.packError }}
@@ -1060,6 +1089,17 @@ function rewriteAnswer(item) {
               <option v-for="opt in questionTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
+        </div>
+        <div class="mt-3">
+          <label class="form-label my-title-xs-gray mb-1">system_instruction（出題規範，傳給 GPT）</label>
+          <textarea
+            v-model="currentState.systemInstruction"
+            class="form-control form-control-sm font-monospace small"
+            rows="5"
+            placeholder="留空則使用預設出題規範"
+            :disabled="ragGenerateDisabled"
+            style="max-width: 100%;"
+          />
         </div>
         <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
           {{ currentState.generateQuestionError }}
