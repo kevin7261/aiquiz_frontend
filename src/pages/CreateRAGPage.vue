@@ -25,9 +25,6 @@ function nextCardId() {
 }
 
 /** 預設題目／提示（產生第一題時使用） */
-const defaultQuestion = '什麼是空間分析（Spatial Analysis）？請簡述其在地理資訊系統中的應用和重要性。';
-const defaultHint = '空間分析是一組技術和方法，用於分析地理數據中的空間模式和關係。它可以幫助解決與位置相關的問題，並在城市規劃、環境管理和資源分配等領域中具有重要應用。';
-
 const authStore = useAuthStore();
 
 /** RAG 列表（GET /rag/rags）、載入中、錯誤 */
@@ -57,6 +54,7 @@ function getTabState(id) {
       tabFileId: isNew ? generateTabFileId() : id,
       uploadedZipFile: null,
       zipFileName: '',
+      zipUploadName: '',
       zipSecondFolders: [],
       zipResponseJson: null,
       zipLoading: false,
@@ -72,6 +70,8 @@ function getTabState(id) {
       generateQuestionError: '',
       generateQuestionResponseJson: null,
       cardList: [],
+      updateNameLoading: false,
+      updateNameError: '',
     });
   }
   return tabStateMap[id];
@@ -89,6 +89,23 @@ const currentState = computed(() => {
 /** 全畫面共用 */
 /** 僅由使用者於頁面輸入，不從環境變數或任何儲存讀取 */
 const openaiApiKey = ref('');
+
+/** 未輸入 API key 或當前 tab 未上傳 ZIP 時，Pack、RAG 產生題目、產生題目按鈕皆 disable */
+const packAndGenerateDisabled = computed(() => {
+  if (!openaiApiKey.value?.trim()) return true;
+  const id = activeTabId.value;
+  if (!id) return true;
+  if (isNewTabId(id)) {
+    const fid = String(currentState.value.zipFileId ?? '').trim();
+    return fid === '';
+  }
+  return false;
+});
+
+/** 未執行 Pack 時，RAG 產生題目區塊與產生題目按鈕 disable（需有 packResponseJson） */
+const ragGenerateDisabled = computed(() => {
+  return packAndGenerateDisabled.value || currentState.value.packResponseJson == null;
+});
 
 /** Pack 回傳的 outputs 陣列（依當前 tab 的 packResponseJson） */
 const packOutputs = computed(() => {
@@ -147,6 +164,23 @@ const currentRagItem = computed(() => {
   ) ?? null;
 });
 
+/** 當前 tab 的 rag_id、file_id（供 OpenAI API Key 上方顯示；未上傳則為「未上傳」） */
+const currentRagIdAndFileId = computed(() => {
+  const state = currentState.value;
+  const rag = currentRagItem.value;
+  if (state.zipResponseJson != null) {
+    const rid = state.zipResponseJson.rag_id ?? state.zipResponseJson.id;
+    const fid = state.zipFileId || state.zipResponseJson.file_id;
+    return { rag_id: rid != null ? String(rid) : '未上傳', file_id: fid ? String(fid) : '未上傳' };
+  }
+  if (rag != null && typeof rag === 'object') {
+    const rid = rag.rag_id ?? rag.id;
+    const fid = rag.file_id ?? rag.id ?? activeTabId.value;
+    return { rag_id: rid != null ? String(rid) : '未上傳', file_id: fid ? String(fid) : '未上傳' };
+  }
+  return { rag_id: '未上傳', file_id: '未上傳' };
+});
+
 /** 用於顯示 file_metadata 的來源：上傳回傳的 zipResponseJson，或從 GET /rag/rags 讀到的該筆的 file_metadata／整筆資料 */
 const fileMetadataToShow = computed(() => {
   const state = currentState.value;
@@ -178,13 +212,14 @@ const generateQuestionUnitsFromRag = computed(() => {
     });
 });
 
-/** 當切換到既有 tab 時，從 /rags 資料初始化 packTasks、chunkSize、chunkOverlap */
+/** 當切換到既有 tab 時，從 /rags 資料初始化 packTasks、chunkSize、chunkOverlap、zipUploadName（name） */
 watch(currentRagItem, (rag) => {
   if (!rag || typeof rag !== 'object') return;
   const state = currentState.value;
   if (!state.packTasks && rag.rag_list) state.packTasks = String(rag.rag_list);
   if (rag.chunk_size != null) chunkSize.value = Number(rag.chunk_size);
   if (rag.chunk_overlap != null) chunkOverlap.value = Number(rag.chunk_overlap);
+  if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
 }, { immediate: true });
 
 watch(generateQuestionUnits, (units) => {
@@ -222,6 +257,51 @@ async function fetchRagList() {
 onMounted(() => {
   fetchRagList();
 });
+
+/** 更新 RAG 名稱：PATCH /rag/name/{file_id}，body { name }，Header X-Person-Id。成功後更新 ragList 該筆的 name，tab 標籤會自動更新。 */
+async function updateRagName() {
+  const rag = currentRagItem.value;
+  if (!rag || isNewTabId(activeTabId.value)) return;
+  const fileId = rag.file_id ?? rag.id ?? rag;
+  if (fileId == null || fileId === '') return;
+  const personId = authStore.user?.person_id;
+  if (personId == null) {
+    alert('請先登入');
+    return;
+  }
+  const newName = (currentState.value.zipUploadName ?? '').trim();
+  const state = getTabState(activeTabId.value);
+  state.updateNameLoading = true;
+  state.updateNameError = '';
+  try {
+    const res = await fetch(`${API_BASE}/rag/name/${encodeURIComponent(String(fileId))}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Person-Id': String(personId),
+      },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch (_) {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    const idx = ragList.value.findIndex((r) => (r.file_id ?? r.id ?? r) === fileId);
+    if (idx >= 0) ragList.value[idx].name = newName;
+    state.updateNameError = '';
+  } catch (err) {
+    state.updateNameError = err.message || String(err);
+  } finally {
+    state.updateNameLoading = false;
+  }
+}
 
 /** 刪除 RAG：呼叫 POST /rag/delete/{file_id}（軟刪 + 刪資料夾），成功後重抓 /rag/rags。Header 必帶 X-Person-Id。 */
 async function deleteRag(rag, e) {
@@ -268,22 +348,23 @@ async function deleteRag(rag, e) {
 /** upload-zip 成功回傳的 created_at，用於 tab 標籤（key = rag_id） */
 const ragCreatedAtMap = ref({});
 
-/** 點「新增」：只加一個新 tab（不 call API），在該 tab 內上傳 ZIP 時會呼叫 upload-zip */
+/** 點「新增」：只加一個新 tab（不 call API），name 預設為 yymmddhhmmss；在該 tab 內上傳 ZIP 時會呼叫 upload-zip */
 function addNewTab() {
   const id = 'new-' + generateTabFileId();
   newTabIds.value = [...newTabIds.value, id];
   activeTabId.value = id;
+  getTabState(id).zipUploadName = getDefaultUploadName();
   if (ragList.value.length === 0) showFormWhenNoData.value = true;
 }
 
-/** 取得 RAG 顯示名稱（用於 tab 標籤）；upload-zip 成功後優先顯示 created_at */
+/** 取得 RAG 顯示名稱（用於 tab 標籤）；只顯示 name（按 + 時設定的），上傳後不改成時間 */
 function getRagTabLabel(rag) {
   if (rag == null) return 'RAG';
   if (typeof rag === 'string') return ragCreatedAtMap.value[rag] ?? String(rag);
   if (typeof rag !== 'object') return String(rag);
   const id = rag.rag_id ?? rag.file_id ?? rag.id;
   const fromMap = id != null ? ragCreatedAtMap.value[String(id)] : undefined;
-  return fromMap ?? rag.created_at ?? rag.filename ?? rag.name ?? rag.file_id ?? 'RAG';
+  return (rag.name != null && String(rag.name).trim() !== '') ? String(rag.name).trim() : (fromMap ?? rag.created_at ?? rag.filename ?? rag.file_id ?? 'RAG');
 }
 
 function onZipChange(e) {
@@ -314,7 +395,19 @@ function onZipChange(e) {
   }
 }
 
-/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id + ZIP 檔案），後端上傳 ZIP、新增 Rag 並回傳 rag_id、file_id、created_at、filename、second_folders */
+/** 產生 name 預設值：yymmddhhmmss（與後端 generate_file_id 的時間部分一致） */
+function getDefaultUploadName() {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yy}${mm}${dd}${hh}${min}${ss}`;
+}
+
+/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、name、ZIP 檔案），後端上傳 ZIP、新增 Rag 並回傳 rag_id、file_id、created_at、filename、second_folders */
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
@@ -332,6 +425,8 @@ async function confirmUploadZip() {
     formData.append('file', state.uploadedZipFile);
     const personId = authStore.user?.person_id;
     if (personId != null) formData.append('person_id', String(personId));
+    const name = (state.zipUploadName || '').trim() || getDefaultUploadName();
+    formData.append('name', name);
     const headers = {};
     if (personId != null) headers['X-Person-Id'] = String(personId);
     const res = await fetch(`${API_BASE}/rag/upload-zip`, {
@@ -442,8 +537,8 @@ const questionTypeOptions = ['簡答題', '申論題', '選擇題'];
 function addCard(question = null, hint = null, sourceFilename = null, referenceAnswer = null, ragName = null) {
   const state = currentState.value;
   const list = state.cardList;
-  const q = question ?? (list.length > 0 ? list[0].question : defaultQuestion);
-  const h = hint ?? (list.length > 0 ? list[0].hint : defaultHint);
+  const q = question ?? (list.length > 0 ? list[0].question : '');
+  const h = hint ?? (list.length > 0 ? list[0].hint : '');
   const refAns = referenceAnswer ?? (list.length > 0 ? list[0].referenceAnswer : '');
   const rn = ragName ?? (list.length > 0 ? list[0].ragName : null);
   state.cardList = [
@@ -713,7 +808,7 @@ function rewriteAnswer(item) {
             class="btn btn-sm btn-primary"
             @click="addNewTab"
           >
-            新增
+            +
           </button>
         </template>
         <template v-else>
@@ -737,14 +832,14 @@ function rewriteAnswer(item) {
                 ×
               </button>
             </li>
-            <li v-for="(tid, idx) in newTabIds" :key="'new-' + tid" class="nav-item">
+            <li v-for="tid in newTabIds" :key="'new-' + tid" class="nav-item">
               <button
                 type="button"
                 class="nav-link"
                 :class="{ active: activeTabId === tid }"
                 @click="activeTabId = tid"
               >
-                新增{{ newTabIds.length > 1 ? ' ' + (idx + 1) : '' }}
+                {{ getTabState(tid).zipUploadName || 'name' }}
               </button>
             </li>
             <li class="nav-item ms-2 align-self-center">
@@ -753,7 +848,7 @@ function rewriteAnswer(item) {
                 class="btn btn-sm btn-outline-primary"
                 @click="addNewTab"
               >
-                新增
+                +
               </button>
             </li>
           </ul>
@@ -765,7 +860,38 @@ function rewriteAnswer(item) {
 
       <!-- 無資料時不顯示表單，點「新增」後才顯示；有資料時一律顯示 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
-      <!-- OpenAI API Key 放最上面，本頁共用，後續功能會自動讀取 -->
+      <!-- rag_id、file_id、name 獨立區塊；未上傳顯示「未上傳」；name 在此編輯（上傳時帶入） -->
+      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-3 small mb-2">
+          <span class="my-title-xs-gray">rag_id：</span>
+          <span class="my-content-sm-black">{{ currentRagIdAndFileId.rag_id }}</span>
+          <span class="my-title-xs-gray">file_id：</span>
+          <span class="my-content-sm-black">{{ currentRagIdAndFileId.file_id }}</span>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="my-title-xs-gray">name</span>
+          <input
+            v-model="currentState.zipUploadName"
+            type="text"
+            class="form-control form-control-sm"
+            style="max-width: 200px;"
+            :disabled="currentState.zipLoading"
+          >
+          <button
+            v-if="!isNewTabId(activeTabId) && currentRagItem"
+            type="button"
+            class="btn btn-sm btn-primary"
+            :disabled="currentState.updateNameLoading || currentState.zipLoading || (currentState.zipUploadName || '').trim() === getRagTabLabel(currentRagItem)"
+            @click="updateRagName"
+          >
+            {{ currentState.updateNameLoading ? '修改中...' : '確定修改' }}
+          </button>
+        </div>
+        <div v-if="currentState.updateNameError" class="alert alert-danger mt-2 mb-0 py-2 small">
+          {{ currentState.updateNameError }}
+        </div>
+      </div>
+      <!-- OpenAI API Key 本頁共用，Pack、產生題目、評分等會自動使用 -->
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
         <div class="my-title-xs-gray mb-2">OpenAI API Key</div>
         <p class="form-text text-muted small mb-2">本頁共用，Pack、產生題目、評分等會自動使用。</p>
@@ -840,8 +966,8 @@ function rewriteAnswer(item) {
           </table>
         </div>
       </div>
-      <!-- 壓縮資料夾 (Pack) 與 RAG -->
-      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
+      <!-- 壓縮資料夾 (Pack) 與 RAG：未輸入 API key 或未上傳 ZIP 時 disable -->
+      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
         <div class="my-title-xs-gray mb-2">壓縮資料夾 (Pack) 與 RAG</div>
           <p class="form-text text-muted small mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
@@ -852,6 +978,7 @@ function rewriteAnswer(item) {
                 type="text"
                 class="form-control form-control-sm"
                 placeholder="例：220222+220301"
+                :disabled="packAndGenerateDisabled"
               >
             </div>
             <div class="d-flex align-items-center">
@@ -860,6 +987,7 @@ function rewriteAnswer(item) {
                 v-model="currentState.withRag"
                 type="checkbox"
                 class="form-check-input me-2"
+                :disabled="packAndGenerateDisabled"
               >
               <label :for="`with-rag-check-${activeTabId}`" class="form-check-label my-title-xs-gray mb-0">一併產生 RAG</label>
             </div>
@@ -871,6 +999,7 @@ function rewriteAnswer(item) {
                 min="1"
                 class="form-control form-control-sm"
                 placeholder="1000"
+                :disabled="packAndGenerateDisabled"
               >
             </div>
             <div style="width: 100px;">
@@ -881,12 +1010,13 @@ function rewriteAnswer(item) {
                 min="0"
                 class="form-control form-control-sm"
                 placeholder="200"
+                :disabled="packAndGenerateDisabled"
               >
             </div>
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="currentState.packLoading"
+              :disabled="packAndGenerateDisabled || currentState.packLoading"
               @click="confirmPack"
             >
               {{ currentState.packLoading ? '處理中...' : '執行 Pack' }}
@@ -900,13 +1030,14 @@ function rewriteAnswer(item) {
             <pre class="my-bgcolor-gray-50 rounded p-3 small text-start overflow-auto mb-0" style="max-height: 240px;">{{ typeof currentState.packResponseJson === 'string' ? currentState.packResponseJson : JSON.stringify(currentState.packResponseJson, null, 2) }}</pre>
           </div>
       </div>
-      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3">
+      <!-- RAG 產生題目：未輸入 API key、未上傳 ZIP 或未執行 Pack 時 disable -->
+      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
         <div class="my-title-xs-gray mb-2">RAG 產生題目</div>
         <p class="form-text text-muted small mb-2">選單元（Pack 結果）、難度、題型後，到最下方按「產生題目」。</p>
         <div class="d-flex flex-wrap align-items-end gap-3">
           <div>
             <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-            <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm">
+            <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
               <option value="">— 請先執行 Pack —</option>
               <option
                 v-for="(opt, idx) in generateQuestionUnits"
@@ -919,13 +1050,13 @@ function rewriteAnswer(item) {
           </div>
           <div>
             <label class="form-label my-title-xs-gray mb-1">難度</label>
-            <select v-model="filterDifficulty" class="form-select form-select-sm">
+            <select v-model="filterDifficulty" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
               <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
           <div>
             <label class="form-label my-title-xs-gray mb-1">題型</label>
-            <select v-model="filterQuestionType" class="form-select form-select-sm">
+            <select v-model="filterQuestionType" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
               <option v-for="opt in questionTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
@@ -1019,7 +1150,7 @@ function rewriteAnswer(item) {
       <button
         type="button"
         class="btn btn-sm btn-primary"
-        :disabled="currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
+        :disabled="ragGenerateDisabled || currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
         @click="generateQuestion"
       >
         {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
