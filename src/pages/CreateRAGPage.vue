@@ -561,7 +561,7 @@ function getDefaultUploadName() {
   return `${yy}${mm}${dd}${hh}${min}${ss}`;
 }
 
-/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、ZIP 檔案；name 可選，未傳則以檔名去 .zip 寫入 Rag.name），後端回傳 rag_id、file_id、created_at、filename、second_folders、file_metadata */
+/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、ZIP 檔案；name 可選，未傳則以檔名去 .zip 寫入 Rag.name；llm_api_key 可選，寫入 Rag 表），後端回傳 rag_id、file_id、created_at、filename、second_folders、file_metadata */
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
@@ -581,6 +581,8 @@ async function confirmUploadZip() {
     if (personId != null) formData.append('person_id', String(personId));
     const name = (state.zipUploadName || '').trim() || getDefaultUploadName();
     formData.append('name', name);
+    const llmKey = (openaiApiKey.value ?? '').trim();
+    if (llmKey) formData.append('llm_api_key', llmKey);
     const headers = {};
     if (personId != null) headers['X-Person-Id'] = String(personId);
     const res = await fetch(`${API_BASE}/rag/upload-zip`, {
@@ -1193,7 +1195,7 @@ function addAllSecondFoldersAsGroups() {
         </div>
         <div v-if="isNewTabId(activeTabId) || fileMetadataToShow != null" class="mb-3">
           <div class="form-label text-muted mb-2">上傳 ZIP 檔</div>
-          <p class="form-text text-muted small mb-2">支援 .pdf、.docx、.rmd／.r、.html／.htm</p>
+          <p class="form-text text-muted small mb-2">支援 .pdf、.docx、.rmd／.r、.html／.htm。上傳時會將上方 OpenAI API Key 一併寫入 Rag 表（可選）。</p>
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <input
               type="file"
