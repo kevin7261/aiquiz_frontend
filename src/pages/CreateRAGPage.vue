@@ -1,5 +1,9 @@
 <script setup>
-/** 建立 RAG 頁面。使用 tab 對應每筆 RAG 資料（GET /rag/rags），每個 tab 獨立狀態。 */
+/**
+ * 建立 RAG 頁面。
+ * 資料對應：一個 RAG 頁面（一個 tab）= 後端 public."Rag" 表的一筆（主鍵 rag_id + file_id）。
+ * 列表 GET /rag/rags、上傳新增一筆 POST /rag/upload-zip、設定寫回同筆 PATCH /rag/update/{file_id}。
+ */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE } from '../constants/api.js';
@@ -58,7 +62,6 @@ function getTabState(id) {
       uploadedZipFile: null,
       zipFileName: '',
       zipUploadName: '',
-      zipCourseName: '',
       zipSecondFolders: [],
       zipResponseJson: null,
       zipLoading: false,
@@ -155,7 +158,7 @@ function deriveRagName(o) {
   return f || s || '';
 }
 
-/** 產生題目：選擇單元 = 壓縮檔名下拉（含 rag_name 供 API；Pack 無資料時從 /rags 推導） */
+/** 產生題目：選擇單元 = rag_name 下拉（供 API；Pack 無資料時從 /rags 推導） */
 const generateQuestionUnits = computed(() => {
   const data = currentState.value.packResponseJson;
   const out = packOutputs.value;
@@ -220,6 +223,14 @@ const fileMetadataToShow = computed(() => {
   return rag;
 });
 
+/** 從 file_metadata 取得 course_name（供產生題目、評分 API 使用） */
+const courseNameFromFileMetadata = computed(() => {
+  const meta = fileMetadataToShow.value;
+  if (meta == null || typeof meta !== 'object') return '';
+  const name = meta.course_name;
+  return name != null ? String(name).trim() : '';
+});
+
 /** 將 rag_list 字串解析為虛擬資料夾結構：'a+b,c' -> [['a','b'],['c']] */
 function parsePackTasksList(str) {
   const s = String(str ?? '').trim();
@@ -254,7 +265,7 @@ const generateQuestionUnitsFromRag = computed(() => {
     });
 });
 
-/** 當切換到既有 tab 時，從 /rags 資料填入壓縮資料夾 (Pack) 與 RAG：rag_list、rag_metadata、chunk_size、chunk_overlap、name */
+/** 當切換到既有 tab 時，從同一筆 Rag 資料填入：rag_list、rag_metadata、chunk_size、chunk_overlap、name、system_prompt_instruction */
 watch(currentRagItem, (rag) => {
   if (!rag || typeof rag !== 'object') return;
   const state = currentState.value;
@@ -268,7 +279,10 @@ watch(currentRagItem, (rag) => {
   if (rag.chunk_size != null) chunkSize.value = Number(rag.chunk_size);
   if (rag.chunk_overlap != null) chunkOverlap.value = Number(rag.chunk_overlap);
   if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
-  if (rag.course_name != null && String(rag.course_name).trim() !== '') state.zipCourseName = String(rag.course_name).trim();
+  if (rag.filename != null && String(rag.filename).trim() !== '') state.zipFileName = String(rag.filename).trim();
+  if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
+    state.systemInstruction = String(rag.system_prompt_instruction).trim();
+  }
 }, { immediate: true });
 
 /** packTasks 與 packTasksList 雙向同步（輸入框與拖曳 UI） */
@@ -343,6 +357,59 @@ async function fetchRagList() {
 onMounted(() => {
   fetchRagList();
 });
+
+/**
+ * 將當前 tab 的 RAG 設定寫回同一筆 Rag 記錄（統一儲存）。
+ * PATCH /rag/update/{file_id}，body: rag_list, system_prompt_instruction, rag_metadata, chunk_size, chunk_overlap。
+ * 後端需更新 public."Rag" 對應 (rag_id, file_id) 的那一筆。
+ */
+async function saveRagConfigToRow() {
+  const rag = currentRagItem.value;
+  if (!rag || isNewTabId(activeTabId.value)) return;
+  const fileId = rag.file_id ?? rag.id ?? rag;
+  if (fileId == null || fileId === '') return;
+  const personId = authStore.user?.person_id;
+  const state = currentState.value;
+  try {
+    const body = {
+      rag_list: (state.packTasks ?? '').trim() || null,
+      system_prompt_instruction: (state.systemInstruction ?? '').trim() || null,
+      chunk_size: Number(chunkSize.value) || null,
+      chunk_overlap: Number(chunkOverlap.value) || null,
+    };
+    let ragMetadata = state.ragMetadata;
+    if (ragMetadata != null && typeof ragMetadata === 'string' && ragMetadata.trim() !== '') {
+      try {
+        body.rag_metadata = JSON.parse(ragMetadata);
+      } catch {
+        body.rag_metadata = null;
+      }
+    } else if (ragMetadata != null && typeof ragMetadata === 'object') {
+      body.rag_metadata = ragMetadata;
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (personId != null) headers['X-Person-Id'] = String(personId);
+    const res = await fetch(`${API_BASE}/rag/update/${encodeURIComponent(String(fileId))}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    await fetchRagList();
+  } catch (_) {
+    // 若後端尚未實作 PATCH /rag/update/{file_id} 則靜默略過，不影響 Pack 流程
+  }
+}
 
 /** 更新 RAG 名稱：PATCH /rag/name/{file_id}，body { name }，Header X-Person-Id。成功後更新 ragList 該筆的 name，tab 標籤會自動更新。 */
 async function updateRagName() {
@@ -493,7 +560,7 @@ function getDefaultUploadName() {
   return `${yy}${mm}${dd}${hh}${min}${ss}`;
 }
 
-/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、name、course_name、ZIP 檔案），後端上傳 ZIP、新增 Rag 並回傳 rag_id、file_id、created_at、filename、second_folders、course_name */
+/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、ZIP 檔案；name 可選，未傳則以檔名去 .zip 寫入 Rag.name），後端回傳 rag_id、file_id、created_at、filename、second_folders、file_metadata */
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
@@ -513,8 +580,6 @@ async function confirmUploadZip() {
     if (personId != null) formData.append('person_id', String(personId));
     const name = (state.zipUploadName || '').trim() || getDefaultUploadName();
     formData.append('name', name);
-    const courseName = (state.zipCourseName || '').trim();
-    if (courseName) formData.append('course_name', courseName);
     const headers = {};
     if (personId != null) headers['X-Person-Id'] = String(personId);
     const res = await fetch(`${API_BASE}/rag/upload-zip`, {
@@ -549,7 +614,6 @@ async function confirmUploadZip() {
       newState.zipFileId = newFileId;
       newState.zipFileName = data.filename ?? state.zipFileName;
       newState.zipSecondFolders = Array.isArray(data?.second_folders) ? data.second_folders : [];
-      newState.zipCourseName = state.zipCourseName ?? '';
       newState.uploadedZipFile = state.uploadedZipFile;
       newTabIds.value = newTabIds.value.filter((id) => id !== currentTabId);
       activeTabId.value = newFileId;
@@ -566,7 +630,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** 呼叫 /rag/create-rag-zip，body: file_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap */
+/** 呼叫 /rag/create-rag-zip；body: file_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap（不含 system_prompt_instruction） */
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipFileId ?? '').trim();
@@ -613,6 +677,9 @@ async function confirmPack() {
       state.packResponseJson = text;
     }
     state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
+    // 統一儲存：將此頁設定寫回同一筆 Rag 記錄（rag_list, rag_metadata, chunk_size, chunk_overlap, system_prompt_instruction）
+    await fetchRagList();
+    await saveRagConfigToRow();
   } catch (err) {
     state.packError = err.message || '壓縮失敗';
     state.packResponseJson = null;
@@ -681,7 +748,7 @@ async function generateQuestion() {
   state.generateQuestionError = '';
   state.generateQuestionResponseJson = null;
   const systemInstruction = (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION;
-  const courseName = (state.zipCourseName ?? '').trim();
+  const courseName = courseNameFromFileMetadata.value;
   try {
     const res = await fetch(`${API_BASE}/rag/generate-question`, {
       method: 'POST',
@@ -747,7 +814,7 @@ async function confirmAnswer(item) {
       item.gradingResult = '評分失敗：此題目未關聯 RAG 單元（rag_name），請由「產生題目」產生題目後再評分。';
       return;
     }
-    const courseName = (currentState.value.zipCourseName ?? '').trim();
+    const courseName = courseNameFromFileMetadata.value;
     const res = await fetch(`${API_BASE}/rag/grade_submission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -981,6 +1048,16 @@ function addRagListGroup() {
   const state = currentState.value;
   state.packTasksList = [...(state.packTasksList || []), []];
 }
+
+/** 將每個 second_folder 各新增為一個虛擬資料夾（不影響既有虛擬資料夾） */
+function addAllSecondFoldersAsGroups() {
+  const names = secondFoldersFull.value;
+  if (!names.length) return;
+  const state = currentState.value;
+  const existing = state.packTasksList ?? [];
+  const newGroups = names.map((name) => [name]);
+  state.packTasksList = [...existing, ...newGroups];
+}
 </script>
 
 <template>
@@ -1065,28 +1142,15 @@ function addRagListGroup() {
             type="text"
             class="form-control form-control-sm"
             style="max-width: 200px;"
-            :disabled="currentState.zipLoading"
           >
           <button
             v-if="!isNewTabId(activeTabId) && currentRagItem"
             type="button"
             class="btn btn-sm btn-primary"
-            :disabled="currentState.updateNameLoading || currentState.zipLoading || (currentState.zipUploadName || '').trim() === getRagTabLabel(currentRagItem)"
             @click="updateRagName"
           >
             {{ currentState.updateNameLoading ? '修改中...' : '確定修改' }}
           </button>
-        </div>
-        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-          <span class="my-title-xs-gray">course_name</span>
-          <input
-            v-model="currentState.zipCourseName"
-            type="text"
-            class="form-control form-control-sm"
-            style="max-width: 200px;"
-            :disabled="currentState.zipLoading"
-            placeholder="請輸入課程名稱"
-          >
         </div>
         <div v-if="currentState.updateNameError" class="alert alert-danger mt-2 mb-0 py-2 small">
           {{ currentState.updateNameError }}
@@ -1102,7 +1166,7 @@ function addRagListGroup() {
             autocomplete="off"
           >
         </div>
-        <div v-if="isNewTabId(activeTabId)" class="mb-3">
+        <div v-if="isNewTabId(activeTabId) || fileMetadataToShow != null" class="mb-3">
           <div class="my-title-xs-gray mb-2">上傳 ZIP 檔</div>
           <p class="form-text text-muted small mb-2">支援 .pdf、.docx、.rmd／.r、.html／.htm</p>
           <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -1111,14 +1175,14 @@ function addRagListGroup() {
               accept=".zip"
               class="form-control form-control-sm"
               style="max-width: 240px;"
-              :disabled="currentState.zipLoading"
+              :disabled="fileMetadataToShow != null"
               @change="onZipChange"
             >
             <span v-if="currentState.zipFileName" class="my-content-sm-black">{{ currentState.zipFileName }}</span>
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="!currentState.uploadedZipFile || currentState.zipLoading"
+              :disabled="fileMetadataToShow != null || currentState.zipLoading"
               @click="confirmUploadZip"
             >
               {{ currentState.zipLoading ? '上傳中...' : '確定' }}
@@ -1133,8 +1197,8 @@ function addRagListGroup() {
           <pre class="my-readonly-block mb-0 font-monospace small"><code>{{ JSON.stringify(fileMetadataToShow, null, 2) }}</code></pre>
         </div>
       </div>
-      <!-- 壓縮資料夾 (Pack) 與 RAG：未輸入 API key 或未上傳 ZIP 時 disable -->
-      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
+      <!-- 壓縮資料夾 (Pack) 與 RAG：要有 file_metadata 才顯示；未輸入 API key 或未上傳 ZIP 時 disable -->
+      <div v-if="fileMetadataToShow != null" class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
         <div class="my-title-xs-gray mb-3 pb-2 border-bottom">壓縮資料夾 (Pack) 與 RAG</div>
           <p class="form-text text-muted small mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
 
@@ -1157,7 +1221,17 @@ function addRagListGroup() {
 
           <!-- rag_list 虛擬資料夾區：可放置 second_folders 標籤 -->
           <div class="mb-2">
-            <label class="form-label my-title-xs-gray mb-1">rag_list（虛擬資料夾，將上方標籤拖入）</label>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+              <label class="form-label my-title-xs-gray mb-0">rag_list（虛擬資料夾，將上方標籤拖入）</label>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                :disabled="!secondFoldersFull.length"
+                @click="addAllSecondFoldersAsGroups"
+              >
+                每個 second_folder 各一虛擬資料夾
+              </button>
+            </div>
             <div class="d-flex flex-wrap align-items-start gap-2">
               <template v-for="(group, gi) in ragListDisplayGroups" :key="'rg-' + gi">
                 <div
@@ -1209,7 +1283,6 @@ function addRagListGroup() {
                 <button
                   type="button"
                   class="btn btn-sm btn-outline-secondary"
-                  :disabled="packAndGenerateDisabled"
                   @click="addRagListGroup"
                 >
                   + 新增虛擬資料夾
@@ -1219,16 +1292,6 @@ function addRagListGroup() {
           </div>
 
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
-            <div class="flex-grow-1" style="min-width: 240px;">
-              <label class="form-label my-title-xs-gray mb-1">rag_list（純顯示）</label>
-              <input
-                :value="currentState.packTasks"
-                type="text"
-                class="form-control form-control-sm my-readonly-block"
-                placeholder="例：220222+220301"
-                readonly
-              >
-            </div>
             <div style="width: 100px;">
               <label class="form-label my-title-xs-gray mb-1">chunk_size</label>
               <input
@@ -1237,7 +1300,6 @@ function addRagListGroup() {
                 min="1"
                 class="form-control form-control-sm"
                 placeholder="1000"
-                :disabled="packAndGenerateDisabled"
               >
             </div>
             <div style="width: 100px;">
@@ -1248,13 +1310,11 @@ function addRagListGroup() {
                 min="0"
                 class="form-control form-control-sm"
                 placeholder="200"
-                :disabled="packAndGenerateDisabled"
               >
             </div>
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="packAndGenerateDisabled || currentState.packLoading"
               @click="confirmPack"
             >
               {{ currentState.packLoading ? '處理中...' : '執行 Pack' }}
@@ -1275,8 +1335,8 @@ function addRagListGroup() {
             {{ currentState.packError }}
           </div>
       </div>
-      <!-- RAG 產生題目與題目與作答：一個區塊，點「新增題目」後才出現題目生成子區塊 -->
-      <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
+      <!-- RAG 產生題目與題目與作答：要有 rag_metadata 才顯示；點「新增題目」後才出現題目生成子區塊 -->
+      <div v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''" class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
         <div class="my-title-xs-gray mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
         <p class="form-text text-muted small mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
 
@@ -1293,8 +1353,8 @@ function addRagListGroup() {
                 <div class="card-body text-start">
                   <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                     <div>
-                      <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-                      <div class="form-control form-control-sm my-readonly-block" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].sourceFilename || '—' }}</div>
+                      <label class="form-label my-title-xs-gray mb-1">選擇單元（rag_name）</label>
+                      <div class="form-control form-control-sm my-readonly-block" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                     </div>
                     <div>
                       <label class="form-label my-title-xs-gray mb-1">難度</label>
@@ -1333,7 +1393,7 @@ function addRagListGroup() {
                       <div class="form-text">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
                       <div class="d-flex gap-2 mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
-                        <button type="button" class="btn btn-sm btn-primary" :disabled="!currentState.cardList[slotIndex - 1].answer.trim()" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
+                        <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
                       </div>
                     </template>
                     <template v-else>
@@ -1367,22 +1427,21 @@ function addRagListGroup() {
                 <div class="card-body text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div>
-                      <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-                      <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
+                      <label class="form-label my-title-xs-gray mb-1">選擇單元（rag_name）</label>
+                      <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm">
                         <option value="">— 請先執行 Pack —</option>
-                        <option v-for="(opt, i) in generateQuestionUnits" :key="i" :value="opt.file_id">{{ opt.filename }}</option>
+                        <option v-for="(opt, i) in generateQuestionUnits" :key="i" :value="opt.file_id">{{ opt.rag_name }}</option>
                       </select>
                     </div>
                     <div>
                       <label class="form-label my-title-xs-gray mb-1">難度</label>
-                      <select v-model="filterDifficulty" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
+                      <select v-model="filterDifficulty" class="form-select form-select-sm">
                         <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
                       </select>
                     </div>
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
-                      :disabled="ragGenerateDisabled || currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
                       @click="generateQuestion"
                     >
                       {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
@@ -1395,7 +1454,6 @@ function addRagListGroup() {
                       class="form-control form-control-sm font-monospace small"
                       rows="5"
                       placeholder="留空則使用預設出題規範"
-                      :disabled="ragGenerateDisabled"
                       style="max-width: 100%;"
                     />
                   </div>
