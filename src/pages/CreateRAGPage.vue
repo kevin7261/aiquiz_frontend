@@ -89,6 +89,8 @@ function getTabState(id) {
       updateNameLoading: false,
       updateNameError: '',
       systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
+      saveSystemPromptLoading: false,
+      saveSystemPromptError: '',
     });
   }
   return tabStateMap[id];
@@ -406,6 +408,52 @@ async function updateRagName() {
     state.updateNameError = err.message || String(err);
   } finally {
     state.updateNameLoading = false;
+  }
+}
+
+/** PATCH /rag/system_prompt_instruction/{file_id}：更新 Rag 表該筆的 system_prompt_instruction 與 updated_at；body { system_prompt_instruction }，Header X-Person-Id */
+async function saveSystemPromptInstruction() {
+  const rag = currentRagItem.value;
+  if (!rag || isNewTabId(activeTabId.value)) return;
+  const fileId = rag.file_id ?? rag.id ?? rag;
+  if (fileId == null || fileId === '') return;
+  const personId = authStore.user?.person_id;
+  if (personId == null) {
+    alert('請先登入');
+    return;
+  }
+  const state = currentState.value;
+  state.saveSystemPromptLoading = true;
+  state.saveSystemPromptError = '';
+  try {
+    const res = await fetch(`${API_BASE}/rag/system_prompt_instruction/${encodeURIComponent(String(fileId))}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Person-Id': String(personId),
+      },
+      body: JSON.stringify({
+        system_prompt_instruction: (state.systemInstruction ?? '').trim() || null,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    const idx = ragList.value.findIndex((r) => (r.file_id ?? r.id ?? r) === fileId);
+    if (idx >= 0) ragList.value[idx].system_prompt_instruction = (state.systemInstruction ?? '').trim() || null;
+    state.saveSystemPromptError = '';
+  } catch (err) {
+    state.saveSystemPromptError = err.message || String(err);
+  } finally {
+    state.saveSystemPromptLoading = false;
   }
 }
 
@@ -1410,7 +1458,7 @@ function addAllSecondFoldersAsGroups() {
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
-                      :disabled="getSlotFormState(slotIndex).loading"
+                      :disabled="getSlotFormState(slotIndex).loading || !openaiApiKey?.trim()"
                       @click="generateQuestion(slotIndex)"
                     >
                       {{ getSlotFormState(slotIndex).loading ? '產生中...' : '產生題目' }}
@@ -1418,13 +1466,26 @@ function addAllSecondFoldersAsGroups() {
                   </div>
                   <div class="mt-3">
                     <label class="form-label my-title-xs-gray mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
-                    <textarea
-                      v-model="currentState.systemInstruction"
-                      class="form-control form-control-sm font-monospace small"
-                      rows="5"
-                      placeholder="留空則使用預設出題規範"
-                      style="max-width: 100%;"
-                    />
+                    <div class="d-flex flex-wrap align-items-start gap-2">
+                      <textarea
+                        v-model="currentState.systemInstruction"
+                        class="form-control form-control-sm font-monospace small"
+                        rows="5"
+                        :placeholder="'留空則使用預設：' + DEFAULT_SYSTEM_INSTRUCTION"
+                        style="max-width: 100%; flex: 1 1 200px;"
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        :disabled="currentState.saveSystemPromptLoading || isNewTabId(activeTabId)"
+                        @click="saveSystemPromptInstruction"
+                      >
+                        {{ currentState.saveSystemPromptLoading ? '儲存中...' : '儲存' }}
+                      </button>
+                    </div>
+                    <div v-if="currentState.saveSystemPromptError" class="alert alert-danger py-2 small mt-2 mb-0">
+                      {{ currentState.saveSystemPromptError }}
+                    </div>
                   </div>
                   <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 small">
                     {{ getSlotFormState(slotIndex).error }}
