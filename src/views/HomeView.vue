@@ -22,7 +22,7 @@
     'answer-analysis': 'answerAnalysis',
     dashboard: 'dashboard',
     profile: 'profile',
-    'create-rag': 'createRAG',
+    'create-rag-zip': 'createRAG',
     users: 'userManagement',
   };
   const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([k, v]) => [v, k]));
@@ -126,7 +126,7 @@
               </li>
               <li class="nav-item">
                 <router-link
-                  to="/main/create-rag"
+                  to="/main/create-rag-zip"
                   class="nav-link"
                   active-class="active"
                 >建立 RAG</router-link>

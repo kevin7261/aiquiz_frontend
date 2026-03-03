@@ -58,6 +58,7 @@ function getTabState(id) {
       uploadedZipFile: null,
       zipFileName: '',
       zipUploadName: '',
+      zipCourseName: '',
       zipSecondFolders: [],
       zipResponseJson: null,
       zipLoading: false,
@@ -246,6 +247,7 @@ watch(currentRagItem, (rag) => {
   if (rag.chunk_size != null) chunkSize.value = Number(rag.chunk_size);
   if (rag.chunk_overlap != null) chunkOverlap.value = Number(rag.chunk_overlap);
   if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
+  if (rag.course_name != null && String(rag.course_name).trim() !== '') state.zipCourseName = String(rag.course_name).trim();
 }, { immediate: true });
 
 watch(generateQuestionUnits, (units) => {
@@ -433,7 +435,7 @@ function getDefaultUploadName() {
   return `${yy}${mm}${dd}${hh}${min}${ss}`;
 }
 
-/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、name、ZIP 檔案），後端上傳 ZIP、新增 Rag 並回傳 rag_id、file_id、created_at、filename、second_folders */
+/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、name、course_name、ZIP 檔案），後端上傳 ZIP、新增 Rag 並回傳 rag_id、file_id、created_at、filename、second_folders、course_name */
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
@@ -453,6 +455,8 @@ async function confirmUploadZip() {
     if (personId != null) formData.append('person_id', String(personId));
     const name = (state.zipUploadName || '').trim() || getDefaultUploadName();
     formData.append('name', name);
+    const courseName = (state.zipCourseName || '').trim();
+    if (courseName) formData.append('course_name', courseName);
     const headers = {};
     if (personId != null) headers['X-Person-Id'] = String(personId);
     const res = await fetch(`${API_BASE}/rag/upload-zip`, {
@@ -487,6 +491,7 @@ async function confirmUploadZip() {
       newState.zipFileId = newFileId;
       newState.zipFileName = data.filename ?? state.zipFileName;
       newState.zipSecondFolders = Array.isArray(data?.second_folders) ? data.second_folders : [];
+      newState.zipCourseName = state.zipCourseName ?? '';
       newState.uploadedZipFile = state.uploadedZipFile;
       newTabIds.value = newTabIds.value.filter((id) => id !== currentTabId);
       activeTabId.value = newFileId;
@@ -503,7 +508,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** 呼叫 /rag/create-rag，body: file_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap */
+/** 呼叫 /rag/create-rag-zip，body: file_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap */
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipFileId ?? '').trim();
@@ -521,7 +526,7 @@ async function confirmPack() {
   state.packError = '';
   state.packResponseJson = null;
   try {
-    const res = await fetch(`${API_BASE}/rag/create-rag`, {
+    const res = await fetch(`${API_BASE}/rag/create-rag-zip`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -566,7 +571,7 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
   const list = state.cardList;
   const q = question ?? (list.length > 0 ? list[0].question : '');
   const h = hint ?? (list.length > 0 ? list[0].hint : '');
-  const refAns = referenceAnswer ?? (list.length > 0 ? list[0].referenceAnswer : '');
+  const refAns = referenceAnswer ?? (list.length > 0 ? list[0].answer : '');
   const rn = ragName ?? (list.length > 0 ? list[0].ragName : null);
   state.cardList = [
     ...list,
@@ -574,10 +579,10 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
       id: nextCardId(),
       question: q,
       hint: h,
-      referenceAnswer: refAns,
+      referenceAnswer: '',
       sourceFilename: sourceFilename ?? null,
       ragName: rn,
-      answer: '',
+      answer: refAns,
       hintVisible: false,
       confirmed: false,
       gradingResult: '',
@@ -585,7 +590,7 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
   ];
 }
 
-/** 呼叫 /rag/generate-question（body: file_id, rag_name, openai_api_key, qtype, level, system_instruction） */
+/** 呼叫 /rag/generate-question（body: file_id, rag_name, openai_api_key, qtype, level, system_prompt_instruction, course_name） */
 async function generateQuestion() {
   const state = currentState.value;
   const key = openaiApiKey.value?.trim();
@@ -608,6 +613,7 @@ async function generateQuestion() {
   state.generateQuestionError = '';
   state.generateQuestionResponseJson = null;
   const systemInstruction = (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION;
+  const courseName = (state.zipCourseName ?? '').trim();
   try {
     const res = await fetch(`${API_BASE}/rag/generate-question`, {
       method: 'POST',
@@ -618,7 +624,8 @@ async function generateQuestion() {
         openai_api_key: key,
         qtype: filterQuestionType.value,
         level: filterDifficulty.value,
-        system_instruction: systemInstruction,
+        system_prompt_instruction: systemInstruction,
+        ...(courseName ? { course_name: courseName } : {}),
       }),
     });
     const text = await res.text();
@@ -673,18 +680,19 @@ async function confirmAnswer(item) {
       item.gradingResult = '評分失敗：此題目未關聯 RAG 單元（rag_name），請由「產生題目」產生題目後再評分。';
       return;
     }
-    const body = new URLSearchParams({
-      file_id: sourceFileId,
-      rag_name: ragName,
-      openai_api_key: key,
-      question_text: item.question,
-      student_answer: item.answer.trim(),
-      qtype: filterQuestionType.value,
-    });
+    const courseName = (currentState.value.zipCourseName ?? '').trim();
     const res = await fetch(`${API_BASE}/rag/grade_submission`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_id: sourceFileId,
+        rag_name: ragName,
+        openai_api_key: key,
+        question_text: item.question,
+        student_answer: item.answer.trim(),
+        qtype: filterQuestionType.value,
+        course_name: courseName,
+      }),
     });
     const text = await res.text();
     if (!res.ok) {
@@ -916,6 +924,17 @@ function rewriteAnswer(item) {
             {{ currentState.updateNameLoading ? '修改中...' : '確定修改' }}
           </button>
         </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+          <span class="my-title-xs-gray">course_name</span>
+          <input
+            v-model="currentState.zipCourseName"
+            type="text"
+            class="form-control form-control-sm"
+            style="max-width: 200px;"
+            :disabled="currentState.zipLoading"
+            placeholder="請輸入課程名稱"
+          >
+        </div>
         <div v-if="currentState.updateNameError" class="alert alert-danger mt-2 mb-0 py-2 small">
           {{ currentState.updateNameError }}
         </div>
@@ -1042,6 +1061,17 @@ function rewriteAnswer(item) {
             </button>
           </div>
           <div class="mt-3">
+            <label class="form-label my-title-xs-gray mb-1">system_instruction（出題規範，傳給 GPT）</label>
+            <textarea
+              v-model="currentState.systemInstruction"
+              class="form-control form-control-sm font-monospace small"
+              rows="5"
+              placeholder="留空則使用預設出題規範"
+              :disabled="packAndGenerateDisabled"
+              style="max-width: 100%;"
+            />
+          </div>
+          <div class="mt-3">
             <label class="form-label my-title-xs-gray mb-1">rag_metadata（Pack API 回傳）</label>
             <textarea
               v-model="currentState.ragMetadata"
@@ -1087,17 +1117,6 @@ function rewriteAnswer(item) {
             </select>
           </div>
         </div>
-        <div class="mt-3">
-          <label class="form-label my-title-xs-gray mb-1">system_instruction（出題規範，傳給 GPT）</label>
-          <textarea
-            v-model="currentState.systemInstruction"
-            class="form-control form-control-sm font-monospace small"
-            rows="5"
-            placeholder="留空則使用預設出題規範"
-            :disabled="ragGenerateDisabled"
-            style="max-width: 100%;"
-          />
-        </div>
         <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
           {{ currentState.generateQuestionError }}
         </div>
@@ -1134,12 +1153,6 @@ function rewriteAnswer(item) {
               </button>
               <div v-show="item.hintVisible" class="rounded my-bgcolor-gray-100 my-title-xs-gray mt-2 p-2">
                 {{ item.hint }}
-              </div>
-            </div>
-            <div v-if="item.referenceAnswer" class="mb-3">
-              <div class="my-title-xs-gray mb-1">參考答案</div>
-              <div class="rounded my-bgcolor-gray-100 my-content-sm-black p-2">
-                {{ item.referenceAnswer }}
               </div>
             </div>
             <div class="mb-3">
