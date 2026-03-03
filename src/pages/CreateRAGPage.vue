@@ -65,6 +65,8 @@ function getTabState(id) {
       zipError: '',
       zipFileId: isNew ? '' : id,
       packTasks: '',
+      /** 虛擬資料夾：[[a,b],[c]] 對應 rag_list "a+b,c" */
+      packTasksList: [],
       ragMetadata: '',
       withRag: true,
       packResponseJson: null,
@@ -215,6 +217,19 @@ const fileMetadataToShow = computed(() => {
   return rag;
 });
 
+/** 將 rag_list 字串解析為虛擬資料夾結構：'a+b,c' -> [['a','b'],['c']] */
+function parsePackTasksList(str) {
+  const s = String(str ?? '').trim();
+  if (!s) return [];
+  return s.split(',').map((part) => part.split('+').map((x) => x.trim()).filter(Boolean)).filter((g) => g.length > 0);
+}
+
+/** 將虛擬資料夾結構序列化為 rag_list 字串 */
+function serializePackTasksList(list) {
+  if (!Array.isArray(list) || list.length === 0) return '';
+  return list.map((g) => (Array.isArray(g) ? g.filter(Boolean).join('+') : '')).filter(Boolean).join(',');
+}
+
 /** 從 /rags 的 rag_list 字串推導出 generateQuestionUnits（Pack 尚未執行時的 fallback） */
 const generateQuestionUnitsFromRag = computed(() => {
   const rag = currentRagItem.value;
@@ -240,7 +255,10 @@ const generateQuestionUnitsFromRag = computed(() => {
 watch(currentRagItem, (rag) => {
   if (!rag || typeof rag !== 'object') return;
   const state = currentState.value;
-  if (rag.rag_list != null && String(rag.rag_list).trim() !== '') state.packTasks = String(rag.rag_list).trim();
+  if (rag.rag_list != null && String(rag.rag_list).trim() !== '') {
+    state.packTasks = String(rag.rag_list).trim();
+    state.packTasksList = parsePackTasksList(state.packTasks);
+  }
   if (rag.rag_metadata != null) {
     state.ragMetadata = typeof rag.rag_metadata === 'string' ? rag.rag_metadata : JSON.stringify(rag.rag_metadata, null, 2);
   }
@@ -249,6 +267,46 @@ watch(currentRagItem, (rag) => {
   if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
   if (rag.course_name != null && String(rag.course_name).trim() !== '') state.zipCourseName = String(rag.course_name).trim();
 }, { immediate: true });
+
+/** packTasks 與 packTasksList 雙向同步（輸入框與拖曳 UI） */
+watch(
+  () => currentState.value.packTasks,
+  (val) => {
+    const parsed = parsePackTasksList(val);
+    const current = currentState.value.packTasksList;
+    if (JSON.stringify(parsed) !== JSON.stringify(current)) {
+      currentState.value.packTasksList = parsed;
+    }
+  }
+);
+watch(
+  () => currentState.value.packTasksList,
+  (list) => {
+    const serialized = serializePackTasksList(list);
+    const current = currentState.value.packTasks;
+    if (serialized !== current) {
+      currentState.value.packTasks = serialized;
+    }
+  },
+  { deep: true }
+);
+
+/** second_folders 中尚未加入 rag_list 的（可拖曳到虛擬資料夾） */
+const secondFoldersAvailable = computed(() => {
+  const folders = fileMetadataToShow.value?.second_folders ?? currentState.value.zipSecondFolders ?? [];
+  const used = (currentState.value.packTasksList ?? []).flat();
+  return Array.isArray(folders)
+    ? folders.filter((name) => !used.includes(name))
+    : [];
+});
+
+/** 顯示用的虛擬資料夾群組：若為空且有 second_folders 可拖，則顯示一空群組供放置 */
+const ragListDisplayGroups = computed(() => {
+  const list = currentState.value.packTasksList ?? [];
+  if (list.length > 0) return list;
+  if (secondFoldersAvailable.value.length > 0) return [[]];
+  return [];
+});
 
 watch(generateQuestionUnits, (units) => {
   const state = currentState.value;
@@ -829,6 +887,79 @@ function rewriteAnswer(item) {
   item.confirmed = false;
   item.gradingResult = '';
 }
+
+/** 拖曳：設定被拖曳的資料 */
+function onDragStartTag(e, folderName, fromRagList, groupIdx, tagIdx) {
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('application/json', JSON.stringify({
+    folderName,
+    fromRagList: !!fromRagList,
+    groupIdx: fromRagList ? groupIdx : -1,
+    tagIdx: fromRagList ? tagIdx : -1,
+  }));
+  e.dataTransfer.setData('text/plain', folderName);
+}
+
+/** 拖曳經過 drop zone */
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget?.classList?.add('rag-list-drop-active');
+}
+
+function onDragLeave(e) {
+  e.currentTarget?.classList?.remove('rag-list-drop-active');
+}
+
+/** 放置到 rag_list 虛擬資料夾 */
+function onDropRagList(e, targetGroupIdx) {
+  e.preventDefault();
+  e.currentTarget?.classList?.remove('rag-list-drop-active');
+  if (packAndGenerateDisabled.value) return;
+  let data;
+  try {
+    data = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
+  } catch (_) {
+    data = { folderName: e.dataTransfer.getData('text/plain') || '', fromRagList: false };
+  }
+  const folderName = (data.folderName || '').trim();
+  if (!folderName) return;
+  const state = currentState.value;
+  let list = [...(state.packTasksList || [])];
+  if (data.fromRagList && data.groupIdx >= 0) {
+    const g = list[data.groupIdx];
+    if (Array.isArray(g)) {
+      const next = g.filter((_, i) => i !== data.tagIdx);
+      list[data.groupIdx] = next.length ? next : null;
+    }
+  }
+  if (targetGroupIdx >= list.length) {
+    for (let i = list.length; i <= targetGroupIdx; i++) list.push([]);
+  }
+  const target = list[targetGroupIdx];
+  const arr = Array.isArray(target) ? [...target] : [];
+  if (!arr.includes(folderName)) arr.push(folderName);
+  list[targetGroupIdx] = arr;
+  list = list.filter((g) => g != null && (Array.isArray(g) ? g.length > 0 : g));
+  state.packTasksList = list;
+}
+
+/** 從 rag_list 移除標籤 */
+function removeFromRagList(groupIdx, tagIdx) {
+  const state = currentState.value;
+  const list = [...(state.packTasksList || [])];
+  const g = list[groupIdx];
+  if (!Array.isArray(g)) return;
+  const next = g.filter((_, i) => i !== tagIdx);
+  list[groupIdx] = next.length ? next : null;
+  state.packTasksList = list.filter((x) => x != null && (Array.isArray(x) ? x.length > 0 : x));
+}
+
+/** 新增一個空的虛擬資料夾群組 */
+function addRagListGroup() {
+  const state = currentState.value;
+  state.packTasksList = [...(state.packTasksList || []), []];
+}
 </script>
 
 <template>
@@ -1018,9 +1149,79 @@ function rewriteAnswer(item) {
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
         <div class="my-title-xs-gray mb-2">壓縮資料夾 (Pack) 與 RAG</div>
           <p class="form-text text-muted small mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
+
+          <!-- second_folders 標籤區：可拖曳至 rag_list -->
+          <div v-if="(fileMetadataToShow?.second_folders ?? currentState.zipSecondFolders ?? []).length" class="mb-3">
+            <label class="form-label my-title-xs-gray mb-1">second_folders（可拖曳至下方 rag_list）</label>
+            <div class="d-flex flex-wrap gap-2 p-2 rounded border" style="min-height: 2.5rem; background: var(--bs-body-bg, #fff);">
+              <span
+                v-for="(name, i) in secondFoldersAvailable"
+                :key="'sf-' + i"
+                class="badge bg-info text-dark px-2 py-1"
+                style="cursor: grab; user-select: none;"
+                draggable="true"
+                @dragstart="onDragStartTag($event, name, false, -1, -1)"
+              >
+                {{ name }}
+              </span>
+              <span v-if="!secondFoldersAvailable.length" class="text-muted small align-self-center">已全數移入 rag_list</span>
+            </div>
+          </div>
+
+          <!-- rag_list 虛擬資料夾區：可放置 second_folders 標籤 -->
+          <div class="mb-2">
+            <label class="form-label my-title-xs-gray mb-1">rag_list（虛擬資料夾，將上方標籤拖入）</label>
+            <div class="d-flex flex-wrap align-items-start gap-2">
+              <template v-for="(group, gi) in ragListDisplayGroups" :key="'rg-' + gi">
+                <div
+                  class="border rounded p-2 d-flex flex-wrap align-items-center gap-1 rag-list-drop-zone"
+                  style="min-width: 120px; min-height: 2.5rem; background: var(--bs-secondary-bg, #e9ecef);"
+                  @dragover="onDragOver"
+                  @dragleave="onDragLeave"
+                  @drop="onDropRagList($event, gi)"
+                >
+                  <span
+                    v-for="(tag, ti) in group"
+                    :key="'t-' + gi + '-' + ti"
+                    class="badge bg-primary px-2 py-1 d-inline-flex align-items-center gap-1"
+                    style="cursor: grab;"
+                    draggable="true"
+                    @dragstart="onDragStartTag($event, tag, true, gi, ti)"
+                  >
+                    {{ tag }}
+                    <span
+                      class="ms-1 opacity-75"
+                      style="cursor: pointer;"
+                      aria-label="移除"
+                      @click.stop="removeFromRagList(gi, ti)"
+                    >×</span>
+                  </span>
+                  <span v-if="!group.length" class="text-muted small">拖入此處</span>
+                </div>
+              </template>
+              <div
+                class="border border-dashed rounded p-2 rag-list-drop-zone d-flex align-items-center justify-content-center"
+                style="min-width: 140px; min-height: 2.5rem;"
+                :class="{ 'opacity-50': packAndGenerateDisabled }"
+                @dragover="onDragOver($event)"
+                @dragleave="onDragLeave($event)"
+                @drop="onDropRagList($event, (currentState.packTasksList || []).length)"
+              >
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  :disabled="packAndGenerateDisabled"
+                  @click="addRagListGroup"
+                >
+                  + 新增虛擬資料夾
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
             <div class="flex-grow-1" style="min-width: 240px;">
-              <label class="form-label my-title-xs-gray mb-1">rag_list</label>
+              <label class="form-label my-title-xs-gray mb-1">rag_list（可手動編輯）</label>
               <input
                 v-model="currentState.packTasks"
                 type="text"
@@ -1209,3 +1410,10 @@ function rewriteAnswer(item) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.rag-list-drop-zone.rag-list-drop-active {
+  background: var(--bs-info-bg-subtle, rgba(13, 202, 240, 0.2)) !important;
+  border-color: var(--bs-info, #0dcaf0) !important;
+}
+</style>
