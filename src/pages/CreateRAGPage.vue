@@ -2,7 +2,7 @@
 /**
  * 建立 RAG 頁面。
  * 資料對應：一個 RAG 頁面（一個 tab）= 後端 public."Rag" 表的一筆（主鍵 rag_id + file_id）。
- * 列表 GET /rag/rags、上傳新增一筆 POST /rag/upload-zip、設定寫回同筆 PATCH /rag/update/{file_id}。
+ * 列表 GET /rag/rags、上傳新增一筆 POST /rag/upload-zip；create-rag-zip 會更新同筆的 rag_list、rag_metadata、chunk_size、chunk_overlap。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -358,59 +358,6 @@ onMounted(() => {
   fetchRagList();
 });
 
-/**
- * 將當前 tab 的 RAG 設定寫回同一筆 Rag 記錄（統一儲存）。
- * PATCH /rag/update/{file_id}，body: rag_list, system_prompt_instruction, rag_metadata, chunk_size, chunk_overlap。
- * 後端需更新 public."Rag" 對應 (rag_id, file_id) 的那一筆。
- */
-async function saveRagConfigToRow() {
-  const rag = currentRagItem.value;
-  if (!rag || isNewTabId(activeTabId.value)) return;
-  const fileId = rag.file_id ?? rag.id ?? rag;
-  if (fileId == null || fileId === '') return;
-  const personId = authStore.user?.person_id;
-  const state = currentState.value;
-  try {
-    const body = {
-      rag_list: (state.packTasks ?? '').trim() || null,
-      system_prompt_instruction: (state.systemInstruction ?? '').trim() || null,
-      chunk_size: Number(chunkSize.value) || null,
-      chunk_overlap: Number(chunkOverlap.value) || null,
-    };
-    let ragMetadata = state.ragMetadata;
-    if (ragMetadata != null && typeof ragMetadata === 'string' && ragMetadata.trim() !== '') {
-      try {
-        body.rag_metadata = JSON.parse(ragMetadata);
-      } catch {
-        body.rag_metadata = null;
-      }
-    } else if (ragMetadata != null && typeof ragMetadata === 'object') {
-      body.rag_metadata = ragMetadata;
-    }
-    const headers = { 'Content-Type': 'application/json' };
-    if (personId != null) headers['X-Person-Id'] = String(personId);
-    const res = await fetch(`${API_BASE}/rag/update/${encodeURIComponent(String(fileId))}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      let msg = res.statusText;
-      try {
-        const err = JSON.parse(text);
-        msg = err.detail ?? err.error ?? msg;
-      } catch {
-        if (text) msg = text;
-      }
-      throw new Error(msg);
-    }
-    await fetchRagList();
-  } catch (_) {
-    // 若後端尚未實作 PATCH /rag/update/{file_id} 則靜默略過，不影響 Pack 流程
-  }
-}
-
 /** 更新 RAG 名稱：PATCH /rag/name/{file_id}，body { name }，Header X-Person-Id。成功後更新 ragList 該筆的 name，tab 標籤會自動更新。 */
 async function updateRagName() {
   const rag = currentRagItem.value;
@@ -677,9 +624,8 @@ async function confirmPack() {
       state.packResponseJson = text;
     }
     state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
-    // 統一儲存：將此頁設定寫回同一筆 Rag 記錄（rag_list, rag_metadata, chunk_size, chunk_overlap, system_prompt_instruction）
+    // 重新載入列表（create-rag-zip 後端已會更新 Rag 表的 rag_list、rag_metadata、chunk_size、chunk_overlap）
     await fetchRagList();
-    await saveRagConfigToRow();
   } catch (err) {
     state.packError = err.message || '壓縮失敗';
     state.packResponseJson = null;
