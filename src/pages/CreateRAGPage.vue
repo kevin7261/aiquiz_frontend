@@ -79,6 +79,8 @@ function getTabState(id) {
       cardList: [],
       /** 是否已點「新增題目」而顯示題目生成子區塊 */
       showQuestionGeneratorBlock: false,
+      /** 已展開的題目區塊數（每按一次「新增題目」+1，每個區塊對應一題） */
+      questionSlotsCount: 0,
       updateNameLoading: false,
       updateNameError: '',
       systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
@@ -621,7 +623,14 @@ async function confirmPack() {
 
 const difficultyOptions = ['入門', '進階', '困難'];
 
-function addCard(question = null, hint = null, sourceFilename = null, referenceAnswer = null, ragName = null) {
+/** 點「新增題目」：展開一個新的題目區塊（第 n 題） */
+function openNextQuestionSlot() {
+  const state = currentState.value;
+  state.showQuestionGeneratorBlock = true;
+  state.questionSlotsCount = (state.questionSlotsCount || 0) + 1;
+}
+
+function addCard(question = null, hint = null, sourceFilename = null, referenceAnswer = null, ragName = null, generateQuestionResponseJson = null, generateLevel = null, systemInstructionUsed = null) {
   const state = currentState.value;
   const list = state.cardList;
   const q = question ?? (list.length > 0 ? list[0].question : '');
@@ -641,6 +650,10 @@ function addCard(question = null, hint = null, sourceFilename = null, referenceA
       hintVisible: false,
       confirmed: false,
       gradingResult: '',
+      gradingResponseJson: null,
+      generateQuestionResponseJson: generateQuestionResponseJson ?? null,
+      generateLevel: generateLevel ?? null,
+      systemInstructionUsed: systemInstructionUsed ?? null,
     },
   ];
 }
@@ -699,8 +712,8 @@ async function generateQuestion() {
     const hintText = data.hint ?? '';
     const targetFilename = data.target_filename ?? selectedUnit?.filename ?? '';
     const answerText = data.answer ?? '';
-    if (questionContent) addCard(questionContent, hintText, targetFilename, answerText, ragName);
-    else addCard(null, null, targetFilename, answerText, ragName);
+    if (questionContent) addCard(questionContent, hintText, targetFilename, answerText, ragName, data, filterDifficulty.value, systemInstruction);
+    else addCard(null, null, targetFilename, answerText, ragName, data, filterDifficulty.value, systemInstruction);
   } catch (err) {
     state.generateQuestionError = err.message || '產生題目失敗';
   } finally {
@@ -813,6 +826,7 @@ async function confirmAnswer(item) {
           return;
         }
         if (pollData.status === 'ready') {
+          item.gradingResponseJson = pollData.result;
           item.gradingResult = formatGradingResult(JSON.stringify(pollData.result)) || '（無批改內容）';
           return;
         }
@@ -830,6 +844,9 @@ async function confirmAnswer(item) {
       item.gradingResult = '評分逾時：請稍後再試或重新送出';
       return;
     }
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* ignore parse error */ }
+    item.gradingResponseJson = parsed;
     item.gradingResult = formatGradingResult(text) || '（無批改內容）';
   } catch (err) {
     item.gradingResult = '評分失敗：後端逾時或服務喚醒中，請稍後再試。';
@@ -881,6 +898,7 @@ function rewriteAnswer(item) {
   item.answer = '';
   item.confirmed = false;
   item.gradingResult = '';
+  item.gradingResponseJson = null;
 }
 
 /** 拖曳：設定被拖曳的資料 */
@@ -1260,257 +1278,150 @@ function addRagListGroup() {
       <!-- RAG 產生題目與題目與作答：一個區塊，點「新增題目」後才出現題目生成子區塊 -->
       <div class="my-bgcolor-gray-100 rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
         <div class="my-title-xs-gray mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
-        <p class="form-text text-muted small mb-3">點「新增題目」後會出現題目生成子區塊（選擇單元、難度、system_prompt_instruction、產生題目）。產生一題後，下方會再出現相同子區塊，可繼續產生下一題。</p>
+        <p class="form-text text-muted small mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
 
-        <div v-if="!currentState.showQuestionGeneratorBlock" class="mb-3">
-          <button
-            type="button"
-            class="btn btn-sm btn-primary"
-            @click="currentState.showQuestionGeneratorBlock = true"
-          >
-            新增題目
-          </button>
-        </div>
-
-        <!-- 題目生成子區塊：點「新增題目」後才顯示，整塊為一個區塊；第一題在區塊最上面 -->
-        <template v-if="currentState.showQuestionGeneratorBlock">
+        <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="my-bgcolor-gray-50 rounded p-4 mb-3">
-          <!-- 第一題：區塊最上面 -->
-          <template v-if="currentState.cardList.length > 0">
-            <div class="card mb-3">
-              <div class="card-header py-2">
-                <span class="my-title-sm-black mb-0">第 1 題</span>
-              </div>
-              <div class="card-body text-start">
-                <div class="mb-3">
-                  <div class="my-title-xs-gray mb-1">題目</div>
-                  <div class="my-content-sm-black">
-                    <span v-if="currentState.cardList[0].sourceFilename" class="text-muted">[{{ currentState.cardList[0].sourceFilename }}] </span>{{ currentState.cardList[0].question }}
-                  </div>
+          <template v-for="(slotIndex) in currentState.questionSlotsCount" :key="slotIndex">
+            <!-- 第 slotIndex 題：若已有該題卡片則顯示卡片，否則顯示產生題目表單 -->
+            <template v-if="currentState.cardList[slotIndex - 1]">
+              <!-- 已有卡片：顯示完整題目區塊 -->
+              <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+                <div class="card-header py-2">
+                  <span class="my-title-sm-black mb-0">第 {{ slotIndex }} 題</span>
                 </div>
-                <div class="mb-3">
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary py-0"
-                    @click="toggleHint(currentState.cardList[0])"
-                  >
-                    {{ currentState.cardList[0].hintVisible ? '隱藏提示' : '顯示提示' }}
-                  </button>
-                  <div v-show="currentState.cardList[0].hintVisible" class="rounded my-bgcolor-gray-100 my-title-xs-gray mt-2 p-2">
-                    {{ currentState.cardList[0].hint }}
-                  </div>
-                </div>
-                <div class="mb-3">
-                  <label :for="`answer-${currentState.cardList[0].id}`" class="form-label my-title-xs-gray mb-1">回答</label>
-                  <template v-if="!currentState.cardList[0].confirmed">
-                    <textarea
-                      :id="`answer-${currentState.cardList[0].id}`"
-                      v-model="currentState.cardList[0].answer"
-                      class="form-control"
-                      rows="4"
-                      placeholder="請輸入您的回答..."
-                      maxlength="2000"
-                    />
-                    <div class="form-text">{{ currentState.cardList[0].answer.length }} / 2000</div>
-                    <div class="d-flex gap-2 mt-2">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[0])">
-                        重寫
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-primary"
-                        :disabled="!currentState.cardList[0].answer.trim()"
-                        @click="confirmAnswer(currentState.cardList[0])"
-                      >
-                        確定
-                      </button>
+                <div class="card-body text-start">
+                  <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+                    <div>
+                      <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
+                      <div class="form-control form-control-sm my-readonly-block" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].sourceFilename || '—' }}</div>
                     </div>
-                  </template>
-                  <template v-else>
-                    <div class="rounded my-bgcolor-gray-100 my-content-sm-black mb-2 p-2">{{ currentState.cardList[0].answer }}</div>
-                    <div class="d-flex gap-2 mb-3">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[0])">
-                        重寫
-                      </button>
+                    <div>
+                      <label class="form-label my-title-xs-gray mb-1">難度</label>
+                      <div class="form-control form-control-sm my-readonly-block" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
                     </div>
-                  </template>
-                </div>
-                <div class="border rounded my-bgcolor-gray-50 p-3">
-                  <div class="my-title-xs-gray mb-1">批改結果</div>
-                  <div class="my-content-sm-black" style="white-space: pre-wrap;">{{ currentState.cardList[0].gradingResult || '尚未批改' }}</div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- 產生題目控制列（選擇單元、難度、產生題目、system_prompt_instruction） -->
-          <div class="d-flex flex-wrap align-items-end gap-3">
-            <div>
-              <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-              <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
-                <option value="">— 請先執行 Pack —</option>
-                <option
-                  v-for="(opt, idx) in generateQuestionUnits"
-                  :key="idx"
-                  :value="opt.file_id"
-                >
-                  {{ opt.filename }}
-                </option>
-              </select>
-            </div>
-            <div>
-              <label class="form-label my-title-xs-gray mb-1">難度</label>
-              <select v-model="filterDifficulty" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
-                <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
-            <button
-              type="button"
-              class="btn btn-sm btn-primary"
-              :disabled="ragGenerateDisabled || currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
-              @click="generateQuestion"
-            >
-              {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
-            </button>
-          </div>
-          <div class="mt-3">
-            <label class="form-label my-title-xs-gray mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
-            <textarea
-              v-model="currentState.systemInstruction"
-              class="form-control form-control-sm font-monospace small"
-              rows="5"
-              placeholder="留空則使用預設出題規範"
-              :disabled="ragGenerateDisabled"
-              style="max-width: 100%;"
-            />
-          </div>
-          <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
-            {{ currentState.generateQuestionError }}
-          </div>
-          <div v-if="currentState.generateQuestionResponseJson !== null" class="mt-2">
-            <div class="my-title-xs-gray mb-1">產生題目 API 回傳 JSON：</div>
-            <pre class="rounded p-3 small text-start overflow-auto mb-0 bg-white" style="max-height: 240px;">{{ JSON.stringify(currentState.generateQuestionResponseJson, null, 2) }}</pre>
-          </div>
-
-          <!-- 第 2 題起：題目與作答卡片 + 下一組產生題目控制列 -->
-          <template v-for="(item, idx) in currentState.cardList.slice(1)" :key="item.id">
-          <div class="card mb-3 mt-4">
-            <div class="card-header py-2">
-              <span class="my-title-sm-black mb-0">第 {{ idx + 2 }} 題</span>
-            </div>
-            <div class="card-body text-start">
-              <div class="mb-3">
-                <div class="my-title-xs-gray mb-1">題目</div>
-                <div class="my-content-sm-black">
-                  <span v-if="item.sourceFilename" class="text-muted">[{{ item.sourceFilename }}] </span>{{ item.question }}
-                </div>
-              </div>
-              <div class="mb-3">
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary py-0"
-                  @click="toggleHint(item)"
-                >
-                  {{ item.hintVisible ? '隱藏提示' : '顯示提示' }}
-                </button>
-                <div v-show="item.hintVisible" class="rounded my-bgcolor-gray-100 my-title-xs-gray mt-2 p-2">
-                  {{ item.hint }}
-                </div>
-              </div>
-              <div class="mb-3">
-                <label :for="`answer-${item.id}`" class="form-label my-title-xs-gray mb-1">回答</label>
-                <template v-if="!item.confirmed">
-                  <textarea
-                    :id="`answer-${item.id}`"
-                    v-model="item.answer"
-                    class="form-control"
-                    rows="4"
-                    placeholder="請輸入您的回答..."
-                    maxlength="2000"
-                  />
-                  <div class="form-text">{{ item.answer.length }} / 2000</div>
-                  <div class="d-flex gap-2 mt-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(item)">
-                      重寫
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label my-title-xs-gray mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
+                    <div class="my-readonly-block font-monospace small p-2" style="min-height: 80px; white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].systemInstructionUsed || '—' }}</div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="my-title-xs-gray mb-1">題目</div>
+                    <div class="my-readonly-block p-2">
+                      <span v-if="currentState.cardList[slotIndex - 1].sourceFilename" class="text-muted">[{{ currentState.cardList[slotIndex - 1].sourceFilename }}] </span>{{ currentState.cardList[slotIndex - 1].question }}
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="toggleHint(currentState.cardList[slotIndex - 1])">
+                      {{ currentState.cardList[slotIndex - 1].hintVisible ? '隱藏提示' : '顯示提示' }}
                     </button>
+                    <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded my-bgcolor-gray-100 my-title-xs-gray mt-2 p-2">
+                      {{ currentState.cardList[slotIndex - 1].hint }}
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label :for="`answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label my-title-xs-gray mb-1">回答</label>
+                    <template v-if="!currentState.cardList[slotIndex - 1].confirmed">
+                      <textarea
+                        :id="`answer-${currentState.cardList[slotIndex - 1].id}`"
+                        v-model="currentState.cardList[slotIndex - 1].answer"
+                        class="form-control"
+                        rows="4"
+                        placeholder="請輸入您的回答..."
+                        maxlength="2000"
+                      />
+                      <div class="form-text">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
+                      <div class="d-flex gap-2 mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
+                        <button type="button" class="btn btn-sm btn-primary" :disabled="!currentState.cardList[slotIndex - 1].answer.trim()" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="rounded my-bgcolor-gray-100 my-content-sm-black mb-2 p-2">{{ currentState.cardList[slotIndex - 1].answer }}</div>
+                      <div class="d-flex gap-2 mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="border rounded my-bgcolor-gray-50 p-3 mb-3">
+                    <div class="my-title-xs-gray mb-1">批改結果</div>
+                    <div class="my-content-sm-black" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
+                  </div>
+                  <div v-if="currentState.cardList[slotIndex - 1].generateQuestionResponseJson != null" class="mb-3">
+                    <div class="my-title-xs-gray mb-1">產生題目 API 回傳 JSON：</div>
+                    <pre class="my-readonly-block font-monospace small mb-0">{{ JSON.stringify(currentState.cardList[slotIndex - 1].generateQuestionResponseJson, null, 2) }}</pre>
+                  </div>
+                  <div v-if="currentState.cardList[slotIndex - 1].gradingResponseJson != null">
+                    <div class="my-title-xs-gray mb-1">批改結果 API 回傳 JSON：</div>
+                    <pre class="my-readonly-block font-monospace small mb-0">{{ JSON.stringify(currentState.cardList[slotIndex - 1].gradingResponseJson, null, 2) }}</pre>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題） -->
+              <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+                <div class="card-header py-2">
+                  <span class="my-title-sm-black mb-0">第 {{ slotIndex }} 題</span>
+                </div>
+                <div class="card-body text-start pt-3">
+                  <div class="d-flex flex-wrap align-items-end gap-3">
+                    <div>
+                      <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
+                      <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
+                        <option value="">— 請先執行 Pack —</option>
+                        <option v-for="(opt, i) in generateQuestionUnits" :key="i" :value="opt.file_id">{{ opt.filename }}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="form-label my-title-xs-gray mb-1">難度</label>
+                      <select v-model="filterDifficulty" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
+                        <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
+                      </select>
+                    </div>
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
-                      :disabled="!item.answer.trim()"
-                      @click="confirmAnswer(item)"
+                      :disabled="ragGenerateDisabled || currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
+                      @click="generateQuestion"
                     >
-                      確定
+                      {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
                     </button>
                   </div>
-                </template>
-                <template v-else>
-                  <div class="rounded my-bgcolor-gray-100 my-content-sm-black mb-2 p-2">{{ item.answer }}</div>
-                  <div class="d-flex gap-2 mb-3">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(item)">
-                      重寫
-                    </button>
+                  <div class="mt-3">
+                    <label class="form-label my-title-xs-gray mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
+                    <textarea
+                      v-model="currentState.systemInstruction"
+                      class="form-control form-control-sm font-monospace small"
+                      rows="5"
+                      placeholder="留空則使用預設出題規範"
+                      :disabled="ragGenerateDisabled"
+                      style="max-width: 100%;"
+                    />
                   </div>
-                </template>
+                  <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
+                    {{ currentState.generateQuestionError }}
+                  </div>
+                  <div v-if="currentState.generateQuestionResponseJson !== null" class="mt-2">
+                    <div class="my-title-xs-gray mb-1">產生題目 API 回傳 JSON：</div>
+                    <pre class="my-readonly-block font-monospace small mb-0">{{ JSON.stringify(currentState.generateQuestionResponseJson, null, 2) }}</pre>
+                  </div>
+                </div>
               </div>
-              <div class="border rounded my-bgcolor-gray-50 p-3">
-                <div class="my-title-xs-gray mb-1">批改結果</div>
-                <div class="my-content-sm-black" style="white-space: pre-wrap;">{{ item.gradingResult || '尚未批改' }}</div>
-              </div>
-            </div>
-          </div>
-          <!-- 此題下方：同一區塊內，下一組產生題目控制列 -->
-          <div class="mt-4 pt-3 border-top">
-            <div class="d-flex flex-wrap align-items-end gap-3">
-              <div>
-                <label class="form-label my-title-xs-gray mb-1">選擇單元（壓縮檔名）</label>
-                <select v-model="currentState.generateQuestionFileId" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
-                  <option value="">— 請先執行 Pack —</option>
-                  <option
-                    v-for="(opt, i) in generateQuestionUnits"
-                    :key="i"
-                    :value="opt.file_id"
-                  >
-                    {{ opt.filename }}
-                  </option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label my-title-xs-gray mb-1">難度</label>
-                <select v-model="filterDifficulty" class="form-select form-select-sm" :disabled="ragGenerateDisabled">
-                  <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
-                </select>
-              </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-primary"
-                :disabled="ragGenerateDisabled || currentState.generateQuestionLoading || !currentState.generateQuestionFileId"
-                @click="generateQuestion"
-              >
-                {{ currentState.generateQuestionLoading ? '產生中...' : '產生題目' }}
-              </button>
-            </div>
-            <div class="mt-3">
-              <label class="form-label my-title-xs-gray mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
-              <textarea
-                v-model="currentState.systemInstruction"
-                class="form-control form-control-sm font-monospace small"
-                rows="5"
-                placeholder="留空則使用預設出題規範"
-                :disabled="ragGenerateDisabled"
-                style="max-width: 100%;"
-              />
-            </div>
-            <div v-if="currentState.generateQuestionError" class="alert alert-danger mt-2 mb-0 py-2 small">
-              {{ currentState.generateQuestionError }}
-            </div>
-            <div v-if="currentState.generateQuestionResponseJson !== null" class="mt-2">
-              <div class="my-title-xs-gray mb-1">產生題目 API 回傳 JSON：</div>
-              <pre class="rounded p-3 small text-start overflow-auto mb-0 bg-white" style="max-height: 240px;">{{ JSON.stringify(currentState.generateQuestionResponseJson, null, 2) }}</pre>
-            </div>
-          </div>
+            </template>
           </template>
+
+          <!-- 新增題目按鈕：固定在最下面，每按一次多一個「第 n 題」區塊 -->
+          <div class="mb-0 pt-2">
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              @click="openNextQuestionSlot"
+            >
+              新增題目
+            </button>
+          </div>
         </div>
-        </template>
       </div>
       </template>
     </div>
