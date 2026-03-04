@@ -752,6 +752,7 @@ function setCardAtSlot(slotIndex, quizContent, quizHint, sourceFilename, referen
     gradingResult: '',
     gradingResponseJson: null,
     generateQuizResponseJson: generateQuizResponseJson ?? null,
+    quiz_id: generateQuizResponseJson?.quiz_id ?? null,
     quiz_level: quizLevel ?? null,
     systemInstructionUsed: systemInstructionUsed ?? null,
   };
@@ -786,7 +787,7 @@ async function generateQuiz(slotIndex) {
         file_id: sourceFileId,
         rag_name: ragName,
         quiz_level: filterDifficulty.value,
-        ...(courseName ? { course_name: courseName } : {}),
+        course_name: courseName || '未命名課程',
       }),
     });
     const text = await res.text();
@@ -834,12 +835,16 @@ async function confirmAnswer(item) {
       item.gradingResult = '評分失敗：此 quiz 未關聯 RAG 單元（rag_name），請由「產生 quiz」產生後再評分。';
       return;
     }
+    const courseName = courseNameFromFileMetadata.value || '';
+    const quizId = item.quiz_id != null ? String(item.quiz_id) : '0';
     const params = new URLSearchParams({
       file_id: sourceFileId,
       rag_name: ragName,
       question_text: item.quiz ?? '',
       student_answer: item.answer.trim(),
       qtype: 'short_answer',
+      course_name: courseName,
+      quiz_id: quizId,
     });
     const res = await fetch(`${API_BASE}${API_GRADE_SUBMISSION}`, {
       method: 'POST',
