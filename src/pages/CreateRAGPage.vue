@@ -795,7 +795,7 @@ async function generateQuiz(slotIndex) {
         rag_name: ragName,
         quiz_level: quizLevel >= 0 ? quizLevel : 0,
         course_name: courseName || '未命名課程',
-        quiz_type: 1,
+        quiz_type: 0,
       }),
     });
     const text = await res.text();
