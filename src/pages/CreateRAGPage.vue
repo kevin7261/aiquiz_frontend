@@ -1,19 +1,29 @@
 <script setup>
 /**
  * 建立 RAG 頁面。
- * 資料對應：一個 RAG 頁面（一個 tab）= 後端 public."Rag" 表的一筆（主鍵 rag_id + file_id）。
- * 列表 GET /rag/rags、上傳新增一筆 POST /rag/upload-zip；create-rag-zip 會更新同筆的 rag_list、rag_metadata、chunk_size、chunk_overlap。
+ * 資料對應：一個 RAG 頁面（一個 tab）= 後端 public."Rag" 表的一筆（主鍵 rag_id + rag_tab_id）。
+ * 列表 GET /rag/rags；建立 tab（按 +）POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填）；上傳 ZIP POST /rag/upload-zip（Form: file、rag_tab_id、person_id，可選 llm_api_key）；build-rag-zip 傳入 system_prompt_instruction 等，會更新同筆的 rag_list、rag_metadata、chunk_size、chunk_overlap。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_BASE, API_GENERATE_QUIZ, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY, API_GRADE_SUBMISSION, API_GRADE_RESULT } from '../constants/api.js';
+import { API_BASE, API_GENERATE_QUIZ, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY, API_GRADE_SUBMISSION, API_GRADE_RESULT, API_RAG_APPLIED, API_CREATE_RAG, API_UPLOAD_ZIP, API_BUILD_RAG_ZIP } from '../constants/api.js';
 
 defineProps({
   tabId: { type: String, required: true },
 });
 
-/** 本頁建立時生成唯一 file_id，規格與後端一致：str(uuid.uuid4()) */
-function generateTabFileId() {
+/** rag_tab_id 規則：generateTabId(person_id) → {person_id}_yymmddhhmmss；無 person_id 時 fallback 為 UUID */
+function generateTabId(personId) {
+  if (personId != null && String(personId).trim() !== '') {
+    const d = new Date();
+    const yy = String(d.getFullYear()).slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${String(personId).trim()}_${yy}${mm}${dd}${hh}${min}${ss}`;
+  }
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -38,9 +48,12 @@ const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過50字';
 const ragList = ref([]);
 const ragListLoading = ref(false);
 const ragListError = ref('');
-/** 當前 tab：為 RAG 的 file_id 或「新增」tab 的 id（new-xxx） */
+/** 建立 RAG（按 +）時的載入與錯誤 */
+const createRagLoading = ref(false);
+const createRagError = ref('');
+/** 當前 tab：為 RAG 的 rag_tab_id 或「新增」tab 的 id（new-xxx） */
 const activeTabId = ref(null);
-/** 無資料時，點「新增」後才顯示建立 RAG 表單 */
+/** 無資料時，點「新增」(+) 後才顯示建立 RAG 表單 */
 const showFormWhenNoData = ref(false);
 /** 每次點「新增」產生一個新 tab，存這些 tab 的 id（new-xxx） */
 const newTabIds = ref([]);
@@ -50,23 +63,24 @@ function isNewTabId(id) {
   return id === 'new' || (typeof id === 'string' && id.startsWith('new-'));
 }
 
-/** 每個 tab 的狀態（key = file_id 或 new-xxx） */
+/** 每個 tab 的狀態（key = rag_tab_id 或 new-xxx） */
 const tabStateMap = reactive({});
 
 function getTabState(id) {
-  if (!id) return getTabState(newTabIds.value[0] || ragList.value[0]?.file_id || 'new');
+  if (!id) return getTabState(newTabIds.value[0] || ragList.value[0]?.rag_tab_id || 'new');
   if (!tabStateMap[id]) {
     const isNew = isNewTabId(id);
     tabStateMap[id] = reactive({
-      tabFileId: isNew ? generateTabFileId() : id,
+      tabId: isNew ? generateTabId(authStore.user?.person_id) : id,
+      /** 每個 tab 各自儲存 API key；新增 tab 為空，既有 tab 由 watch 從 Rag 填入 */
+      openaiApiKey: '',
       uploadedZipFile: null,
       zipFileName: '',
-      zipUploadName: '',
       zipSecondFolders: [],
       zipResponseJson: null,
       zipLoading: false,
       zipError: '',
-      zipFileId: isNew ? '' : id,
+      zipTabId: isNew ? '' : id,
       packTasks: '',
       /** 虛擬資料夾：[[a,b],[c]] 對應 rag_list "a+b,c" */
       packTasksList: [],
@@ -75,7 +89,7 @@ function getTabState(id) {
       packResponseJson: null,
       packLoading: false,
       packError: '',
-      generateQuizFileId: '',
+      generateQuizTabId: '',
       generateQuizLoading: false,
       generateQuizError: '',
       generateQuizResponseJson: null,
@@ -86,8 +100,8 @@ function getTabState(id) {
       showQuizGeneratorBlock: false,
       /** 已展開的題目區塊數（每按一次「新增題目」+1，每個區塊對應一題） */
       quizSlotsCount: 0,
-      updateNameLoading: false,
-      updateNameError: '',
+      appliedLoading: false,
+      appliedError: '',
       systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     });
   }
@@ -100,12 +114,10 @@ const currentState = computed(() => {
   if (id) return getTabState(id);
   const firstNew = newTabIds.value[0];
   const firstRag = ragList.value[0];
-  return getTabState(firstNew || (firstRag && (firstRag.file_id ?? firstRag.id ?? firstRag)) || 'new');
+  return getTabState(firstNew || (firstRag && (firstRag.rag_tab_id ?? firstRag.id ?? firstRag)) || 'new');
 });
 
-/** 全畫面共用 */
-/** 僅由使用者於頁面輸入，不從環境變數或任何儲存讀取 */
-const openaiApiKey = ref('');
+/** OpenAI API Key 已改為每個 tab 各自儲存於 tabStateMap[id].openaiApiKey，新增 tab 為空 */
 
 /** 當前 RAG（來自 /rag/rags）是否有 rag_list 或 rag_metadata；有則壓縮資料夾 (Pack) 與 RAG 不 disable */
 const hasRagListOrMetadata = computed(() => {
@@ -119,12 +131,12 @@ const hasRagListOrMetadata = computed(() => {
 /** 未輸入 API key 或當前 tab 未上傳 ZIP 時，Pack、RAG 產生題目、產生題目按鈕皆 disable；若有 rag_list 或 rag_metadata 則不 disable */
 const packAndGenerateDisabled = computed(() => {
   if (hasRagListOrMetadata.value) return false;
-  if (!openaiApiKey.value?.trim()) return true;
+  if (!currentState.value.openaiApiKey?.trim()) return true;
   const id = activeTabId.value;
   if (!id) return true;
   if (isNewTabId(id)) {
-    const fid = String(currentState.value.zipFileId ?? '').trim();
-    return fid === '';
+    const tid = String(currentState.value.zipTabId ?? '').trim();
+    return tid === '';
   }
   return false;
 });
@@ -149,10 +161,10 @@ const packOutputs = computed(() => {
   return Array.isArray(data.outputs) ? data.outputs : [];
 });
 
-/** 從 output 推得 rag_name（後端 rag_file_id = {rag_name}_rag） */
+/** 從 output 推得 rag_name（後端 rag_tab_id = {rag_name}_rag） */
 function deriveRagName(o) {
   if (o && typeof o.rag_name === 'string' && o.rag_name) return o.rag_name;
-  const id = o?.rag_file_id ?? o?.file_id ?? '';
+  const id = o?.rag_tab_id ?? o?.rag_tab_id ?? '';
   const s = String(id);
   if (s.endsWith('_rag')) return s.slice(0, -4);
   const fn = o?.filename ?? o?.rag_filename ?? '';
@@ -164,18 +176,18 @@ function deriveRagName(o) {
 const generateQuizUnits = computed(() => {
   const data = currentState.value.packResponseJson;
   const out = packOutputs.value;
-  const singleFileId = data && typeof data === 'object' && data.file_id != null ? data.file_id : null;
-  const withId = out.filter((o) => o && (o.file_id != null || o.rag_file_id != null));
+  const singleTabId = data && typeof data === 'object' && data.rag_tab_id != null ? data.rag_tab_id : null;
+  const withId = out.filter((o) => o && (o.rag_tab_id != null || o.rag_tab_id != null));
   if (withId.length) {
     return withId.map((o) => ({
-      file_id: String(o.rag_file_id ?? o.file_id),
+      rag_tab_id: String(o.rag_tab_id ?? o.rag_tab_id),
       filename: o.filename || o.rag_filename || 'RAG',
       rag_name: deriveRagName(o),
     }));
   }
-  if (singleFileId && out.length) {
+  if (singleTabId && out.length) {
     return out.map((o) => ({
-      file_id: String(singleFileId),
+      rag_tab_id: String(singleTabId),
       filename: o.filename || o.rag_filename || 'RAG',
       rag_name: deriveRagName(o),
     }));
@@ -185,7 +197,7 @@ const generateQuizUnits = computed(() => {
 });
 
 /** 難度、chunk 參數（共用） */
-const filterDifficulty = ref('入門');
+const filterDifficulty = ref('基礎');
 const chunkSize = ref(1000);
 const chunkOverlap = ref(200);
 
@@ -194,43 +206,47 @@ const currentRagItem = computed(() => {
   const id = activeTabId.value;
   if (!id || isNewTabId(id)) return null;
   return ragList.value.find(
-    (rag) => (rag.file_id ?? rag.id ?? String(rag)) === id
+    (rag) => (rag.rag_tab_id ?? rag.id ?? String(rag)) === id
   ) ?? null;
 });
 
-/** 當前 tab 的 rag_id、file_id（供 OpenAI API Key 上方顯示；未上傳則為「未上傳」） */
-const currentRagIdAndFileId = computed(() => {
+/** 當前 tab 的 rag_id、rag_tab_id（供 OpenAI API Key 上方顯示；未上傳則為「未上傳」） */
+const currentRagIdAndTabId = computed(() => {
   const state = currentState.value;
   const rag = currentRagItem.value;
   if (state.zipResponseJson != null) {
     const rid = state.zipResponseJson.rag_id ?? state.zipResponseJson.id;
-    const fid = state.zipFileId || state.zipResponseJson.file_id;
-    return { rag_id: rid != null ? String(rid) : '未上傳', file_id: fid ? String(fid) : '未上傳' };
+    const tid = state.zipTabId || state.zipResponseJson.rag_tab_id;
+    return { rag_id: rid != null ? String(rid) : '未上傳', rag_tab_id: tid ? String(tid) : '未上傳' };
   }
   if (rag != null && typeof rag === 'object') {
     const rid = rag.rag_id ?? rag.id;
-    const fid = rag.file_id ?? rag.id ?? activeTabId.value;
-    return { rag_id: rid != null ? String(rid) : '未上傳', file_id: fid ? String(fid) : '未上傳' };
+    const tid = rag.rag_tab_id ?? rag.id ?? activeTabId.value;
+    return { rag_id: rid != null ? String(rid) : '未上傳', rag_tab_id: tid ? String(tid) : '未上傳' };
   }
-  return { rag_id: '未上傳', file_id: '未上傳' };
+  return { rag_id: '未上傳', rag_tab_id: '未上傳' };
 });
 
-/** 用於顯示 file_metadata 的來源：上傳回傳的 zipResponseJson，或從 GET /rag/rags 讀到的該筆的 file_metadata／整筆資料 */
+/** 用於顯示 file_metadata：僅在上傳 ZIP 後才有（上傳回傳的 zipResponseJson，或 GET /rag/rags 該筆的 file_metadata）；未上傳則為 null */
 const fileMetadataToShow = computed(() => {
   const state = currentState.value;
   if (state.zipResponseJson != null) return state.zipResponseJson;
   const rag = currentRagItem.value;
   if (rag == null || typeof rag !== 'object') return null;
   if (rag.file_metadata != null && typeof rag.file_metadata === 'object') return rag.file_metadata;
-  return rag;
+  return null;
 });
 
-/** 從 file_metadata 取得 course_name（供產生題目、評分 API 使用） */
+/** 是否已上傳過 ZIP（file_metadata 僅在上傳後才會有） */
+const hasUploadedFileMetadata = computed(() => fileMetadataToShow.value != null);
+
+/** 從 file_metadata 或 RAG 頂層取得 course_name（供產生題目、評分 API 使用；新格式頂層有 course_name） */
 const courseNameFromFileMetadata = computed(() => {
   const meta = fileMetadataToShow.value;
-  if (meta == null || typeof meta !== 'object') return '';
-  const name = meta.course_name;
-  return name != null ? String(name).trim() : '';
+  const rag = currentRagItem.value;
+  const fromMeta = meta != null && typeof meta === 'object' && meta.course_name != null ? String(meta.course_name).trim() : '';
+  const fromRag = rag?.course_name != null ? String(rag.course_name).trim() : '';
+  return fromMeta || fromRag || '';
 });
 
 /** 將 rag_list 字串解析為虛擬資料夾結構：'a+b,c' -> [['a','b'],['c']] */
@@ -246,13 +262,21 @@ function serializePackTasksList(list) {
   return list.map((g) => (Array.isArray(g) ? g.filter(Boolean).join('+') : '')).filter(Boolean).join(',');
 }
 
-/** 從 /rags 的 rag_list 字串推導出 generateQuizUnits（Pack 尚未執行時的 fallback） */
+/** 從 /rag/rags 的 rag_metadata.outputs 或 rag_list 字串推導 generateQuizUnits（新格式優先用 outputs） */
 const generateQuizUnitsFromRag = computed(() => {
   const rag = currentRagItem.value;
   if (!rag || typeof rag !== 'object') return [];
+  const sourceTabId = String(rag.rag_tab_id ?? '');
+  const outputs = rag.rag_metadata?.outputs;
+  if (Array.isArray(outputs) && outputs.length > 0) {
+    return outputs.map((o) => ({
+      rag_tab_id: sourceTabId || o.rag_tab_id || `${(o.rag_name ?? '').replace(/\+/g, '_')}_rag`,
+      filename: o.filename ?? `${(o.rag_name ?? '').replace(/\+/g, '_')}.zip`,
+      rag_name: (o.rag_name ?? '').replace(/\+/g, '_'),
+    }));
+  }
   const ragListStr = rag.rag_list ?? '';
   if (!ragListStr) return [];
-  const sourceFileId = String(rag.file_id ?? '');
   return String(ragListStr)
     .split(',')
     .map((s) => s.trim())
@@ -260,14 +284,14 @@ const generateQuizUnitsFromRag = computed(() => {
     .map((group) => {
       const ragName = group.replace(/\+/g, '_');
       return {
-        file_id: sourceFileId || `${ragName}_rag`,
+        rag_tab_id: sourceTabId || `${ragName}_rag`,
         filename: `${ragName}_rag.zip`,
         rag_name: ragName,
       };
     });
 });
 
-/** 當切換到既有 tab 時，從同一筆 Rag 資料填入：rag_list、rag_metadata、chunk_size、chunk_overlap、name、system_prompt_instruction */
+/** 當切換到既有 tab 時，從同一筆 Rag 資料填入（對應 GET /rag/rags 新格式：file_metadata、rag_metadata.outputs、頂層 course_name、quizzes + 頂層 answers）。 */
 watch(currentRagItem, (rag) => {
   if (!rag || typeof rag !== 'object') return;
   const state = currentState.value;
@@ -280,33 +304,51 @@ watch(currentRagItem, (rag) => {
   }
   if (rag.chunk_size != null) chunkSize.value = Number(rag.chunk_size);
   if (rag.chunk_overlap != null) chunkOverlap.value = Number(rag.chunk_overlap);
-  if (rag.name != null && String(rag.name).trim() !== '') state.zipUploadName = String(rag.name).trim();
-  if (rag.filename != null && String(rag.filename).trim() !== '') state.zipFileName = String(rag.filename).trim();
-  if (rag.llm_api_key != null && String(rag.llm_api_key).trim() !== '') {
-    openaiApiKey.value = String(rag.llm_api_key).trim();
+  const filename = rag.file_metadata?.filename ?? rag.filename;
+  if (filename != null && String(filename).trim() !== '') state.zipFileName = String(filename).trim();
+  const llmKey = rag.llm_api_key ?? rag.apikey;
+  if (llmKey != null && String(llmKey).trim() !== '') {
+    state.openaiApiKey = String(llmKey).trim();
   }
   if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
     state.systemInstruction = String(rag.system_prompt_instruction).trim();
   }
-  // 從 /rag/rags 回傳的 quizzes、answers 寫入「RAG 產生題目與題目與作答」
-  if (rag.quizzes != null && Array.isArray(rag.quizzes)) {
+  // 從 /rag/rags 回傳的 quizzes 與頂層 answers 合併後寫入題目卡片（新格式：answers 在 RAG 頂層；依 quiz_id 對應，若無則依索引對應，因後端可能回傳 quiz_id: 0）
+  const quizzes = rag.quizzes ?? [];
+  const ragAnswers = rag.answers ?? [];
+  if (quizzes.length > 0) {
+    const answersByQuizId = ragAnswers.reduce((acc, a) => {
+      const id = a.quiz_id;
+      if (!acc[id]) acc[id] = [];
+      acc[id].push(a);
+      return acc;
+    }, {});
+    const quizzesWithAnswers = quizzes.map((q, i) => {
+      const byId = q.answers ?? answersByQuizId[q.quiz_id];
+      const answers = (Array.isArray(byId) && byId.length > 0) ? byId : (ragAnswers[i] != null ? [ragAnswers[i]] : []);
+      return { ...q, answers };
+    });
+    const firstRagName = (parsePackTasksList(rag.rag_list)[0]?.[0] ?? rag.rag_metadata?.outputs?.[0]?.rag_name ?? quizzes[0]?.rag_name ?? '').trim();
     state.showQuizGeneratorBlock = true;
-    state.quizSlotsCount = rag.quizzes.length;
-    const firstRagName = (parsePackTasksList(rag.rag_list)[0]?.[0] ?? '').trim();
-    state.cardList = rag.quizzes.map((q) => buildCardFromRagQuiz(q, firstRagName));
+    state.quizSlotsCount = quizzesWithAnswers.length;
+    state.cardList = quizzesWithAnswers.map((q) => buildCardFromRagQuiz(q, q.rag_name ?? firstRagName));
   } else {
     state.quizSlotsCount = 0;
     state.cardList = [];
   }
 }, { immediate: true });
 
-/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供題目與作答區塊顯示 */
+const QUIZ_LEVEL_LABELS = ['基礎', '進階'];
+
+/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供題目與作答區塊顯示；批改結果從 answer 的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
   const gradingResult = latestAnswer
     ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestAnswer.student_answer != null ? '已批改' : ''))
     : '';
+  const levelNum = quiz.quiz_level;
+  const generateLevel = (levelNum === 0 || levelNum === 1) ? QUIZ_LEVEL_LABELS[levelNum] : null;
   return {
     id: nextCardId(),
     quiz: quiz.quiz_content ?? '',
@@ -320,7 +362,7 @@ function buildCardFromRagQuiz(quiz, ragName) {
     gradingResult,
     gradingResponseJson: latestAnswer ?? null,
     generateQuizResponseJson: null,
-    generateLevel: null,
+    generateLevel: generateLevel ?? null,
     systemInstructionUsed: null,
     quiz_id: quiz.quiz_id ?? null,
     answer_id: latestAnswer?.answer_id ?? null,
@@ -368,21 +410,30 @@ const ragListDisplayGroups = computed(() => {
 watch(generateQuizUnits, (units) => {
   const state = currentState.value;
   if (units.length === 0) return;
-  const firstFileId = units[0].file_id;
-  const currentInList = units.some((u) => u.file_id === state.generateQuizFileId);
-  if (!state.generateQuizFileId || !currentInList) {
-    state.generateQuizFileId = firstFileId;
+  const firstTabId = units[0].rag_tab_id;
+  const currentInList = units.some((u) => u.rag_tab_id === state.generateQuizTabId);
+  if (!state.generateQuizTabId || !currentInList) {
+    state.generateQuizTabId = firstTabId;
   }
 }, { immediate: true });
 
 /** 有 RAG 資料時預設選第一個 tab */
 watch(ragList, (list) => {
   if (list.length > 0 && activeTabId.value == null) {
-    activeTabId.value = list[0].file_id ?? list[0].id ?? list[0];
+    activeTabId.value = list[0].rag_tab_id ?? list[0].id ?? list[0];
   }
 }, { immediate: true });
 
-/** 載入 RAG 列表：GET /rag/rags 列出 Rag 表全部內容（與 GET /user/users 一樣回傳全部資料），每一筆一個 tab。 */
+/** 將 GET /rag/rags 回傳正規化為 RAG 陣列（支援 array、{ rags }、{ items }、或單一 RAG 物件） */
+function normalizeRagListResponse(data) {
+  if (Array.isArray(data)) return data;
+  const list = data?.rags ?? data?.items;
+  if (Array.isArray(list) && list.length > 0) return list;
+  if (data != null && typeof data === 'object' && (data.rag_tab_id != null || data.rag_id != null)) return [data];
+  return [];
+}
+
+/** 載入 RAG 列表：GET /rag/rags 列出 Rag 表全部內容，每一筆一個 tab。回傳格式：陣列或 { rags } 或單一 RAG 物件。 */
 async function fetchRagList() {
   ragListLoading.value = true;
   ragListError.value = '';
@@ -390,7 +441,7 @@ async function fetchRagList() {
     const res = await fetch(`${API_BASE}/rag/rags`, { method: 'GET' });
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    ragList.value = Array.isArray(data) ? data : (data?.rags ?? data?.items ?? []);
+    ragList.value = normalizeRagListResponse(data);
   } catch (err) {
     ragListError.value = err.message || '無法載入 RAG 列表';
     ragList.value = [];
@@ -408,35 +459,35 @@ function clearZipFileInput() {
   }
 }
 
+/** 切換到「新增」tab 時清空共用的 file input，避免顯示其他 tab 已選的 ZIP 檔名 */
+watch(activeTabId, (id) => {
+  if (id && isNewTabId(id)) clearZipFileInput();
+});
+
 /** 畫面一打開就抓 GET /rag/rags，每一筆 RAG 一個 tab；並清空檔案選擇讓上傳欄位一開始是空的 */
 onMounted(() => {
   fetchRagList();
   clearZipFileInput();
 });
 
-/** 更新 RAG 名稱：PATCH /rag/name/{file_id}，body { name }，Header X-Person-Id。成功後更新 ragList 該筆的 name，tab 標籤會自動更新。 */
-async function updateRagName() {
+/** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
+async function setRagApplied() {
   const rag = currentRagItem.value;
   if (!rag || isNewTabId(activeTabId.value)) return;
-  const fileId = rag.file_id ?? rag.id ?? rag;
+  const fileId = rag.rag_tab_id ?? rag.id ?? rag;
   if (fileId == null || fileId === '') return;
   const personId = authStore.user?.person_id;
   if (personId == null) {
     alert('請先登入');
     return;
   }
-  const newName = (currentState.value.zipUploadName ?? '').trim();
   const state = getTabState(activeTabId.value);
-  state.updateNameLoading = true;
-  state.updateNameError = '';
+  state.appliedLoading = true;
+  state.appliedError = '';
   try {
-    const res = await fetch(`${API_BASE}/rag/name/${encodeURIComponent(String(fileId))}`, {
+    const res = await fetch(`${API_BASE}${API_RAG_APPLIED}/${encodeURIComponent(String(fileId))}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Person-Id': String(personId),
-      },
-      body: JSON.stringify({ name: newName }),
+      headers: { 'X-Person-Id': String(personId) },
     });
     if (!res.ok) {
       const text = await res.text();
@@ -449,20 +500,18 @@ async function updateRagName() {
       }
       throw new Error(msg);
     }
-    const idx = ragList.value.findIndex((r) => (r.file_id ?? r.id ?? r) === fileId);
-    if (idx >= 0) ragList.value[idx].name = newName;
-    state.updateNameError = '';
+    await fetchRagList();
   } catch (err) {
-    state.updateNameError = err.message || String(err);
+    state.appliedError = err.message || String(err);
   } finally {
-    state.updateNameLoading = false;
+    state.appliedLoading = false;
   }
 }
 
-/** 刪除 RAG：呼叫 POST /rag/delete/{file_id}（軟刪 + 刪資料夾），成功後重抓 /rag/rags。Header 必帶 X-Person-Id。 */
+/** 刪除 RAG：呼叫 POST /rag/delete/{rag_tab_id}（軟刪 + 刪資料夾），成功後重抓 /rag/rags。Header 必帶 X-Person-Id。 */
 async function deleteRag(rag, e) {
   if (e) e.stopPropagation();
-  const fileId = rag?.file_id ?? rag?.id ?? rag;
+  const fileId = rag?.rag_tab_id ?? rag?.id ?? rag;
   if (fileId == null || fileId === '') return;
   const personId = authStore.user?.person_id;
   if (personId == null) {
@@ -487,9 +536,9 @@ async function deleteRag(rag, e) {
       throw new Error(msg);
     }
     await fetchRagList();
-    if (activeTabId.value === (rag?.file_id ?? rag?.id ?? String(fileId))) {
+    if (activeTabId.value === (rag?.rag_tab_id ?? rag?.id ?? String(fileId))) {
       if (ragList.value.length > 0) {
-        activeTabId.value = ragList.value[0].file_id ?? ragList.value[0].id ?? ragList.value[0];
+        activeTabId.value = ragList.value[0].rag_tab_id ?? ragList.value[0].id ?? ragList.value[0];
       } else if (newTabIds.value.length > 0) {
         activeTabId.value = newTabIds.value[0];
       } else {
@@ -501,27 +550,71 @@ async function deleteRag(rag, e) {
   }
 }
 
-/** upload-zip 成功回傳的 created_at，用於 tab 標籤（key = rag_id） */
+/** create-rag 回傳的 created_at 與 tab 標籤用 name（key = rag_id） */
 const ragCreatedAtMap = ref({});
 
-/** 點「新增」：只加一個新 tab（不 call API），name 預設為 yymmddhhmmss；在該 tab 內上傳 ZIP 時會呼叫 upload-zip。上傳欄位清空。 */
-function addNewTab() {
-  const id = 'new-' + generateTabFileId();
-  newTabIds.value = [...newTabIds.value, id];
-  activeTabId.value = id;
-  getTabState(id).zipUploadName = getDefaultUploadName();
-  if (ragList.value.length === 0) showFormWhenNoData.value = true;
-  clearZipFileInput();
+/** 點「新增」：POST /rag/create-rag 建立一筆 RAG（rag_tab_id、person_id、rag_name 必填），成功後重整列表並切到新 tab。rag_name 預設為 rag_tab_id 底線後的時間。 */
+async function addNewTab() {
+  const personId = authStore.user?.person_id;
+  if (personId == null || String(personId).trim() === '') {
+    createRagError.value = '請先登入以取得 person_id';
+    return;
+  }
+  createRagError.value = '';
+  createRagLoading.value = true;
+  const ragTabId = generateTabId(personId);
+  const ragName = deriveRagNameFromTabId(ragTabId) || ragTabId;
+  try {
+    const res = await fetch(`${API_BASE}${API_CREATE_RAG}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rag_tab_id: ragTabId,
+        person_id: String(personId),
+        rag_name: ragName,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const msg = errBody.detail ? JSON.stringify(errBody.detail) : res.statusText;
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    if (data?.rag_id != null && data?.created_at != null) {
+      ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(data.rag_id)]: data.created_at };
+    }
+    ragListError.value = '';
+    await fetchRagList();
+    if (data?.rag_tab_id != null) {
+      activeTabId.value = String(data.rag_tab_id);
+    }
+    clearZipFileInput();
+    if (ragList.value.length === 0) showFormWhenNoData.value = true;
+  } catch (err) {
+    createRagError.value = err.message || '建立 RAG 失敗';
+  } finally {
+    createRagLoading.value = false;
+  }
 }
 
-/** 取得 RAG 顯示名稱（用於 tab 標籤）；只顯示 name（按 + 時設定的），上傳後不改成時間 */
+/** 從 rag_tab_id 取得 rag_name：預設為底線之後的部分（時間），無底線則用整段 */
+function deriveRagNameFromTabId(ragTabId) {
+  if (!ragTabId || typeof ragTabId !== 'string') return '';
+  const idx = String(ragTabId).indexOf('_');
+  return idx >= 0 ? String(ragTabId).slice(idx + 1) : String(ragTabId);
+}
+
+/** 取得 RAG 顯示名稱（用於 tab 標籤）；以 rag_name 為主，預設為 rag_tab_id 底線後的時間 */
 function getRagTabLabel(rag) {
   if (rag == null) return 'RAG';
   if (typeof rag === 'string') return ragCreatedAtMap.value[rag] ?? String(rag);
   if (typeof rag !== 'object') return String(rag);
-  const id = rag.rag_id ?? rag.file_id ?? rag.id;
+  const id = rag.rag_id ?? rag.rag_tab_id ?? rag.id;
   const fromMap = id != null ? ragCreatedAtMap.value[String(id)] : undefined;
-  return (rag.name != null && String(rag.name).trim() !== '') ? String(rag.name).trim() : (fromMap ?? rag.created_at ?? rag.filename ?? rag.file_id ?? 'RAG');
+  const ragName = (rag.rag_name != null && String(rag.rag_name).trim() !== '')
+    ? String(rag.rag_name).trim()
+    : deriveRagNameFromTabId(rag.rag_tab_id ?? rag.id ?? '');
+  return (ragName && ragName !== '') ? ragName : (fromMap ?? rag.file_metadata?.filename ?? rag.course_name ?? rag.filename ?? rag.created_at ?? deriveRagNameFromTabId(rag.rag_tab_id ?? '') ?? 'RAG');
 }
 
 function onZipChange(e) {
@@ -533,7 +626,7 @@ function onZipChange(e) {
       state.zipFileName = '';
       state.zipSecondFolders = [];
       state.zipResponseJson = null;
-      state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
+      state.zipTabId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
       state.zipError = '請選擇 .zip 檔案';
       return;
     }
@@ -547,59 +640,41 @@ function onZipChange(e) {
     state.zipFileName = '';
     state.zipSecondFolders = [];
     state.zipResponseJson = null;
-    state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
+    state.zipTabId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
     state.zipError = '';
   }
 }
 
-/** 產生 name 預設值：yymmddhhmmss（與後端 generate_file_id 的時間部分一致） */
-function getDefaultUploadName() {
-  const d = new Date();
-  const yy = String(d.getFullYear()).slice(-2);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${yy}${mm}${dd}${hh}${min}${ss}`;
-}
-
-/** 按下確定：呼叫 POST /rag/upload-zip（傳入 person_id、ZIP 檔案；name 可選，未傳則以檔名去 .zip 寫入 Rag.name），後端回傳 rag_id、file_id、created_at、filename、second_folders、file_metadata */
+/** 按下確定：POST /rag/upload-zip 僅上傳（需先以 create-rag 建立該 rag_tab_id）。Form: file、rag_tab_id、person_id（必填），可選 llm_api_key。回傳 file_metadata。 */
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
     state.zipError = '請先選擇 ZIP 檔案';
     return;
   }
+  const tabId = activeTabId.value;
+  if (isNewTabId(tabId) || !tabId) {
+    state.zipError = '請先按 + 建立 RAG（此 tab 需先建立後端資料）';
+    return;
+  }
+  const personId = authStore.user?.person_id;
+  if (personId == null || String(personId).trim() === '') {
+    state.zipError = '請先登入以取得 person_id';
+    return;
+  }
   state.zipLoading = true;
   state.zipError = '';
   state.zipSecondFolders = [];
   state.zipResponseJson = null;
-  state.zipFileId = isNewTabId(activeTabId.value) ? '' : activeTabId.value;
-  const currentTabId = activeTabId.value;
   try {
     const formData = new FormData();
     formData.append('file', state.uploadedZipFile);
-    const personId = authStore.user?.person_id;
-    if (personId != null) formData.append('person_id', String(personId));
-    const name = (state.zipUploadName || '').trim() || getDefaultUploadName();
-    formData.append('name', name);
-    // llm_api_key 必填，上傳時寫入 Rag 表
-    const apiKey = (openaiApiKey.value ?? '').trim();
-    if (!apiKey) {
-      state.zipError = '請先輸入 OpenAI API Key（必填）';
-      state.zipLoading = false;
-      return;
-    }
-    formData.append('llm_api_key', apiKey);
-    // 上傳時一併寫入 Rag 表 system_prompt_instruction（出題系統指令）
-    const systemInstruction = (currentState.value.systemInstruction ?? '').trim();
-    if (systemInstruction) formData.append('system_prompt_instruction', systemInstruction);
-    const headers = {};
-    if (personId != null) headers['X-Person-Id'] = String(personId);
-    const res = await fetch(`${API_BASE}/rag/upload-zip`, {
+    formData.append('rag_tab_id', String(tabId));
+    formData.append('person_id', String(personId));
+    const llmKey = (state.openaiApiKey ?? '').trim();
+    if (llmKey) formData.append('llm_api_key', llmKey);
+    const res = await fetch(`${API_BASE}${API_UPLOAD_ZIP}`, {
       method: 'POST',
-      headers,
       body: formData,
     });
     if (!res.ok) {
@@ -608,31 +683,17 @@ async function confirmUploadZip() {
       throw new Error(`${res.status}: ${msg}`);
     }
     const data = await res.json();
-    state.zipResponseJson = data;
-    if (data?.file_id != null) state.zipFileId = String(data.file_id);
-    if (data?.filename != null) state.zipFileName = data.filename;
-    state.zipSecondFolders = Array.isArray(data?.second_folders)
-      ? data.second_folders
-      : Array.isArray(data)
-        ? data
-        : [];
-    const ragId = data?.rag_id ?? data?.id ?? null;
-    const createdAt = data?.created_at ?? null;
-    if (ragId != null && createdAt != null) {
-      ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(ragId)]: createdAt };
+    const meta = data?.file_metadata ?? data;
+    state.zipResponseJson = meta ?? data;
+    state.zipTabId = String(tabId);
+    if (meta && typeof meta === 'object') {
+      if (meta.filename != null) state.zipFileName = meta.filename;
+      state.zipSecondFolders = Array.isArray(meta.second_folders) ? meta.second_folders : [];
+    } else if (data?.filename != null) {
+      state.zipFileName = data.filename;
+      state.zipSecondFolders = Array.isArray(data?.second_folders) ? data.second_folders : [];
     }
     await fetchRagList();
-    if (data?.file_id != null && isNewTabId(currentTabId)) {
-      const newFileId = String(data.file_id);
-      const newState = getTabState(newFileId);
-      newState.zipResponseJson = data;
-      newState.zipFileId = newFileId;
-      newState.zipFileName = data.filename ?? state.zipFileName;
-      newState.zipSecondFolders = Array.isArray(data?.second_folders) ? data.second_folders : [];
-      newState.uploadedZipFile = state.uploadedZipFile;
-      newTabIds.value = newTabIds.value.filter((id) => id !== currentTabId);
-      activeTabId.value = newFileId;
-    }
   } catch (err) {
     const is504 = err.message?.includes('504') || (err.name === 'TypeError' && err.message?.includes('Failed to fetch'));
     state.zipError = is504
@@ -645,15 +706,15 @@ async function confirmUploadZip() {
   }
 }
 
-/** 呼叫 /rag/create-rag-zip；body: file_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap, system_prompt_instruction */
+/** 呼叫 /rag/build-rag-zip；body: rag_tab_id, person_id, rag_list, openai_api_key, chunk_size, chunk_overlap, system_prompt_instruction */
 async function confirmPack() {
   const state = currentState.value;
-  const fileId = String(state.zipFileId ?? '').trim();
+  const fileId = String(state.zipTabId ?? '').trim();
   const ragList = state.packTasks?.trim();
   const personId = authStore.user?.person_id;
-  const apiKey = openaiApiKey.value?.trim() ?? '';
+  const apiKey = state.openaiApiKey?.trim() ?? '';
   if (!fileId) {
-    state.packError = '請先上傳 ZIP 取得 file_id（見上方 file_metadata）';
+    state.packError = '請先上傳 ZIP 取得 rag_tab_id（見上方 file_metadata）';
     return;
   }
   if (personId == null || String(personId).trim() === '') {
@@ -672,11 +733,11 @@ async function confirmPack() {
   state.packError = '';
   state.packResponseJson = null;
   try {
-    const res = await fetch(`${API_BASE}/rag/create-rag-zip`, {
+    const res = await fetch(`${API_BASE}${API_BUILD_RAG_ZIP}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        file_id: fileId,
+        rag_tab_id: fileId,
         person_id: String(personId),
         rag_list: ragList,
         openai_api_key: apiKey,
@@ -702,7 +763,7 @@ async function confirmPack() {
       state.packResponseJson = text;
     }
     state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
-    // 重新載入列表（create-rag-zip 後端已會更新 Rag 表的 rag_list、rag_metadata、chunk_size、chunk_overlap）
+    // 重新載入列表（build-rag-zip 後端已會更新 Rag 表的 rag_list、rag_metadata、chunk_size、chunk_overlap）
     await fetchRagList();
   } catch (err) {
     state.packError = err.message || '壓縮失敗';
@@ -712,16 +773,17 @@ async function confirmPack() {
   }
 }
 
-const difficultyOptions = ['入門', '進階', '困難'];
+/** 難度選項：基礎=0、進階=1（與 API quiz_level 一致） */
+const difficultyOptions = ['基礎', '進階'];
 
 /** 取得第 slotIndex 題的產生題目表單狀態（獨立、不連動） */
 function getSlotFormState(slotIndex) {
   const state = currentState.value;
   if (!state.slotFormState[slotIndex]) {
     const units = generateQuizUnits.value;
-    const first = units.length ? units[0].file_id : '';
+    const first = units.length ? units[0].rag_tab_id : '';
     state.slotFormState[slotIndex] = reactive({
-      generateQuizFileId: first,
+      generateQuizTabId: first,
       loading: false,
       error: '',
       responseJson: null,
@@ -769,11 +831,11 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
 async function generateQuiz(slotIndex) {
   const state = currentState.value;
   const slotState = getSlotFormState(slotIndex);
-  const sourceFileId = String(state.zipFileId ?? '').trim();
-  const selectedUnit = generateQuizUnits.value.find((u) => u.file_id === slotState.generateQuizFileId);
+  const sourceTabId = String(state.zipTabId ?? '').trim();
+  const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
   const ragName = selectedUnit?.rag_name?.trim();
-  if (!sourceFileId) {
-    slotState.error = '請先上傳 ZIP 取得 file_id';
+  if (!sourceTabId) {
+    slotState.error = '請先上傳 ZIP 取得 rag_tab_id';
     return;
   }
   if (!ragName) {
@@ -784,14 +846,16 @@ async function generateQuiz(slotIndex) {
   slotState.error = '';
   slotState.responseJson = null;
   const courseName = courseNameFromFileMetadata.value;
-  const difficultyOpts = ['入門', '進階', '困難'];
+  const difficultyOpts = ['基礎', '進階'];
   const quizLevel = difficultyOpts.indexOf(filterDifficulty.value);
   try {
+    const llmApiKey = (state.openaiApiKey ?? '').trim();
     const res = await fetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        file_id: sourceFileId,
+        llm_api_key: llmApiKey,
+        rag_tab_id: sourceTabId,
         rag_name: ragName,
         quiz_level: quizLevel >= 0 ? quizLevel : 0,
         course_name: courseName || '未命名課程',
@@ -827,13 +891,14 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-/** 評分：POST /rag/quiz-grade 傳 file_id、rag_name、題目與學生回答等，回傳 202 + job_id；輪詢 GET /rag/quiz-grade-result/{job_id}，ready 時 result 含 answer_id。OpenAI key 由 Rag 表 llm_api_key 取得。 */
+/** 評分：POST /rag/quiz-grade 傳 llm_api_key、rag_tab_id、rag_name、題目與學生回答等，回傳 202 + job_id；輪詢 GET /rag/quiz-grade-result/{job_id}，ready 時 result 含 answer_id。llm_api_key 由請求 body 傳入（僅能從 GET /rag/rags 或 /rag/upload-zip 取得）。 */
 async function confirmAnswer(item) {
   if (!item.answer.trim()) return;
-  const sourceFileId = String(currentState.value.zipFileId ?? '').trim();
-  if (!sourceFileId) {
+  const state = currentState.value;
+  const sourceTabId = String(state.zipTabId ?? '').trim();
+  if (!sourceTabId) {
     item.confirmed = true;
-    item.gradingResult = '評分需要 file_id：請先在「上傳 ZIP 檔」區塊上傳 RAG/講義 ZIP 取得 file_id 後再進行評分。';
+    item.gradingResult = '評分需要 rag_tab_id：請先在「上傳 ZIP 檔」區塊上傳 RAG/講義 ZIP 取得 rag_tab_id 後再進行評分。';
     return;
   }
   const ragName = item.ragName?.trim() ?? generateQuizUnits.value[0]?.rag_name?.trim();
@@ -845,12 +910,14 @@ async function confirmAnswer(item) {
   item.confirmed = true;
   item.gradingResult = '批改中...';
   const courseName = courseNameFromFileMetadata.value ?? '';
+  const llmApiKey = (state.openaiApiKey ?? '').trim();
   try {
     const res = await fetch(`${API_BASE}${API_GRADE_SUBMISSION}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        file_id: sourceFileId,
+        llm_api_key: llmApiKey,
+        rag_tab_id: sourceTabId,
         rag_name: ragName,
         quiz_content: item.quiz ?? '',
         student_answer: item.answer.trim(),
@@ -1108,40 +1175,32 @@ function addAllSecondFoldersAsGroups() {
 
 <template>
   <div class="d-flex flex-column bg-body-secondary h-100">
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
-      <!-- 每個 tab = 一筆 /rag/rags 資料；「新增」= 只加新 tab，在該 tab 內上傳 ZIP 時呼叫 /rag/upload-zip 產生 RAG -->
-      <div class="d-flex align-items-center gap-2 mb-3">
+    <!-- 固定 tab 頁籤列（與試題頁一致，僅內容區可上下滑） -->
+    <div class="flex-shrink-0 bg-white border-bottom">
+      <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
         <template v-if="ragListLoading">
-          <span class="small text-muted">載入中...</span>
+          <span class="small text-secondary">載入中...</span>
         </template>
         <template v-else-if="ragList.length === 0 && newTabIds.length === 0">
           <button
             type="button"
             class="btn btn-sm btn-primary"
+            :disabled="createRagLoading"
             @click="addNewTab"
           >
-            +
+            {{ createRagLoading ? '建立中...' : '+' }}
           </button>
         </template>
         <template v-else>
           <ul class="nav nav-tabs mb-0">
-            <li v-for="rag in ragList" :key="'rag-' + (rag.file_id ?? rag.id ?? rag)" class="nav-item d-flex align-items-center">
+            <li v-for="rag in ragList" :key="'rag-' + (rag.rag_tab_id ?? rag.id ?? rag)" class="nav-item">
               <button
                 type="button"
                 class="nav-link border-0 rounded-0"
-                :class="{ active: activeTabId === (rag.file_id ?? rag.id ?? rag) }"
-                @click="activeTabId = (rag.file_id ?? rag.id ?? String(rag))"
+                :class="{ active: activeTabId === (rag.rag_tab_id ?? rag.id ?? rag) }"
+                @click="activeTabId = (rag.rag_tab_id ?? rag.id ?? String(rag))"
               >
                 {{ getRagTabLabel(rag) }}
-              </button>
-              <button
-                type="button"
-                class="btn btn-link btn-sm p-0 ms-1 text-muted text-decoration-none"
-                style="min-width: 1.5rem;"
-                aria-label="刪除此 RAG"
-                @click="deleteRag(rag, $event)"
-              >
-                ×
               </button>
             </li>
             <li v-for="tid in newTabIds" :key="'new-' + tid" class="nav-item">
@@ -1151,70 +1210,79 @@ function addAllSecondFoldersAsGroups() {
                 :class="{ active: activeTabId === tid }"
                 @click="activeTabId = tid"
               >
-                {{ getTabState(tid).zipUploadName || 'name' }}
+                {{ deriveRagNameFromTabId(getTabState(tid).tabId) || 'RAG' }}
               </button>
             </li>
             <li class="nav-item ms-2 align-self-center">
               <button
                 type="button"
                 class="btn btn-sm btn-outline-primary"
+                :disabled="createRagLoading"
                 @click="addNewTab"
               >
-                +
+                {{ createRagLoading ? '建立中...' : '+' }}
               </button>
             </li>
           </ul>
         </template>
       </div>
-      <div v-if="ragListError" class="alert alert-warning py-2 small mb-3">
+      <div v-if="ragListError" class="alert alert-warning py-2 small mx-4 mb-3">
         {{ ragListError }}
       </div>
+      <div v-if="createRagError" class="alert alert-danger py-2 small mx-4 mb-3">
+        {{ createRagError }}
+      </div>
+    </div>
 
-      <!-- 無資料時不顯示表單，點「新增」後才顯示；有資料時一律顯示 -->
+    <!-- 內容區：可上下捲動 -->
+    <div class="flex-grow-1 overflow-auto bg-white p-4">
+      <!-- 無資料時不顯示表單，點「+」後才顯示；有資料時顯示對應 tab 表單 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
       <!-- 基本資訊、OpenAI API Key、ZIP 上傳與 file_metadata 合併為一區塊 -->
       <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="small text-muted mb-3 pb-2 border-bottom">基本資訊、API 與 ZIP 上傳</div>
+        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <span>基本資訊、API 與 ZIP 上傳</span>
+          <div v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)" class="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              @click="deleteRag(currentRagItem, $event)"
+            >
+              刪除
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-success"
+              :disabled="currentState.appliedLoading || currentRagItem?.applied === true || !hasRagMetadata"
+              @click="setRagApplied"
+            >
+              {{ currentState.appliedLoading ? '設定中...' : '使用此 RAG' }}
+            </button>
+          </div>
+        </div>
+        <div v-if="currentState.appliedError" class="alert alert-danger py-2 small mb-2">
+          {{ currentState.appliedError }}
+        </div>
         <div class="d-flex flex-wrap align-items-center gap-3 small mb-2">
-          <span class="text-muted">rag_id：</span>
-          <span class="small">{{ currentRagIdAndFileId.rag_id }}</span>
-          <span class="text-muted">file_id：</span>
-          <span class="small">{{ currentRagIdAndFileId.file_id }}</span>
+          <span class="form-label small text-secondary fw-medium">rag_id：</span>
+          <span class="small">{{ currentRagIdAndTabId.rag_id }}</span>
+          <span class="form-label small text-secondary fw-medium">rag_tab_id：</span>
+          <span class="small">{{ currentRagIdAndTabId.rag_tab_id }}</span>
         </div>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <span class="text-muted">name</span>
-          <input
-            v-model="currentState.zipUploadName"
-            type="text"
-            class="form-control form-control-sm"
-            style="max-width: 200px;"
-          >
-          <button
-            v-if="!isNewTabId(activeTabId) && currentRagItem"
-            type="button"
-            class="btn btn-sm btn-primary"
-            @click="updateRagName"
-          >
-            {{ currentState.updateNameLoading ? '修改中...' : '確定修改' }}
-          </button>
-        </div>
-        <div v-if="currentState.updateNameError" class="alert alert-danger mt-2 mb-0 py-2 small">
-          {{ currentState.updateNameError }}
-        </div>
-        <div class="form-label text-muted mb-2 mt-4">OpenAI API Key</div>
-        <p class="form-text text-muted small mb-2">本頁共用，Pack、產生題目、評分等會自動使用。</p>
+        <div class="form-label small text-secondary fw-medium mb-2 mt-4">OpenAI API Key</div>
+        <p class="form-text small text-secondary mb-2">每個 tab 各自輸入；新增 RAG 時請在此 tab 輸入，上傳後會寫入該筆 RAG。</p>
         <div style="max-width: 400px;" class="mb-3">
           <input
-            v-model="openaiApiKey"
+            v-model="currentState.openaiApiKey"
             type="text"
             class="form-control form-control-sm"
             placeholder="請輸入 OpenAI API Key"
             autocomplete="off"
           >
         </div>
-        <div v-if="isNewTabId(activeTabId) || fileMetadataToShow != null" class="mb-3">
-          <div class="form-label text-muted mb-2">上傳 ZIP 檔</div>
-          <p class="form-text text-muted small mb-2">支援 .pdf、.docx、.rmd／.r、.html／.htm</p>
+        <div v-if="activeTabId" class="mb-3">
+          <div class="form-label small text-secondary fw-medium mb-2">上傳 ZIP 檔</div>
+          <p class="form-text small text-secondary mb-2">支援 .pdf、.docx、.rmd／.r、.html／.htm</p>
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <input
               ref="zipFileInputRef"
@@ -1222,14 +1290,14 @@ function addAllSecondFoldersAsGroups() {
               accept=".zip"
               class="form-control form-control-sm"
               style="max-width: 240px;"
-              :disabled="fileMetadataToShow != null"
+              :disabled="hasUploadedFileMetadata"
               @change="onZipChange"
             >
             <span v-if="currentState.zipFileName" class="small">{{ currentState.zipFileName }}</span>
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="fileMetadataToShow != null || currentState.zipLoading || !openaiApiKey?.trim()"
+              :disabled="hasUploadedFileMetadata || currentState.zipLoading"
               @click="confirmUploadZip"
             >
               {{ currentState.zipLoading ? '上傳中...' : '確定' }}
@@ -1240,18 +1308,18 @@ function addAllSecondFoldersAsGroups() {
           {{ currentState.zipError }}
         </div>
         <div v-if="fileMetadataToShow != null" class="mt-3">
-          <div class="form-label text-muted mb-2">file_metadata</div>
+          <div class="form-label small text-secondary fw-medium mb-2">file_metadata</div>
           <pre class="bg-body-secondary border rounded p-2 mb-0 font-monospace small overflow-auto" style="max-height: 20rem;"><code>{{ JSON.stringify(fileMetadataToShow, null, 2) }}</code></pre>
         </div>
       </div>
       <!-- 壓縮資料夾 (Pack) 與 RAG：要有 file_metadata 才顯示；未輸入 API key 或未上傳 ZIP 時 disable -->
       <div v-if="fileMetadataToShow != null" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
-        <div class="small text-muted mb-3 pb-2 border-bottom">壓縮資料夾 (Pack) 與 RAG</div>
-          <p class="form-text text-muted small mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
+        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">壓縮資料夾 (Pack) 與 RAG</div>
+          <p class="small text-secondary mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
 
           <!-- second_folders 標籤區：可拖曳至 rag_list；完整顯示不因拖入 rag_list 而移除 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
-            <label class="form-label text-muted mb-1">second_folders（可拖曳至下方 rag_list）</label>
+            <label class="form-label small text-secondary fw-medium mb-1">second_folders（可拖曳至下方 rag_list）</label>
             <div class="d-flex flex-wrap gap-2 p-2 rounded border bg-body">
               <span
                 v-for="(name, i) in secondFoldersFull"
@@ -1269,7 +1337,7 @@ function addAllSecondFoldersAsGroups() {
           <!-- rag_list 虛擬資料夾區：可放置 second_folders 標籤 -->
           <div class="mb-2">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-              <label class="form-label text-muted mb-0">rag_list（虛擬資料夾，將上方標籤拖入）</label>
+              <label class="form-label small text-secondary fw-medium mb-0">rag_list（虛擬資料夾，將上方標籤拖入）</label>
               <button
                 type="button"
                 class="btn btn-sm btn-outline-secondary"
@@ -1340,7 +1408,7 @@ function addAllSecondFoldersAsGroups() {
 
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
             <div style="width: 100px;">
-              <label class="form-label text-muted mb-1">chunk_size</label>
+              <label class="form-label small text-secondary fw-medium mb-1">chunk_size</label>
               <input
                 v-model.number="chunkSize"
                 type="number"
@@ -1350,7 +1418,7 @@ function addAllSecondFoldersAsGroups() {
               >
             </div>
             <div style="width: 100px;">
-              <label class="form-label text-muted mb-1">chunk_overlap</label>
+              <label class="form-label small text-secondary fw-medium mb-1">chunk_overlap</label>
               <input
                 v-model.number="chunkOverlap"
                 type="number"
@@ -1361,7 +1429,7 @@ function addAllSecondFoldersAsGroups() {
             </div>
           </div>
           <div class="mt-3">
-            <label class="form-label text-muted mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
+            <label class="form-label small text-secondary fw-medium mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
             <textarea
               v-model="currentState.systemInstruction"
               class="form-control form-control-sm font-monospace small"
@@ -1381,7 +1449,7 @@ function addAllSecondFoldersAsGroups() {
             </button>
           </div>
           <div class="mt-3">
-            <label class="form-label text-muted mb-1">rag_metadata（Pack API 回傳）</label>
+            <label class="form-label small text-secondary fw-medium mb-1">rag_metadata（Pack API 回傳）</label>
             <textarea
               v-model="currentState.ragMetadata"
               class="form-control form-control-sm font-monospace small bg-body-secondary border"
@@ -1397,8 +1465,8 @@ function addAllSecondFoldersAsGroups() {
       </div>
       <!-- RAG 產生題目與題目與作答：要有 rag_metadata 才顯示；點「新增題目」後才出現題目生成子區塊 -->
       <div v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
-        <div class="small text-muted mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
-        <p class="form-text text-muted small mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
+        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
+        <p class="small text-secondary mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="bg-light rounded mb-3">
@@ -1408,22 +1476,22 @@ function addAllSecondFoldersAsGroups() {
               <!-- 已有卡片：顯示完整題目區塊 -->
               <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
                 <div class="card-header py-2">
-                  <span class="fw-semibold small mb-0">第 {{ slotIndex }} 題</span>
+                  <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
                 </div>
                 <div class="card-body text-start">
                   <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                     <div>
-                      <label class="form-label text-muted mb-1">選擇單元（rag_name）</label>
-                      <div class="form-control form-control-sm bg-body-secondary border" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
+                      <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                      <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                     </div>
                     <div>
-                      <label class="form-label text-muted mb-1">難度</label>
-                      <div class="form-control form-control-sm bg-body-secondary border" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
+                      <label class="form-label small text-secondary fw-medium mb-1">難度</label>
+                      <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
                     </div>
                   </div>
                   <div class="mb-3">
-                    <div class="form-label text-muted mb-1">題目</div>
-                    <div class="bg-body-secondary border rounded p-2">
+                    <div class="form-label small text-secondary fw-medium mb-1">題目</div>
+                    <div class="bg-body-secondary border rounded p-2 lh-base">
                       {{ currentState.cardList[slotIndex - 1].quiz }}
                     </div>
                   </div>
@@ -1431,16 +1499,16 @@ function addAllSecondFoldersAsGroups() {
                     <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="toggleHint(currentState.cardList[slotIndex - 1])">
                       {{ currentState.cardList[slotIndex - 1].hintVisible ? '隱藏提示' : '顯示提示' }}
                     </button>
-                    <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary text-muted mt-2 p-2">
+                    <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary small mt-2 p-2 text-secondary">
                       {{ currentState.cardList[slotIndex - 1].hint }}
                     </div>
                   </div>
                   <div v-if="currentState.cardList[slotIndex - 1].referenceAnswer" class="mb-3">
-                    <div class="form-label text-muted mb-1">參考答案</div>
+                    <div class="form-label small text-secondary fw-medium mb-1">參考答案</div>
                     <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
                   </div>
                   <div class="mb-3">
-                    <label :for="`answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label text-muted mb-1">回答</label>
+                    <label :for="`answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label small text-secondary fw-medium mb-1">回答</label>
                     <template v-if="!currentState.cardList[slotIndex - 1].confirmed">
                       <textarea
                         :id="`answer-${currentState.cardList[slotIndex - 1].id}`"
@@ -1450,7 +1518,7 @@ function addAllSecondFoldersAsGroups() {
                         placeholder="請輸入您的回答..."
                         maxlength="2000"
                       />
-                      <div class="form-text">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
+                      <div class="form-text small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
                       <div class="d-flex gap-2 mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
                         <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
@@ -1464,15 +1532,15 @@ function addAllSecondFoldersAsGroups() {
                     </template>
                   </div>
                   <div class="border rounded bg-light p-3 mb-3">
-                    <div class="form-label text-muted mb-1">批改結果</div>
+                    <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
                     <div class="small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
                   </div>
                   <div v-if="currentState.cardList[slotIndex - 1].generateQuizResponseJson != null" class="mb-3">
-                    <div class="form-label text-muted mb-1">產生題目 API 回傳 JSON：</div>
+                    <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
                     <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(currentState.cardList[slotIndex - 1].generateQuizResponseJson, null, 2) }}</pre>
                   </div>
                   <div v-if="currentState.cardList[slotIndex - 1].gradingResponseJson != null">
-                    <div class="form-label text-muted mb-1">批改結果 API 回傳 JSON：</div>
+                    <div class="form-label small text-secondary fw-medium mb-1">批改結果 API 回傳 JSON：</div>
                     <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(currentState.cardList[slotIndex - 1].gradingResponseJson, null, 2) }}</pre>
                   </div>
                 </div>
@@ -1482,19 +1550,19 @@ function addAllSecondFoldersAsGroups() {
               <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
               <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
                 <div class="card-header py-2">
-                  <span class="fw-semibold small mb-0">第 {{ slotIndex }} 題</span>
+                  <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
                 </div>
                 <div class="card-body text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div>
-                      <label class="form-label text-muted mb-1">選擇單元（rag_name）</label>
-                      <select v-model="getSlotFormState(slotIndex).generateQuizFileId" class="form-select form-select-sm">
+                      <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                      <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
                         <option value="">— 請先執行 Pack —</option>
-                        <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.file_id">{{ opt.rag_name }}</option>
+                        <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
                       </select>
                     </div>
                     <div>
-                      <label class="form-label text-muted mb-1">難度</label>
+                      <label class="form-label small text-secondary fw-medium mb-1">難度</label>
                       <select v-model="filterDifficulty" class="form-select form-select-sm">
                         <option v-for="opt in difficultyOptions" :key="opt" :value="opt">{{ opt }}</option>
                       </select>
@@ -1502,7 +1570,7 @@ function addAllSecondFoldersAsGroups() {
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
-                      :disabled="getSlotFormState(slotIndex).loading || !openaiApiKey?.trim()"
+                      :disabled="getSlotFormState(slotIndex).loading || !currentState.openaiApiKey?.trim()"
                       @click="generateQuiz(slotIndex)"
                     >
                       {{ getSlotFormState(slotIndex).loading ? '產生中...' : '產生題目' }}
@@ -1512,7 +1580,7 @@ function addAllSecondFoldersAsGroups() {
                     {{ getSlotFormState(slotIndex).error }}
                   </div>
                   <div v-if="getSlotFormState(slotIndex).responseJson !== null" class="mt-2">
-                    <div class="form-label text-muted mb-1">產生題目 API 回傳 JSON：</div>
+                    <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
                     <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(getSlotFormState(slotIndex).responseJson, null, 2) }}</pre>
                   </div>
                 </div>
@@ -1535,11 +1603,10 @@ function addAllSecondFoldersAsGroups() {
 
       <!-- 該 RAG 的資料（GET /rag/rags 回傳） -->
       <div v-if="currentRagItem != null && !isNewTabId(activeTabId)" class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="small text-muted mb-3 pb-2 border-bottom">該 RAG 的資料（GET /rag/rags 回傳）</div>
+        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">該 RAG 的資料（GET /rag/rags 回傳）</div>
         <pre class="bg-body-secondary border rounded p-3 font-monospace small mb-0 overflow-auto" style="max-height: 24rem;">{{ JSON.stringify(currentRagItem, null, 2) }}</pre>
       </div>
       </template>
     </div>
   </div>
 </template>
-

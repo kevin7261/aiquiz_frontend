@@ -7,7 +7,7 @@
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_BASE, API_GENERATE_QUIZ, API_GRADE_SUBMISSION, API_GRADE_RESULT, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY } from '../constants/api.js';
+import { API_BASE, API_GENERATE_QUIZ, API_GRADE_SUBMISSION, API_GRADE_RESULT, API_REQUEST_QUIZ_CONTENT, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY } from '../constants/api.js';
 
 defineProps({
   tabId: { type: String, required: true },
@@ -459,7 +459,7 @@ onMounted(() => {
   <div class="d-flex flex-column bg-body-secondary h-100">
     <!-- 使用中 RAG 與 tab 標籤列 -->
     <div class="flex-shrink-0 bg-white border-bottom">
-      <div v-if="appliedRag" class="px-4 pt-4 pb-1 test-page-rag-hint">
+      <div v-if="appliedRag" class="px-4 pt-4 pb-1 small text-secondary">
         使用中 RAG：{{ appliedRag.name || appliedRag.filename || appliedRag.file_id }}
       </div>
       <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2" :class="{ 'pt-4': !appliedRag }">
@@ -505,13 +505,13 @@ onMounted(() => {
     <div class="flex-grow-1 overflow-auto bg-white p-4">
       <template v-if="!appliedRag && !ragListLoading">
         <div class="alert alert-info">
-          請先到「<router-link to="/main/create-rag-zip">建立 RAG</router-link>」頁面，上傳 ZIP、執行 Pack 後，點選「使用此RAG」設定使用中的 RAG，再回到本頁產生試題。
+          請先到「<router-link to="/main/create-rag">建立 RAG</router-link>」頁面，上傳 ZIP、執行 Pack 後，點選「使用此RAG」設定使用中的 RAG，再回到本頁產生試題。
         </div>
       </template>
       <template v-else-if="appliedRag">
         <div class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': generateDisabled }">
-          <h2 class="test-page-section-title mb-3 pb-2 border-bottom">產生試題與作答</h2>
-          <p class="test-page-section-desc mb-3">使用已設為「使用中」的 RAG 產生試題（quiz_type=1）。點「新增 quiz」展開區塊。</p>
+          <h2 class="fs-5 fw-semibold mb-3 pb-2 border-bottom">產生試題與作答</h2>
+          <p class="small text-secondary mb-3">使用已設為「使用中」的 RAG 產生試題（quiz_type=1）。點「新增 quiz」展開區塊。</p>
 
           <div class="bg-light rounded mb-3">
             <template v-for="(slotIndex) in currentState.quizSlotsCount" :key="slotIndex">
@@ -519,37 +519,37 @@ onMounted(() => {
                 <!-- 已有卡片 -->
                 <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
                   <div class="card-header py-2">
-                    <span class="test-page-card-title mb-0">第 {{ slotIndex }} 個 quiz</span>
+                    <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 個 quiz</span>
                   </div>
                   <div class="card-body text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
-                        <label class="form-label test-page-label mb-1">選擇單元（rag_name）</label>
-                        <div class="form-control form-control-sm bg-body-secondary border test-page-body-small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
+                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                        <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                       </div>
                       <div>
-                        <label class="form-label test-page-label mb-1">難度</label>
-                        <div class="form-control form-control-sm bg-body-secondary border test-page-body-small" style="min-height: 31px;">{{ quizLevelDisplay(currentState.cardList[slotIndex - 1].quiz_level) }}</div>
+                        <label class="form-label small text-secondary fw-medium mb-1">難度</label>
+                        <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ quizLevelDisplay(currentState.cardList[slotIndex - 1].quiz_level) }}</div>
                       </div>
                     </div>
                     <div class="mb-3">
-                      <div class="form-label test-page-label mb-1">題目</div>
-                      <div class="bg-body-secondary border rounded p-2 test-page-body">{{ currentState.cardList[slotIndex - 1].quiz }}</div>
+                      <div class="form-label small text-secondary fw-medium mb-1">題目</div>
+                      <div class="bg-body-secondary border rounded p-2 lh-base">{{ currentState.cardList[slotIndex - 1].quiz }}</div>
                     </div>
                     <div class="mb-3">
                       <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="toggleHint(currentState.cardList[slotIndex - 1])">
                         {{ currentState.cardList[slotIndex - 1].quizHintVisible ? '隱藏提示' : '顯示提示' }}
                       </button>
-                      <div v-show="currentState.cardList[slotIndex - 1].quizHintVisible" class="rounded bg-body-tertiary test-page-body-small mt-2 p-2" style="color: var(--bs-secondary-color);">
+                      <div v-show="currentState.cardList[slotIndex - 1].quizHintVisible" class="rounded bg-body-tertiary small mt-2 p-2 text-secondary">
                         {{ currentState.cardList[slotIndex - 1].quiz_hint }}
                       </div>
                     </div>
                     <div v-if="currentState.cardList[slotIndex - 1].referenceAnswer" class="mb-3">
-                      <div class="form-label test-page-label mb-1">參考答案</div>
-                      <div class="rounded bg-body-tertiary border p-2 test-page-body-small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
+                      <div class="form-label small text-secondary fw-medium mb-1">參考答案</div>
+                      <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
                     </div>
                     <div class="mb-3">
-                      <label :for="`answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label test-page-label mb-1">回答</label>
+                      <label :for="`answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label small text-secondary fw-medium mb-1">回答</label>
                       <template v-if="!currentState.cardList[slotIndex - 1].confirmed">
                         <textarea
                           :id="`answer-${currentState.cardList[slotIndex - 1].id}`"
@@ -559,53 +559,53 @@ onMounted(() => {
                           placeholder="請輸入您的回答..."
                           maxlength="2000"
                         />
-                        <div class="form-text test-page-body-small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
+                        <div class="form-text small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
                         <div class="d-flex gap-2 mt-2">
                           <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
                           <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
                         </div>
                       </template>
                       <template v-else>
-                        <div class="rounded bg-body-tertiary test-page-body-small mb-2 p-2">{{ currentState.cardList[slotIndex - 1].answer }}</div>
+                        <div class="rounded bg-body-tertiary small mb-2 p-2">{{ currentState.cardList[slotIndex - 1].answer }}</div>
                         <div class="d-flex gap-2 mb-3">
                           <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
                         </div>
                       </template>
                     </div>
                     <div class="border rounded bg-light p-3 mb-3">
-                      <div class="form-label test-page-result-title mb-1">批改結果</div>
+                      <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
                       <template v-if="(parsedGradingsBySlot[slotIndex - 1] || {}).parsed">
-                        <div class="test-page-body-small">
+                        <div class="small">
                           <div v-if="(parsedGradingsBySlot[slotIndex - 1].parsed.score != null)" class="mb-2">
-                            <span class="test-page-result-title">總分：</span>{{ parsedGradingsBySlot[slotIndex - 1].parsed.score }} / 10
+                            <span class="small fw-semibold text-secondary">總分：</span>{{ parsedGradingsBySlot[slotIndex - 1].parsed.score }} / 10
                           </div>
                           <div v-if="parsedGradingsBySlot[slotIndex - 1].parsed.level" class="mb-2">
-                            <span class="test-page-result-title">等級：</span>{{ parsedGradingsBySlot[slotIndex - 1].parsed.level }}
+                            <span class="small fw-semibold text-secondary">等級：</span>{{ parsedGradingsBySlot[slotIndex - 1].parsed.level }}
                           </div>
                           <div v-if="Array.isArray(parsedGradingsBySlot[slotIndex - 1].parsed.rubric) && parsedGradingsBySlot[slotIndex - 1].parsed.rubric.length" class="mb-2">
-                            <div class="test-page-result-title mb-1">評分項目</div>
+                            <div class="small fw-semibold text-secondary mb-1">評分項目</div>
                             <div v-for="(r, ri) in parsedGradingsBySlot[slotIndex - 1].parsed.rubric" :key="ri" class="mb-2 ps-2 border-start border-2">
-                              <div class="test-page-body-small" style="color: var(--bs-secondary-color);">{{ r.criterion || r.criteria || '項目' }}{{ r.score != null ? `（${r.score} 分）` : '' }}</div>
-                              <div v-if="r.description" class="mt-1 test-page-body-small">{{ r.description }}</div>
-                              <div v-else-if="r.comments" class="mt-1 test-page-body-small">{{ r.comments }}</div>
-                              <div v-else-if="r.comment" class="mt-1 test-page-body-small">{{ r.comment }}</div>
+                              <div class="small text-secondary">{{ r.criterion || r.criteria || '項目' }}{{ r.score != null ? `（${r.score} 分）` : '' }}</div>
+                              <div v-if="r.description" class="mt-1 small">{{ r.description }}</div>
+                              <div v-else-if="r.comments" class="mt-1 small">{{ r.comments }}</div>
+                              <div v-else-if="r.comment" class="mt-1 small">{{ r.comment }}</div>
                             </div>
                           </div>
                           <div v-if="Array.isArray(parsedGradingsBySlot[slotIndex - 1].parsed.strengths) && parsedGradingsBySlot[slotIndex - 1].parsed.strengths.length" class="mb-2">
-                            <div class="test-page-result-title mb-1">優點</div>
-                            <ul class="mb-0 ps-3 test-page-body-small">
+                            <div class="small fw-semibold text-secondary mb-1">優點</div>
+                            <ul class="mb-0 ps-3 small">
                               <li v-for="(s, si) in parsedGradingsBySlot[slotIndex - 1].parsed.strengths" :key="si">{{ s }}</li>
                             </ul>
                           </div>
                           <div v-if="Array.isArray(parsedGradingsBySlot[slotIndex - 1].parsed.weaknesses) && parsedGradingsBySlot[slotIndex - 1].parsed.weaknesses.length" class="mb-2">
-                            <div class="test-page-result-title mb-1">待改進</div>
-                            <ul class="mb-0 ps-3 test-page-body-small">
+                            <div class="small fw-semibold text-secondary mb-1">待改進</div>
+                            <ul class="mb-0 ps-3 small">
                               <li v-for="(w, wi) in parsedGradingsBySlot[slotIndex - 1].parsed.weaknesses" :key="wi">{{ w }}</li>
                             </ul>
                           </div>
                         </div>
                       </template>
-                      <div v-else class="test-page-body-small" style="white-space: pre-wrap;">{{ (parsedGradingsBySlot[slotIndex - 1] || {}).raw || '尚未批改' }}</div>
+                      <div v-else class="small" style="white-space: pre-wrap;">{{ (parsedGradingsBySlot[slotIndex - 1] || {}).raw || '尚未批改' }}</div>
                     </div>
                   </div>
                 </div>
@@ -614,19 +614,19 @@ onMounted(() => {
                 <!-- 尚未產生：顯示產生 quiz 表單 -->
                 <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
                   <div class="card-header py-2">
-                    <span class="test-page-card-title mb-0">第 {{ slotIndex }} 個 quiz</span>
+                    <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 個 quiz</span>
                   </div>
                   <div class="card-body text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div>
-                        <label class="form-label test-page-label mb-1">選擇單元（rag_name）</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
                         <select v-model="getSlotFormState(slotIndex).generateQuizFileId" class="form-select form-select-sm">
                           <option value="">— 請選擇 —</option>
                           <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.file_id">{{ opt.rag_name }}</option>
                         </select>
                       </div>
                       <div>
-                        <label class="form-label test-page-label mb-1">難度</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">難度</label>
                         <select v-model="filterDifficulty" class="form-select form-select-sm">
                           <option v-for="opt in difficultyOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
@@ -657,55 +657,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* 文字層級：區塊標題 > 卡片標題 > 區塊小標 > 標籤 > 內文 */
-.test-page-section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-  letter-spacing: 0.02em;
-}
-
-.test-page-card-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-}
-
-.test-page-section-desc {
-  font-size: 0.875rem;
-  color: var(--bs-secondary-color);
-  line-height: 1.5;
-}
-
-.test-page-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--bs-secondary-color);
-}
-
-.test-page-body {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--bs-body-color);
-}
-
-.test-page-body-small {
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  color: var(--bs-body-color);
-}
-
-.test-page-result-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--bs-secondary-color);
-}
-
-/* 使用中 RAG 提示 */
-.test-page-rag-hint {
-  font-size: 0.8125rem;
-  color: var(--bs-secondary-color);
-}
-</style>
