@@ -12,3 +12,6 @@ export const API_REQUEST_QUIZ_TEXT = 'quiz_text';
 /** 評分：POST /rag/quiz-grade 回傳 202 + job_id，再以 GET /rag/quiz-grade-result/{job_id} 輪詢 */
 export const API_GRADE_SUBMISSION = '/rag/quiz-grade';
 export const API_GRADE_RESULT = '/rag/quiz-grade-result';
+
+/** 設為使用中 RAG：PATCH /rag/applied/{file_id}，Header X-Person-Id；該 file_id applied=true，同 person 其餘 applied=false */
+export const API_RAG_APPLIED = '/rag/applied';

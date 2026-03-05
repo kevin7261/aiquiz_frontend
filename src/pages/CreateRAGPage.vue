@@ -6,7 +6,7 @@
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_BASE, API_GENERATE_QUIZ, API_GRADE_SUBMISSION, API_GRADE_RESULT, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY } from '../constants/api.js';
+import { API_BASE, API_GENERATE_QUIZ, API_GRADE_SUBMISSION, API_GRADE_RESULT, API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY, API_RAG_APPLIED } from '../constants/api.js';
 
 defineProps({
   tabId: { type: String, required: true },
@@ -90,6 +90,8 @@ function getTabState(id) {
       updateNameError: '',
       updateLlmKeyLoading: false,
       updateLlmKeyError: '',
+      setAppliedLoading: false,
+      setAppliedError: '',
       systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     });
   }
@@ -516,6 +518,51 @@ async function updateRagLlmApiKey() {
     state.updateLlmKeyError = err.message || String(err);
   } finally {
     state.updateLlmKeyLoading = false;
+  }
+}
+
+/** 設為使用中 RAG：PATCH /rag/applied/{file_id}，Header X-Person-Id；該 file_id applied=true，同 person 其餘 applied=false。成功後更新 ragList 的 applied 欄位。 */
+async function setRagApplied() {
+  const rag = currentRagItem.value;
+  if (!rag || isNewTabId(activeTabId.value)) return;
+  const fileId = rag.file_id ?? rag.id ?? rag;
+  if (fileId == null || fileId === '') return;
+  const personId = authStore.user?.person_id;
+  if (personId == null) {
+    alert('請先登入');
+    return;
+  }
+  const state = getTabState(activeTabId.value);
+  state.setAppliedLoading = true;
+  state.setAppliedError = '';
+  try {
+    const res = await fetch(`${API_BASE}${API_RAG_APPLIED}/${encodeURIComponent(String(fileId))}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Person-Id': String(personId),
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch (_) {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    ragList.value.forEach((r) => {
+      const fid = r.file_id ?? r.id ?? r;
+      r.applied = String(fid) === String(fileId);
+    });
+    state.setAppliedError = '';
+  } catch (err) {
+    state.setAppliedError = err.message || String(err);
+  } finally {
+    state.setAppliedLoading = false;
   }
 }
 
@@ -1122,9 +1169,9 @@ function addAllSecondFoldersAsGroups() {
 
 <template>
   <div class="d-flex flex-column bg-body-secondary h-100">
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
-      <!-- 每個 tab = 一筆 /rag/rags 資料；「新增」= 只加新 tab，在該 tab 內上傳 ZIP 時呼叫 /rag/upload-zip 產生 RAG -->
-      <div class="d-flex align-items-center gap-2 mb-3">
+    <!-- 固定：tab 標籤列，不隨內容滾動 -->
+    <div class="flex-shrink-0 bg-white border-bottom">
+      <div class="d-flex align-items-center gap-2 px-4 pt-4 pb-2">
         <template v-if="ragListLoading">
           <span class="small text-muted">載入中...</span>
         </template>
@@ -1180,10 +1227,13 @@ function addAllSecondFoldersAsGroups() {
           </ul>
         </template>
       </div>
-      <div v-if="ragListError" class="alert alert-warning py-2 small mb-3">
+      <div v-if="ragListError" class="alert alert-warning py-2 small mx-4 mb-3">
         {{ ragListError }}
       </div>
+    </div>
 
+    <!-- 可滾動：僅內容區上下拉 -->
+    <div class="flex-grow-1 overflow-auto bg-white p-4">
       <!-- 無資料時不顯示表單，點「新增」後才顯示；有資料時一律顯示 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
       <!-- 基本資訊、OpenAI API Key、ZIP 上傳與 file_metadata 合併為一區塊 -->
@@ -1194,6 +1244,19 @@ function addAllSecondFoldersAsGroups() {
           <span class="small">{{ currentRagIdAndFileId.rag_id }}</span>
           <span class="text-muted">file_id：</span>
           <span class="small">{{ currentRagIdAndFileId.file_id }}</span>
+          <button
+            v-if="!isNewTabId(activeTabId) && currentRagItem"
+            type="button"
+            class="btn btn-sm btn-success ms-2"
+            :disabled="currentState.setAppliedLoading || !hasRagMetadata || currentRagItem?.applied === true"
+            @click="setRagApplied"
+          >
+            {{ currentState.setAppliedLoading ? '設定中...' : '使用此RAG' }}
+          </button>
+          <span v-if="currentRagItem?.applied === true" class="text-success small ms-1">已使用</span>
+        </div>
+        <div v-if="currentState.setAppliedError" class="alert alert-danger mt-2 mb-0 py-2 small">
+          {{ currentState.setAppliedError }}
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
           <span class="text-muted">name</span>
