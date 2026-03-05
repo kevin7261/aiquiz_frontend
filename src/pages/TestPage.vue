@@ -1,8 +1,8 @@
 <script setup>
 /**
- * 試題頁面。與建立 RAG 頁版面一致，但僅使用「使用中 RAG」資料，不包含建立 RAG、上傳 ZIP、Pack。
- * 資料來源：GET /rag/applied（回傳格式與 file_metadata、quiz_metadata 一致）。
- * 出題／評分使用 Test API：create-test → generate-quiz、quiz-grade、quiz-grade-result。
+ * Exam 頁面。版面與建立 RAG 頁相同寫法，但無 RAG 功能（建立、上傳 ZIP、Pack）。
+ * 資料來源：GET /rag/applied 取得使用中 RAG（回傳格式與 file_metadata、quiz_metadata 一致）。
+ * 測驗列表：GET /exam/exams；出題與評分使用 Exam API（/exam/generate-quiz、/exam/quiz-grade、/exam/quiz-grade-result）；刪除：POST /exam/delete/{exam_tab_id}。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -11,7 +11,9 @@ import {
   API_RESPONSE_QUIZ_CONTENT,
   API_RESPONSE_QUIZ_LEGACY,
   API_RAG_APPLIED,
-  API_CREATE_TEST,
+  API_EXAM_TESTS,
+  API_CREATE_EXAM,
+  API_EXAM_DELETE,
   API_TEST_GENERATE_QUIZ,
   API_TEST_QUIZ_GRADE,
   API_TEST_QUIZ_GRADE_RESULT,
@@ -23,6 +25,34 @@ defineProps({
 
 const authStore = useAuthStore();
 const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過50字';
+
+/** test_tab_id 規則：與 RAG 頁一致 → {person_id}_yymmddhhmmss；無 person_id 時 fallback 為 UUID */
+function generateTabId(personId) {
+  if (personId != null && String(personId).trim() !== '') {
+    const d = new Date();
+    const yy = String(d.getFullYear()).slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${String(personId).trim()}_${yy}${mm}${dd}${hh}${min}${ss}`;
+  }
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  const hex = () => Math.floor(Math.random() * 16).toString(16);
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) =>
+    (c === 'x' ? hex() : (parseInt(hex(), 16) & 0x3) | 0x8).toString(16)
+  );
+}
+
+/** 從 test_tab_id 取得 test_name：與 RAG 頁一致，底線後的部份（時間），無底線則用整段 */
+function deriveNameFromTabId(tabId) {
+  if (!tabId || typeof tabId !== 'string') return '';
+  const idx = String(tabId).indexOf('_');
+  return idx >= 0 ? String(tabId).slice(idx + 1) : String(tabId);
+}
 
 let cardIdSeq = 0;
 function nextCardId() {
@@ -40,22 +70,33 @@ const appliedState = reactive({
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
 });
 
-/** 測驗列表（每個 tab 一筆 Test；按 + 呼叫 POST /test/create-test 新增） */
+/** 測驗列表（GET /exam/exams 載入；按 + 呼叫 POST /exam/create-exam 新增） */
 const testList = ref([]);
+const testListLoading = ref(false);
+const testListError = ref('');
 const createTestLoading = ref(false);
 const createTestError = ref('');
-/** 當前選中的 tab = 該測驗的 test_tab_id */
+/** 當前選中的 tab = 該測驗的 test_tab_id / exam_tab_id */
 const activeTabId = ref(null);
 
 /** 每個 tab（test_tab_id）的狀態 */
 const tabStateMap = reactive({});
 
 function getTabState(id) {
-  if (!id) return getTabState(testList.value[0]?.test_tab_id || '');
-  if (!tabStateMap[id]) {
+  const resolvedId = id || (testList.value[0] ? getTestTabId(testList.value[0]) : '') || '';
+  if (!resolvedId) {
+    return {
+      generateQuizTabId: '',
+      cardList: [],
+      slotFormState: {},
+      showQuizGeneratorBlock: false,
+      quizSlotsCount: 0,
+    };
+  }
+  if (!tabStateMap[resolvedId]) {
     const units = generateQuizUnits.value;
     const first = units.length ? units[0].rag_tab_id : '';
-    tabStateMap[id] = reactive({
+    tabStateMap[resolvedId] = reactive({
       generateQuizTabId: first,
       cardList: [],
       slotFormState: {},
@@ -63,18 +104,27 @@ function getTabState(id) {
       quizSlotsCount: 0,
     });
   }
-  return tabStateMap[id];
+  return tabStateMap[resolvedId];
 }
 
 /** 當前 tab 的狀態（template 與方法內使用） */
 const currentState = computed(() => {
   const id = activeTabId.value;
   if (id) return getTabState(id);
-  return getTabState(testList.value[0]?.test_tab_id || '');
+  return getTabState(testList.value[0] ? getTestTabId(testList.value[0]) : '');
 });
 
 const filterDifficulty = ref('基礎');
 const difficultyOptions = ['基礎', '進階'];
+
+const QUIZ_LEVEL_LABELS = ['基礎', '進階'];
+
+/** 當前選中 tab 對應的 Exam（來自 GET /exam/exams 列表），格式同 GET /rag/rags 每筆含 quizzes、answers */
+const currentExamItem = computed(() => {
+  const id = activeTabId.value;
+  if (!id) return null;
+  return testList.value.find((exam) => getTestTabId(exam) === id) ?? null;
+});
 
 /** 用於顯示 file_metadata（來自 GET /rag/applied 回傳） */
 const fileMetadataToShow = computed(() => {
@@ -129,11 +179,20 @@ const generateQuizUnits = computed(() => {
     });
 });
 
-/** rag_tab_id 供產生題目與評分使用 */
+/** 使用中 RAG 的 rag_tab_id（GET /rag/applied 回傳），供產生題目與評分使用 */
 const sourceTabId = computed(() => {
   const rag = appliedRag.value;
   if (!rag) return '';
   return String(rag.rag_tab_id ?? rag.id ?? '').trim();
+});
+
+/** 使用中 RAG 的 rag_id（GET /rag/applied 回傳；與建立 RAG 頁 currentRagIdAndTabId 對應） */
+const appliedRagIdAndTabId = computed(() => {
+  const rag = appliedRag.value;
+  if (!rag) return { rag_id: '未載入', rag_tab_id: '未載入' };
+  const rid = rag.rag_id ?? rag.id;
+  const tid = rag.rag_tab_id ?? rag.id ?? '';
+  return { rag_id: rid != null ? String(rid) : '—', rag_tab_id: tid ? String(tid) : '—' };
 });
 
 /** 產生題目／評分是否應停用（未選測驗 tab 或無 applied RAG）；API Key 由 GET /rag/applied 回傳提供 */
@@ -146,8 +205,9 @@ const generateDisabled = computed(() => {
 /** 當 appliedRag 載入後，填入 API key、system instruction（供各 tab 出題／評分使用） */
 watch(appliedRag, (rag) => {
   if (!rag || typeof rag !== 'object') return;
-  if (rag.llm_api_key != null && String(rag.llm_api_key).trim() !== '') {
-    appliedState.openaiApiKey = String(rag.llm_api_key).trim();
+  const key = rag.llm_api_key ?? rag.apikey;
+  if (key != null && String(key).trim() !== '') {
+    appliedState.openaiApiKey = String(key).trim();
   }
   if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
     appliedState.systemInstruction = String(rag.system_prompt_instruction).trim();
@@ -157,7 +217,7 @@ watch(appliedRag, (rag) => {
 /** 有測驗列表時預設選第一個 tab */
 watch(testList, (list) => {
   if (list.length > 0 && activeTabId.value == null) {
-    activeTabId.value = list[0].test_tab_id ?? list[0].id ?? list[0];
+    activeTabId.value = getTestTabId(list[0]) || list[0];
   }
 }, { immediate: true });
 
@@ -171,6 +231,115 @@ watch(generateQuizUnits, (units) => {
     state.generateQuizTabId = firstTabId;
   }
 }, { immediate: true });
+
+/** 由 GET /exam/exams 回傳的 quiz（含 answers）組成一張題目卡片，格式同 CreateRAGPage buildCardFromRagQuiz */
+function buildCardFromExamQuiz(quiz, ragName) {
+  const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
+  const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
+  const gradingResult = latestAnswer
+    ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestAnswer.student_answer != null ? '已批改' : ''))
+    : '';
+  const levelNum = quiz.quiz_level;
+  const generateLevel = (levelNum === 0 || levelNum === 1) ? QUIZ_LEVEL_LABELS[levelNum] : null;
+  const quizId = quiz.exam_quiz_id ?? quiz.quiz_id ?? null;
+  const answerId = latestAnswer?.exam_answer_id ?? latestAnswer?.answer_id ?? null;
+  return {
+    id: nextCardId(),
+    quiz: quiz.quiz_content ?? '',
+    hint: quiz.quiz_hint ?? '',
+    referenceAnswer: quiz.reference_answer ?? '',
+    sourceFilename: null,
+    ragName: ragName ?? quiz.rag_name ?? null,
+    answer: latestAnswer?.student_answer ?? '',
+    hintVisible: false,
+    confirmed: !!latestAnswer,
+    gradingResult,
+    gradingResponseJson: latestAnswer ?? null,
+    generateQuizResponseJson: null,
+    generateLevel: generateLevel ?? null,
+    systemInstructionUsed: null,
+    quiz_id: quizId,
+    answer_id: answerId,
+  };
+}
+
+/** 當切換到某個 Exam tab 時，從該筆的 quizzes、answers 填入題目卡片（格式同 GET /rag/rags，與 CreateRAGPage 一致） */
+watch(currentExamItem, (exam) => {
+  if (!exam || typeof exam !== 'object') return;
+  const tabId = getTestTabId(exam);
+  if (!tabId) return;
+  const state = getTabState(tabId);
+  const quizzes = exam.quizzes ?? [];
+  const examAnswers = exam.answers ?? [];
+  if (quizzes.length > 0) {
+    const answersByQuizId = examAnswers.reduce((acc, a) => {
+      const id = a.exam_quiz_id ?? a.quiz_id;
+      if (!acc[id]) acc[id] = [];
+      acc[id].push(a);
+      return acc;
+    }, {});
+    const quizzesWithAnswers = quizzes.map((q, i) => {
+      const byId = q.answers ?? answersByQuizId[q.exam_quiz_id ?? q.quiz_id];
+      const answers = (Array.isArray(byId) && byId.length > 0) ? byId : (examAnswers[i] != null ? [examAnswers[i]] : []);
+      return { ...q, answers };
+    });
+    const firstRagName = (quizzes[0]?.rag_name ?? '').trim();
+    state.showQuizGeneratorBlock = true;
+    state.quizSlotsCount = quizzesWithAnswers.length;
+    state.cardList = quizzesWithAnswers.map((q) => buildCardFromExamQuiz(q, q.rag_name ?? firstRagName));
+  } else {
+    state.quizSlotsCount = 0;
+    state.cardList = [];
+  }
+}, { immediate: true });
+
+/** 載入測驗列表：GET /exam/exams；僅 deleted=false，每筆含表上所有欄位 + quizzes（每題帶 answers）、頂層 answers；格式同 GET /rag/rags。query: person_id 可選。 */
+async function fetchExamTests() {
+  testListLoading.value = true;
+  testListError.value = '';
+  try {
+    const personId = authStore.user?.person_id;
+    const params = new URLSearchParams();
+    if (personId != null && String(personId).trim() !== '') {
+      params.set('person_id', String(personId).trim());
+    }
+    const url = params.toString() ? `${API_BASE}${API_EXAM_TESTS}?${params}` : `${API_BASE}${API_EXAM_TESTS}`;
+    const headers = {};
+    if (personId != null && String(personId).trim() !== '') {
+      headers['X-Person-Id'] = String(personId).trim();
+    }
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch (_) {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    const raw = Array.isArray(data) ? data : (data?.items ?? data?.data ?? []);
+    const list = Array.isArray(raw) ? raw : [];
+    // 保留完整欄位與 quizzes、answers（供 watch(currentExamItem) 預填題目卡片）
+    testList.value = list.map((row) => ({
+      ...row,
+      exam_id: row.exam_id ?? row.test_id,
+      exam_tab_id: row.exam_tab_id ?? row.test_tab_id,
+      exam_name: row.exam_name ?? row.test_name,
+      test_id: row.exam_id ?? row.test_id,
+      test_tab_id: row.exam_tab_id ?? row.test_tab_id,
+      test_name: row.exam_name ?? row.test_name,
+    }));
+  } catch (err) {
+    testListError.value = err.message || '無法載入測驗列表';
+    testList.value = [];
+  } finally {
+    testListLoading.value = false;
+  }
+}
 
 /** 載入使用中 RAG：GET /rag/applied，回傳格式與 file_metadata、quiz_metadata 一致 */
 async function fetchApplied() {
@@ -195,7 +364,11 @@ async function fetchApplied() {
       throw new Error(msg);
     }
     const data = await res.json();
-    appliedRag.value = data;
+    // GET /rag/applied 回傳 { rag_metadata: {...}, apikey }；前端預期 appliedRag 為單一 RAG 物件
+    const meta = data?.rag_metadata;
+    appliedRag.value = meta != null
+      ? { ...meta, apikey: data.apikey ?? meta.apikey ?? meta.llm_api_key }
+      : null;
   } catch (err) {
     appliedError.value = err.message || '無法載入使用中 RAG';
     appliedRag.value = null;
@@ -204,17 +377,24 @@ async function fetchApplied() {
   }
 }
 
-/** 測驗 tab 顯示名稱 */
+/** 測驗 tab 顯示名稱：支援 exam_name/exam_tab_id（新 API）與 test_name/test_tab_id */
 function getTestTabLabel(test) {
   if (test == null) return '測驗';
   if (typeof test === 'string') return test;
-  const name = test.test_name != null && String(test.test_name).trim() !== '' ? String(test.test_name).trim() : '';
-  const tid = test.test_tab_id ?? test.id ?? '';
+  const tabId = test.exam_tab_id ?? test.test_tab_id ?? test.id ?? '';
+  const name = (test.exam_name ?? test.test_name) != null && String(test.exam_name ?? test.test_name).trim() !== '' ? String(test.exam_name ?? test.test_name).trim() : '';
+  const fromTabId = deriveNameFromTabId(tabId);
   const created = test.created_at ?? '';
-  return name || tid || created || '測驗';
+  return name || fromTabId || tabId || created || '測驗';
 }
 
-/** 按 + 新增測驗：POST /test/create-test，加入 testList 並切到新 tab */
+/** 取得測驗的 tab id（exam_tab_id 或 test_tab_id） */
+function getTestTabId(test) {
+  if (test == null || typeof test !== 'object') return '';
+  return String(test.exam_tab_id ?? test.test_tab_id ?? test.id ?? '');
+}
+
+/** 按 + 新增測驗：POST /exam/create-exam，body 用 exam_tab_id、exam_name；加入 testList 並切到新 tab。 */
 async function addNewTab() {
   const personId = authStore.user?.person_id;
   if (personId == null || String(personId).trim() === '') {
@@ -223,13 +403,16 @@ async function addNewTab() {
   }
   createTestError.value = '';
   createTestLoading.value = true;
+  const examTabId = generateTabId(personId);
+  const examName = deriveNameFromTabId(examTabId) || examTabId;
   try {
-    const res = await fetch(`${API_BASE}${API_CREATE_TEST}`, {
+    const res = await fetch(`${API_BASE}${API_CREATE_EXAM}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        exam_tab_id: examTabId,
         person_id: String(personId),
-        test_name: '',
+        exam_name: examName,
       }),
     });
     if (!res.ok) {
@@ -238,21 +421,58 @@ async function addNewTab() {
       throw new Error(msg);
     }
     const data = await res.json();
-    const testTabIdVal = data?.test_tab_id != null ? String(data.test_tab_id) : '';
-    if (!testTabIdVal) throw new Error('未取得 test_tab_id');
+    const tabIdVal = data?.exam_tab_id != null ? String(data.exam_tab_id) : (data?.test_tab_id != null ? String(data.test_tab_id) : examTabId);
     const item = {
-      test_id: data.test_id,
-      test_tab_id: testTabIdVal,
+      exam_id: data.exam_id ?? data.test_id,
+      exam_tab_id: tabIdVal,
+      exam_name: data.exam_name ?? data.test_name ?? examName,
+      test_id: data.exam_id ?? data.test_id,
+      test_tab_id: tabIdVal,
+      test_name: data.exam_name ?? data.test_name ?? examName,
       person_id: data.person_id,
-      test_name: data.test_name ?? '',
       created_at: data.created_at,
     };
     testList.value = [...testList.value, item];
-    activeTabId.value = testTabIdVal;
+    activeTabId.value = tabIdVal;
   } catch (err) {
     createTestError.value = err.message || '建立測驗失敗';
   } finally {
     createTestLoading.value = false;
+  }
+}
+
+/** 刪除測驗：POST /exam/delete/{exam_tab_id}，成功後從列表移除並切到其他 tab */
+const deleteTestLoading = ref(false);
+const deleteTestError = ref('');
+async function deleteTest(testTabId) {
+  if (!testTabId) return;
+  if (!confirm('確定要刪除此測驗嗎？')) return;
+  deleteTestError.value = '';
+  deleteTestLoading.value = true;
+  try {
+    const res = await fetch(`${API_BASE}${API_EXAM_DELETE}/${encodeURIComponent(testTabId)}`, {
+      method: 'POST',
+      headers: authStore.user?.person_id ? { 'X-Person-Id': String(authStore.user.person_id) } : {},
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = res.statusText;
+      try {
+        const err = JSON.parse(text);
+        msg = err.detail ?? err.error ?? msg;
+      } catch (_) {
+        if (text) msg = text;
+      }
+      throw new Error(msg);
+    }
+    testList.value = testList.value.filter((t) => getTestTabId(t) !== testTabId);
+    if (activeTabId.value === testTabId) {
+      activeTabId.value = testList.value.length > 0 ? getTestTabId(testList.value[0]) : null;
+    }
+  } catch (err) {
+    deleteTestError.value = err.message || '刪除測驗失敗';
+  } finally {
+    deleteTestLoading.value = false;
   }
 }
 
@@ -304,7 +524,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
   };
 }
 
-/** 出題：POST /test/generate-quiz，傳 test_tab_id、rag_name、system_prompt_instruction 等 */
+/** 出題：POST /exam/generate-quiz，傳 test_tab_id、rag_name、system_prompt_instruction 等 */
 async function generateQuiz(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
@@ -425,7 +645,7 @@ function rewriteAnswer(item) {
   item.gradingResponseJson = null;
 }
 
-/** 評分：POST /test/quiz-grade 傳 test_tab_id、rag_name 等，回傳 202 + job_id；輪詢 GET /test/quiz-grade-result/{job_id} */
+/** 評分：POST /exam/quiz-grade 傳 test_tab_id、rag_name 等，回傳 202 + job_id；輪詢 GET /exam/quiz-grade-result/{job_id} */
 async function confirmAnswer(item) {
   if (!item.answer.trim()) return;
   if (!activeTabId.value) {
@@ -544,6 +764,7 @@ async function confirmAnswer(item) {
 
 onMounted(() => {
   fetchApplied();
+  fetchExamTests();
 });
 </script>
 
@@ -554,6 +775,9 @@ onMounted(() => {
       <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
         <template v-if="appliedLoading">
           <span class="small text-secondary">載入使用中 RAG...</span>
+        </template>
+        <template v-else-if="testListLoading">
+          <span class="small text-secondary">載入測驗列表...</span>
         </template>
         <template v-else-if="testList.length === 0">
           <button
@@ -567,14 +791,23 @@ onMounted(() => {
         </template>
         <template v-else>
           <ul class="nav nav-tabs mb-0">
-            <li v-for="test in testList" :key="'test-' + (test.test_tab_id ?? test.id ?? test)" class="nav-item">
+            <li v-for="test in testList" :key="'test-' + getTestTabId(test)" class="nav-item d-flex align-items-center">
               <button
                 type="button"
                 class="nav-link border-0 rounded-0"
-                :class="{ active: activeTabId === (test.test_tab_id ?? test.id ?? test) }"
-                @click="activeTabId = (test.test_tab_id ?? test.id ?? String(test))"
+                :class="{ active: activeTabId === getTestTabId(test) }"
+                @click="activeTabId = getTestTabId(test)"
               >
                 {{ getTestTabLabel(test) }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-link btn-sm text-danger p-0 ms-1"
+                :disabled="deleteTestLoading"
+                :aria-label="'刪除 ' + getTestTabLabel(test)"
+                @click.stop="deleteTest(getTestTabId(test))"
+              >
+                ×
               </button>
             </li>
             <li class="nav-item ms-2 align-self-center">
@@ -593,15 +826,31 @@ onMounted(() => {
       <div v-if="appliedError" class="alert alert-warning py-2 small mx-4 mb-3">
         {{ appliedError }}
       </div>
+      <div v-if="testListError" class="alert alert-warning py-2 small mx-4 mb-3">
+        {{ testListError }}
+      </div>
       <div v-if="createTestError" class="alert alert-danger py-2 small mx-4 mb-3">
         {{ createTestError }}
+      </div>
+      <div v-if="deleteTestError" class="alert alert-danger py-2 small mx-4 mb-3">
+        {{ deleteTestError }}
       </div>
     </div>
 
     <!-- 內容區：可上下捲動（與建立 RAG 頁一致） -->
     <div class="flex-grow-1 overflow-auto bg-white p-4">
       <template v-if="appliedRag != null">
-        <!-- RAG 產生題目與題目與作答：要有選中 tab 才顯示；點「新增題目」後才出現題目生成子區塊（與建立 RAG 頁同區塊） -->
+        <!-- 使用中 RAG 資訊：與建立 RAG 頁「基本資訊」對應，僅顯示 rag_id、rag_tab_id（無 ZIP 上傳、Pack） -->
+        <div class="bg-body-tertiary rounded text-start p-4 mb-3">
+          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">使用中 RAG（GET /rag/applied）</div>
+          <div class="d-flex flex-wrap align-items-center gap-3 small mb-2">
+            <span class="form-label small text-secondary fw-medium">rag_id：</span>
+            <span class="small">{{ appliedRagIdAndTabId.rag_id }}</span>
+            <span class="form-label small text-secondary fw-medium">rag_tab_id：</span>
+            <span class="small">{{ appliedRagIdAndTabId.rag_tab_id }}</span>
+          </div>
+        </div>
+        <!-- RAG 產生題目與題目與作答：與建立 RAG 頁同區塊；使用 /exam/generate-quiz、/exam/quiz-grade -->
         <div v-if="hasRagMetadata && activeTabId" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': generateDisabled }">
           <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
           <p class="small text-secondary mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>

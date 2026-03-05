@@ -26,11 +26,15 @@ export const API_RAG_APPLIED = '/rag/applied';
 /** 答題分析：GET /quiz/quiz-answers?person_id=xxx，回傳 { items: [{ quiz, answers }], count }，quiz_type=1 */
 export const API_QUIZ_ANSWERS = '/quiz/quiz-answers';
 
-/** 試題頁：建立 Test POST /test/create-test，body 可選 test_tab_id、person_id、test_name；回傳 test_id、test_tab_id、person_id、test_name、created_at */
-export const API_CREATE_TEST = '/test/create-test';
-/** 試題頁：出題 POST /test/generate-quiz，body: llm_api_key、test_tab_id、rag_name、system_prompt_instruction、course_name、quiz_level、quiz_type；回傳 quiz_content, quiz_hint, reference_answer, quiz_id */
-export const API_TEST_GENERATE_QUIZ = '/test/generate-quiz';
-/** 試題頁：評分 POST /test/quiz-grade，body: llm_api_key、test_tab_id、rag_name、quiz_content、student_answer、qtype、course_name、quiz_id；回傳 202 + job_id */
-export const API_TEST_QUIZ_GRADE = '/test/quiz-grade';
-/** 試題頁：輪詢評分結果 GET /test/quiz-grade-result/{job_id}，回傳 status: pending | ready | error；ready 時 result 含 answer_id */
-export const API_TEST_QUIZ_GRADE_RESULT = '/test/quiz-grade-result';
+/** Exam API：GET /exam/exams List Exams（僅 deleted=false；每筆含 quizzes、answers，格式同 GET /rag/rags；query: person_id 可選） */
+export const API_EXAM_TESTS = '/exam/exams';
+/** Exam：POST /exam/create-exam Create Exam，body 可選 exam_tab_id、person_id、exam_name；回傳 exam_id、exam_tab_id、person_id、exam_name、created_at */
+export const API_CREATE_EXAM = '/exam/create-exam';
+/** Exam：POST /exam/delete/{exam_tab_id} Delete Exam */
+export const API_EXAM_DELETE = '/exam/delete';
+/** Exam：POST /exam/generate-quiz Exam Generate Quiz */
+export const API_TEST_GENERATE_QUIZ = '/exam/generate-quiz';
+/** Exam：POST /exam/quiz-grade Exam Grade Submission */
+export const API_TEST_QUIZ_GRADE = '/exam/quiz-grade';
+/** Exam：GET /exam/quiz-grade-result/{job_id} Get Exam Grade Result */
+export const API_TEST_QUIZ_GRADE_RESULT = '/exam/quiz-grade-result';

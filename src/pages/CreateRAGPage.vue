@@ -1175,7 +1175,7 @@ function addAllSecondFoldersAsGroups() {
 
 <template>
   <div class="d-flex flex-column bg-body-secondary h-100">
-    <!-- 固定 tab 頁籤列（與試題頁一致，僅內容區可上下滑） -->
+    <!-- 固定 tab 頁籤列（與 Exam 頁一致，僅內容區可上下滑） -->
     <div class="flex-shrink-0 bg-white border-bottom">
       <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
         <template v-if="ragListLoading">

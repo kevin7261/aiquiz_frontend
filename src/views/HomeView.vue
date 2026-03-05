@@ -36,9 +36,9 @@
       const route = useRoute();
       const dataStore = useDataStore();
       const authStore = useAuthStore();
-      /** 由網址 params.view 或 path /test 換算成內部類型，預設試題 */
+      /** 由網址 params.view 或 path /exam 換算成內部類型，預設 exam */
       const currentView = computed(() => {
-        if (route.path === '/test') return 'work';
+        if (route.path === '/exam') return 'work';
         return PATH_TO_VIEW[route.params.view] || 'work';
       });
       const userAccount = computed(() => (authStore.user ? `ID ${authStore.user.user_id}` : '未登入'));
@@ -46,7 +46,7 @@
 
       const setView = (type) => {
         if (type === 'work') {
-          if (route.path !== '/test') router.push('/test');
+          if (route.path !== '/exam') router.push('/exam');
           return;
         }
         const path = VIEW_TO_PATH[type] ?? 'work';
@@ -104,11 +104,11 @@
             <ul class="align-items-center navbar-nav gap-2 ms-auto mb-2 mb-lg-0">
               <li class="nav-item">
                 <router-link
-                  to="/test"
+                  to="/exam"
                   class="nav-link"
                   active-class="active"
                   aria-current="page"
-                >試題</router-link>
+                >Exam</router-link>
               </li>
               <li class="nav-item">
                 <router-link

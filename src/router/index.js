@@ -1,5 +1,5 @@
 /**
- * 路由：/login 登入頁；/main 為主頁，/main/:view 對應各功能（試題、答題分析、儀表板等）。
+ * 路由：/login 登入頁；/main 為主頁，/main/:view 對應各功能（exam、答題分析、儀表板等）。
  */
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue';
@@ -10,7 +10,7 @@ const VALID_VIEWS = ['work', 'answer-analysis', 'dashboard', 'profile', 'create-
 
 /** 各 view 的頁面標題 */
 const VIEW_TITLES = {
-  work: '試題 - AIQuiz',
+  work: 'Exam - AIQuiz',
   'answer-analysis': '答題分析 - AIQuiz',
   dashboard: '儀表板 - AIQuiz',
   profile: '個資修改 - AIQuiz',
@@ -28,13 +28,13 @@ const routes = [
   },
   {
     path: '/main',
-    redirect: (to) => ({ path: '/test', query: to.query }),
+    redirect: (to) => ({ path: '/exam', query: to.query }),
   },
   {
-    path: '/test',
-    name: 'Test',
+    path: '/exam',
+    name: 'Exam',
     component: HomeView,
-    meta: { title: '試題 - AIQuiz' },
+    meta: { title: 'Exam - AIQuiz' },
   },
   {
     path: '/main/:view',
@@ -43,7 +43,7 @@ const routes = [
     meta: { title: 'AIQuiz' },
     beforeEnter(to, _from, next) {
       if (VALID_VIEWS.includes(to.params.view)) return next();
-      next({ path: '/test', replace: true });
+      next({ path: '/exam', replace: true });
     },
   },
 ];
