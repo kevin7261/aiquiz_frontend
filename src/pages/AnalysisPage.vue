@@ -11,14 +11,70 @@ const count = ref(0);
 const loading = ref(false);
 const error = ref('');
 
-function parseFeedbackMeta(str) {
-  if (str == null || str === '') return null;
-  if (typeof str === 'object') return str;
+/** 與測驗頁相同：將 answer_metadata / answer_feedback_metadata 轉成易讀的批改結果文字 */
+function formatGradingResult(text) {
+  if (!text || typeof text !== 'string') return text;
+  const t = text.trim();
+  if (!t.startsWith('{')) return text;
   try {
-    return JSON.parse(str);
-  } catch {
-    return { raw: str };
+    const raw = JSON.parse(text);
+    let data = raw;
+    if (raw.answer_metadata && typeof raw.answer_metadata === 'object') {
+      data = raw.answer_metadata;
+    } else if (raw.answer_feedback_metadata) {
+      const parsed =
+        typeof raw.answer_feedback_metadata === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(raw.answer_feedback_metadata);
+              } catch {
+                return null;
+              }
+            })()
+          : raw.answer_feedback_metadata;
+      if (parsed) data = parsed;
+    }
+    const lines = [];
+    if (data.score != null) lines.push(`總分：${data.score} / 10`);
+    if (data.level) lines.push(`等級：${data.level}`);
+    if (lines.length) lines.push('');
+    const rubric = data.rubric;
+    if (Array.isArray(rubric) && rubric.length > 0) {
+      lines.push('【評分項目】');
+      rubric.forEach((r) => {
+        const criteria = r.criteria ?? '';
+        const score = r.score != null ? ` (${r.score}分)` : '';
+        const comment = r.comment ? `\n  ${r.comment}` : '';
+        lines.push(`• ${criteria}${score}${comment}`);
+      });
+      lines.push('');
+    }
+    const section = (title, arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      lines.push(`【${title}】`);
+      arr.forEach((s) => lines.push(`• ${s}`));
+      lines.push('');
+    };
+    section('優點', data.strengths);
+    section('待改進', data.weaknesses);
+    section('遺漏項目', data.missing_items);
+    section('建議後續', data.action_items);
+    return lines.join('\n').trim() || text;
+  } catch (_) {
+    return text;
   }
+}
+
+/** 從單筆 answer 取得批改結果文字（與測驗頁顯示一致） */
+function getGradingResultText(ans) {
+  if (!ans) return '尚未批改';
+  let data = ans.answer_metadata;
+  if (!data && ans.answer_feedback_metadata != null) {
+    const fm = ans.answer_feedback_metadata;
+    data = typeof fm === 'string' ? (() => { try { return JSON.parse(fm); } catch { return null; } })() : fm;
+  }
+  const str = data != null ? JSON.stringify(data) : (typeof ans.answer_feedback_metadata === 'string' ? ans.answer_feedback_metadata : '');
+  return formatGradingResult(str || '') || '尚未批改';
 }
 
 async function fetchQuizAnswers() {
@@ -80,42 +136,54 @@ onMounted(() => {
         <div
           v-for="(item, idx) in items"
           :key="item.exam_quiz_id ?? idx"
-          class="bg-body-tertiary rounded text-start p-4 mb-3"
+          class="card mb-3"
         >
-          <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-            <span class="fw-semibold">exam_id: {{ item.exam_id ?? '—' }}</span>
+          <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span class="fs-6 fw-semibold mb-0">第 {{ idx + 1 }} 題</span>
             <span class="badge bg-secondary">exam_quiz_id: {{ item.exam_quiz_id }}</span>
           </div>
-          <div class="mb-2">
-            <span class="form-label small text-secondary fw-medium mb-1">題目</span>
-            <div class="small">{{ item.quiz_content ?? '—' }}</div>
-          </div>
-          <div v-if="item.quiz_hint" class="mb-2">
-            <span class="form-label small text-secondary fw-medium mb-1">提示</span>
-            <div class="small">{{ item.quiz_hint }}</div>
-          </div>
-          <div v-if="item.reference_answer" class="mb-3">
-            <span class="form-label small text-secondary fw-medium mb-1">參考答案</span>
-            <div class="small">{{ item.reference_answer }}</div>
-          </div>
-
-          <div class="border-top pt-3 mt-2">
-            <div class="small fw-semibold text-secondary mb-2">作答紀錄（{{ (item.answers || []).length }} 筆）</div>
-            <div
-              v-for="(ans, aIdx) in (item.answers || [])"
-              :key="ans.exam_answer_id ?? aIdx"
-              class="border rounded p-3 mb-2 bg-white"
-            >
-              <div class="d-flex justify-content-between align-items-start small mb-1">
-                <span class="text-muted">{{ ans.created_at }}</span>
-                <span v-if="ans.answer_grade != null" class="badge bg-primary">分數 {{ ans.answer_grade }}</span>
-              </div>
-              <div class="mb-1"><strong>學生答案：</strong>{{ ans.student_answer ?? '—' }}</div>
-              <div v-if="ans.answer_feedback_metadata" class="small text-muted mt-1">
-                <strong>回饋：</strong>
-                <span>{{ typeof ans.answer_feedback_metadata === 'string' ? ans.answer_feedback_metadata : JSON.stringify(parseFeedbackMeta(ans.answer_feedback_metadata)) }}</span>
+          <div class="card-body text-start">
+            <div class="mb-3">
+              <div class="form-label small text-secondary fw-medium mb-1">題目</div>
+              <div class="bg-body-secondary border rounded p-2 lh-base">
+                {{ item.quiz_content ?? '—' }}
               </div>
             </div>
+            <div v-if="item.quiz_hint" class="mb-3">
+              <div class="form-label small text-secondary fw-medium mb-1">提示</div>
+              <div class="rounded bg-body-tertiary small p-2 text-secondary">
+                {{ item.quiz_hint }}
+              </div>
+            </div>
+            <div v-if="item.reference_answer" class="mb-3">
+              <div class="form-label small text-secondary fw-medium mb-1">參考答案</div>
+              <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ item.reference_answer }}</div>
+            </div>
+
+            <div class="small fw-semibold text-secondary mb-2">作答紀錄（{{ (item.answers || []).length }} 筆）</div>
+            <template v-if="(item.answers || []).length === 0">
+              <div class="text-muted small">尚無作答</div>
+            </template>
+            <template v-else>
+              <div
+                v-for="(ans, aIdx) in (item.answers || [])"
+                :key="ans.exam_answer_id ?? aIdx"
+                class="border-top pt-3 mt-2"
+              >
+                <div class="d-flex justify-content-between align-items-center small mb-2">
+                  <span class="text-muted">{{ ans.created_at }}</span>
+                  <span v-if="ans.answer_grade != null" class="badge bg-primary">分數 {{ ans.answer_grade }}</span>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small text-secondary fw-medium mb-1">回答</label>
+                  <div class="rounded bg-body-tertiary small p-2">{{ ans.student_answer ?? '—' }}</div>
+                </div>
+                <div class="border rounded bg-light p-3 mb-3">
+                  <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
+                  <div class="small" style="white-space: pre-wrap;">{{ getGradingResultText(ans) }}</div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>
