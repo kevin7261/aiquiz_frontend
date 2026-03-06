@@ -102,6 +102,13 @@
             <ul class="align-items-center navbar-nav gap-2 ms-auto mb-2 mb-lg-0">
               <li class="nav-item">
                 <router-link
+                  to="/main/create-rag"
+                  class="nav-link"
+                  active-class="active"
+                >建立 RAG</router-link>
+              </li>
+              <li class="nav-item">
+                <router-link
                   to="/exam"
                   class="nav-link"
                   active-class="active"
@@ -121,13 +128,6 @@
                   class="nav-link"
                   active-class="active"
                 >個資修改</router-link>
-              </li>
-              <li class="nav-item">
-                <router-link
-                  to="/main/create-rag"
-                  class="nav-link"
-                  active-class="active"
-                >建立 RAG</router-link>
               </li>
               <li class="nav-item">
                 <router-link
