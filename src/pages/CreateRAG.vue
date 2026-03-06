@@ -47,8 +47,9 @@ const hasRagListOrMetadata = computed(() => {
   return hasList || hasMeta;
 });
 
-/** 未設定帳號 llm_api_key（登入回傳）或當前 tab 未上傳 ZIP 時，Pack、RAG 產生題目、產生題目按鈕皆 disable；若有 rag_list 或 rag_metadata 則不 disable */
+/** 一旦執行 Pack 成功過（有 rag_metadata），壓縮資料夾 (Pack) 與 RAG 區塊即 disable；否則未設定 llm_api_key 或未上傳 ZIP 時也 disable */
 const packAndGenerateDisabled = computed(() => {
+  if (hasRagMetadata.value) return true;
   if (hasRagListOrMetadata.value) return false;
   if (!userLlmApiKey.value) return true;
   const id = activeTabId.value;
