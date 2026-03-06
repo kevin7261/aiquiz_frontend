@@ -1260,7 +1260,7 @@ function addAllSecondFoldersAsGroups() {
             <span class="small">{{ currentRagIdAndTabId.rag_tab_id }}</span>
           </div>
           <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="form-label small text-secondary fw-medium mb-0" style="min-width: 10rem;">llm_api_key（登入帳號）：</span>
+            <span class="form-label small text-secondary fw-medium mb-0" style="min-width: 10rem;">llm_api_key：</span>
             <span class="small"><code>{{ userLlmApiKey || '未設定' }}</code></span>
           </div>
         </div>

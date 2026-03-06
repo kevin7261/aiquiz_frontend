@@ -893,7 +893,7 @@ onMounted(() => {
           </div>
           <div class="small mb-2">
             <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">llm_api_key（登入帳號）：</span>
+              <span class="text-secondary" style="min-width: 10rem;">llm_api_key：</span>
               <code>{{ (authStore.user?.llm_api_key ?? '').trim() || '—' }}</code>
             </div>
             <div class="d-flex align-items-start gap-2 mb-1">
