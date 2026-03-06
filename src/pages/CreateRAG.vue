@@ -278,7 +278,7 @@ function buildCardFromRagQuiz(quiz, ragName) {
   };
 }
 
-/** 選擇單元（rag_name）預設一定要第一筆 */
+/** 選擇單元預設一定要第一筆 */
 watch(generateQuizUnits, (units) => {
   const state = currentState.value;
   if (units.length === 0) return;
@@ -810,19 +810,14 @@ async function confirmAnswer(item) {
         <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
           {{ currentState.zipError }}
         </div>
-        <div v-if="fileMetadataToShow != null" class="mt-3">
-          <div class="form-label small text-secondary fw-medium mb-2">file_metadata</div>
-          <pre class="bg-body-secondary border rounded p-2 mb-0 font-monospace small overflow-auto" style="max-height: 20rem;"><code>{{ JSON.stringify(fileMetadataToShow, null, 2) }}</code></pre>
-        </div>
       </div>
       <!-- 壓縮資料夾 (Pack) 與 RAG：要有 file_metadata 才顯示；未設定帳號 llm_api_key 或未上傳 ZIP 時 disable -->
       <div v-if="fileMetadataToShow != null" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': packAndGenerateDisabled }">
         <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">壓縮資料夾 (Pack) 與 RAG</div>
-          <p class="small text-secondary mb-2">依上方 file_metadata 的當前 RAG 與 rag_list 壓縮指定資料夾，可一併產生 RAG。rag_list：逗號=多個 ZIP，加號=同檔內多資料夾，例 <code>220222+220301</code>、<code>220222,220301+220302</code>。</p>
 
           <!-- second_folders 標籤區：可拖曳至 rag_list；完整顯示不因拖入 rag_list 而移除 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
-            <label class="form-label small text-secondary fw-medium mb-1">second_folders（可拖曳至下方 rag_list）</label>
+            <label class="form-label small text-secondary fw-medium mb-1">課程</label>
             <div class="d-flex flex-wrap gap-2 p-2 rounded border bg-body">
               <span
                 v-for="(name, i) in secondFoldersFull"
@@ -840,7 +835,7 @@ async function confirmAnswer(item) {
           <!-- rag_list 虛擬資料夾區：可放置 second_folders 標籤 -->
           <div class="mb-2">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-              <label class="form-label small text-secondary fw-medium mb-0">rag_list（虛擬資料夾，將上方標籤拖入）</label>
+              <label class="form-label small text-secondary fw-medium mb-0">資料夾</label>
               <button
                 type="button"
                 class="btn btn-sm btn-outline-secondary"
@@ -932,7 +927,7 @@ async function confirmAnswer(item) {
             </div>
           </div>
           <div class="mt-3">
-            <label class="form-label small text-secondary fw-medium mb-1">system_prompt_instruction（出題規範，傳給 GPT）</label>
+            <label class="form-label small text-secondary fw-medium mb-1">出題規範</label>
             <textarea
               v-model="currentState.systemInstruction"
               class="form-control form-control-sm font-monospace small"
@@ -951,17 +946,6 @@ async function confirmAnswer(item) {
               {{ currentState.packLoading ? '處理中...' : '執行 Pack' }}
             </button>
           </div>
-          <div class="mt-3">
-            <label class="form-label small text-secondary fw-medium mb-1">rag_metadata（Pack API 回傳）</label>
-            <textarea
-              v-model="currentState.ragMetadata"
-              class="form-control form-control-sm font-monospace small bg-body-secondary border"
-              rows="6"
-              placeholder="執行 Pack 後由 API 回傳顯示"
-              readonly
-              style="resize: vertical; max-height: 280px;"
-            />
-          </div>
           <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">
             {{ currentState.packError }}
           </div>
@@ -969,7 +953,6 @@ async function confirmAnswer(item) {
       <!-- RAG 產生題目與題目與作答：要有 rag_metadata 才顯示；點「新增題目」後才出現題目生成子區塊 -->
       <div v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
         <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
-        <p class="small text-secondary mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="bg-light rounded mb-3">
@@ -994,7 +977,7 @@ async function confirmAnswer(item) {
                 <div class="card-body text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div>
-                      <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                      <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
                       <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
                         <option value="">— 請先執行 Pack —</option>
                         <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
@@ -1040,11 +1023,6 @@ async function confirmAnswer(item) {
         </div>
       </div>
 
-      <!-- 該 RAG 的資料（GET /rag/rags 回傳） -->
-      <div v-if="currentRagItem != null && !isNewTabId(activeTabId)" class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">該 RAG 的資料（GET /rag/rags 回傳）</div>
-        <pre class="bg-body-secondary border rounded p-3 font-monospace small mb-0 overflow-auto" style="max-height: 24rem;">{{ JSON.stringify(currentRagItem, null, 2) }}</pre>
-      </div>
       </template>
     </div>
   </div>

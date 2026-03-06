@@ -125,26 +125,6 @@ const currentExamItem = computed(() => {
   return examList.value.find((exam) => getExamTabId(exam) === id) ?? null;
 });
 
-/** 用於顯示 file_metadata（來自 GET /rag/for-exam 回傳） */
-const fileMetadataToShow = computed(() => {
-  const rag = forExamRag.value;
-  if (rag == null || typeof rag !== 'object') return null;
-  if (rag.file_metadata != null && typeof rag.file_metadata === 'object') return rag.file_metadata;
-  return null;
-});
-
-/** 用於「該 RAG 的資料」顯示：遮蔽 llm_api_key、apikey，其餘與 GET /rag/for-exam 回傳一致 */
-const forExamRagDisplay = computed(() => {
-  const rag = forExamRag.value;
-  if (rag == null || typeof rag !== 'object') return null;
-  const mask = (v) => (v != null && String(v).trim() !== '' ? '***' : v);
-  return {
-    ...rag,
-    llm_api_key: mask(rag.llm_api_key),
-    apikey: mask(rag.apikey),
-  };
-});
-
 /** 從試題用 RAG 推導 generateQuizUnits；格式同 /rag/build-rag-zip：頂層 outputs、rag_tab_id，或 rag_metadata.outputs / rag_list */
 const generateQuizUnits = computed(() => {
   const rag = forExamRag.value;
@@ -250,7 +230,7 @@ watch(generateQuizUnits, (units) => {
   }
 }, { immediate: true });
 
-/** 由 GET /exam/exams 回傳的 quiz（含 answers）組成一張題目卡片，格式同 CreateRAGPage buildCardFromRagQuiz */
+/** 由 GET /exam/exams 回傳的 quiz（含 answers）組成一張題目卡片，格式同 CreateRAG buildCardFromRagQuiz */
 function buildCardFromExamQuiz(quiz, ragName) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -281,7 +261,7 @@ function buildCardFromExamQuiz(quiz, ragName) {
   };
 }
 
-/** 當切換到某個 Exam tab 或試題用 RAG 載入時，從該筆的 quizzes、answers 填入題目卡片（格式同 GET /rag/rags，與 CreateRAGPage 一致）；firstRagName 從 forExamRag.outputs / rag_metadata.outputs / rag_list 推導，與 CreateRAGPage 一致 */
+/** 當切換到某個 Exam tab 或試題用 RAG 載入時，從該筆的 quizzes、answers 填入題目卡片（格式同 GET /rag/rags，與 CreateRAG 一致）；firstRagName 從 forExamRag.outputs / rag_metadata.outputs / rag_list 推導，與 CreateRAG 一致 */
 watch(
   () => [currentExamItem.value, forExamRag.value],
   ([exam]) => {
@@ -901,16 +881,11 @@ onMounted(() => {
               <code class="d-block mt-0">{{ (forExamRag && forExamRag.system_prompt_instruction) ? forExamRag.system_prompt_instruction : '—' }}</code>
             </div>
           </div>
-          <div v-if="fileMetadataToShow != null" class="mt-3">
-            <div class="form-label small text-secondary fw-medium mb-2">file_metadata</div>
-            <pre class="bg-body-secondary border rounded p-2 mb-0 font-monospace small overflow-auto" style="max-height: 20rem;"><code>{{ JSON.stringify(fileMetadataToShow, null, 2) }}</code></pre>
-          </div>
         </div>
 
         <!-- RAG 產生題目與題目與作答：與建立 RAG 頁一模一樣（出題與評分）；資料來自 GET /rag/for-exam，使用 /exam/generate-quiz、/exam/quiz-grade -->
         <div v-if="activeTabId && forExamRag != null" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': generateDisabled }">
           <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">RAG 產生題目與題目與作答</div>
-          <p class="small text-secondary mb-3">點「新增題目」後會出現一題的區塊（選擇單元、難度、產生題目等）；每按一次「新增題目」才會多一個題目區塊。「新增題目」按鈕固定在最下面。</p>
 
           <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
           <div class="bg-light rounded mb-3">
@@ -925,7 +900,7 @@ onMounted(() => {
                   <div class="card-body text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
                         <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                       </div>
                       <div>
@@ -983,10 +958,6 @@ onMounted(() => {
                       <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
                       <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(currentState.cardList[slotIndex - 1].generateQuizResponseJson, null, 2) }}</pre>
                     </div>
-                    <div v-if="currentState.cardList[slotIndex - 1].gradingResponseJson != null">
-                      <div class="form-label small text-secondary fw-medium mb-1">批改結果 API 回傳 JSON：</div>
-                      <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(currentState.cardList[slotIndex - 1].gradingResponseJson, null, 2) }}</pre>
-                    </div>
                   </div>
                 </div>
               </template>
@@ -999,7 +970,7 @@ onMounted(() => {
                   <div class="card-body text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
                         <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
                           <option value="">— 請選擇 —</option>
                           <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
@@ -1045,36 +1016,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 該 RAG 的資料（GET /rag/for-exam 回傳；對應 CreateRAGPage「該 RAG 的資料」區塊） -->
-        <div v-if="forExamRag != null" class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">該 RAG 的資料（GET /rag/for-exam 回傳）</div>
-          <div class="mb-3">
-            <div class="row g-2 small">
-              <div class="col-12 col-md-6"><span class="text-secondary">source_rag_tab_id:</span> <code>{{ forExamRag.source_rag_tab_id ?? forExamRag.rag_tab_id ?? '—' }}</code></div>
-              <div class="col-12 col-md-6"><span class="text-secondary">rag_id:</span> <code>{{ forExamRag.rag_id ?? '—' }}</code></div>
-              <div class="col-12 col-md-6"><span class="text-secondary">rag_tab_id:</span> <code>{{ forExamRag.rag_tab_id ?? '—' }}</code></div>
-              <div class="col-12 col-md-6"><span class="text-secondary">rag_list:</span> <code class="small">{{ forExamRag.rag_list ?? '—' }}</code></div>
-              <div class="col-12"><span class="text-secondary">system_prompt_instruction:</span> <code>{{ forExamRag.system_prompt_instruction ?? '—' }}</code></div>
-            </div>
-          </div>
-          <div v-if="Array.isArray(forExamRag.outputs) && forExamRag.outputs.length > 0" class="mb-3">
-            <div class="small fw-medium text-secondary mb-2">outputs ({{ forExamRag.outputs.length }})</div>
-            <div class="table-responsive">
-              <table class="table table-sm table-bordered mb-0">
-                <thead><tr><th>rag_tab_id</th><th>rag_name</th><th>filename</th></tr></thead>
-                <tbody>
-                  <tr v-for="o in forExamRag.outputs" :key="o.rag_tab_id ?? o.rag_name">
-                    <td><code>{{ o.rag_tab_id ?? '—' }}</code></td>
-                    <td><code>{{ o.rag_name ?? '—' }}</code></td>
-                    <td><code>{{ o.filename ?? '—' }}</code></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="small text-secondary mb-1">完整回傳（llm_api_key 已遮蔽）</div>
-          <pre class="bg-body-secondary border rounded p-3 font-monospace small mb-0 overflow-auto" style="max-height: 24rem;">{{ JSON.stringify(forExamRagDisplay, null, 2) }}</pre>
-        </div>
       </template>
     </div>
   </div>

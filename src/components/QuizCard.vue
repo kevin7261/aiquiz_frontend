@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 單一題目卡片：顯示題目、提示、參考答案、回答區、批改結果。
- * 供 CreateRAGPage、ExamPage 使用。
+ * 供 CreateRAG、ExamPage 使用。
  */
 defineProps({
   card: { type: Object, required: true },
@@ -19,7 +19,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
     <div class="card-body text-start">
       <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
         <div>
-          <label class="form-label small text-secondary fw-medium mb-1">選擇單元（rag_name）</label>
+          <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
           <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ card.ragName || '—' }}</div>
         </div>
         <div>
@@ -77,10 +77,6 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
       <div v-if="card.generateQuizResponseJson != null" class="mb-3">
         <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
         <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(card.generateQuizResponseJson, null, 2) }}</pre>
-      </div>
-      <div v-if="card.gradingResponseJson != null">
-        <div class="form-label small text-secondary fw-medium mb-1">批改結果 API 回傳 JSON：</div>
-        <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(card.gradingResponseJson, null, 2) }}</pre>
       </div>
     </div>
   </div>

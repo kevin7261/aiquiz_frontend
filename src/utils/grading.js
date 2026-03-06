@@ -1,7 +1,7 @@
 /**
  * 將評分 API 回傳的 JSON 轉成易讀文字。
  * 支援完整 answer 物件（含 student_answer、answer_metadata / answer_feedback_metadata）。
- * 與 CreateRAGPage、ExamPage、AnalysisPage 顯示一致。
+ * 與 CreateRAG、ExamPage、AnalysisPage 顯示一致。
  */
 export function formatGradingResult(text) {
   if (!text || typeof text !== 'string') return text;

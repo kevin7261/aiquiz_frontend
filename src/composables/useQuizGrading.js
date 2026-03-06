@@ -1,6 +1,6 @@
 /**
  * 評分 composable：POST 送出評分、輪詢 job_id、格式化批改結果。
- * 供 CreateRAGPage、ExamPage 等使用。
+ * 供 CreateRAG、ExamPage 等使用。
  */
 import { API_BASE, API_GRADE_SUBMISSION, API_GRADE_RESULT } from '../constants/api.js';
 import { formatGradingResult } from '../utils/grading.js';

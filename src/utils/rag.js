@@ -1,5 +1,5 @@
 /**
- * RAG 相關純函數與常數，供 CreateRAGPage、composables 使用。
+ * RAG 相關純函數與常數，供 CreateRAG、composables 使用。
  */
 
 export const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過50字';

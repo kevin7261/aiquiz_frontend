@@ -8,7 +8,7 @@
   import ExamPage from '../pages/ExamPage.vue';
   import AnalysisPage from '../pages/AnalysisPage.vue';
   import ProfilePage from '../pages/ProfilePage.vue';
-  import CreateRAGPage from '../pages/CreateRAGPage.vue';
+  import CreateRAG from '../pages/CreateRAG.vue';
   import UserManagementPage from '../pages/UserManagementPage.vue';
   import { useDataStore } from '../stores/dataStore.js';
   import { useAuthStore } from '../stores/authStore.js';
@@ -27,7 +27,7 @@
 
   export default {
     name: 'HomeView',
-    components: { LoadingOverlay, ExamPage, AnalysisPage, ProfilePage, CreateRAGPage, UserManagementPage },
+    components: { LoadingOverlay, ExamPage, AnalysisPage, ProfilePage, CreateRAG, UserManagementPage },
 
     setup() {
       const router = useRouter();
@@ -151,7 +151,7 @@
         <ExamPage v-if="currentView === 'work'" :tabId="MAIN_WORK_TAB_ID" />
         <AnalysisPage v-else-if="currentView === 'analysis'" />
         <ProfilePage v-else-if="currentView === 'profile'" />
-        <CreateRAGPage v-else-if="currentView === 'createRAG'" :tabId="MAIN_WORK_TAB_ID" />
+        <CreateRAG v-else-if="currentView === 'createRAG'" :tabId="MAIN_WORK_TAB_ID" />
         <UserManagementPage v-else-if="currentView === 'userManagement'" />
       </main>
     </div>
