@@ -25,8 +25,8 @@ export const API_RAG_APPLIED = '/rag/applied';
 /** 試題頁用 RAG：GET /rag/for-exam 取得 for_exam=true 且 deleted=false（0 或 1 筆），回傳格式同 /rag/build-rag-zip；PATCH /rag/for-exam/{rag_tab_id} Set Rag For Exam */
 export const API_RAG_FOR_EXAM = '/rag/for-exam';
 
-/** 答題分析：GET /quiz/quiz-answers?person_id=xxx，回傳 { items: [{ quiz, answers }], count }，quiz_type=1 */
-export const API_QUIZ_ANSWERS = '/quiz/quiz-answers';
+/** 答題分析：GET /analysis/quizzes-by-person/{person_id}，回傳 { quizzes: Exam_Quiz[]（每筆含 answers: Exam_Answer[]）, count } */
+export const API_QUIZZES_BY_PERSON = '/analysis/quizzes-by-person';
 
 /** Exam API：GET /exam/exams List Exams（僅 deleted=false；每筆含 quizzes、answers，格式同 GET /rag/rags；query: person_id 可選） */
 export const API_EXAM_TESTS = '/exam/exams';

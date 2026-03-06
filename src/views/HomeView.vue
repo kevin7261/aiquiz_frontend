@@ -7,7 +7,7 @@
   import LoadingOverlay from '../components/LoadingOverlay.vue';
   import ExamPage from '../pages/ExamPage.vue';
   import DashboardPage from '../pages/DashboardPage.vue';
-  import AnswerAnalysisPage from '../pages/AnswerAnalysisPage.vue';
+  import AnalysisPage from '../pages/AnalysisPage.vue';
   import ProfilePage from '../pages/ProfilePage.vue';
   import CreateRAGPage from '../pages/CreateRAGPage.vue';
   import UserManagementPage from '../pages/UserManagementPage.vue';
@@ -19,7 +19,7 @@
   /** 網址 path 對應內部 view 類型 */
   const PATH_TO_VIEW = {
     work: 'work',
-    'answer-analysis': 'answerAnalysis',
+    'analysis': 'analysis',
     dashboard: 'dashboard',
     profile: 'profile',
     'create-rag': 'createRAG',
@@ -29,7 +29,7 @@
 
   export default {
     name: 'HomeView',
-    components: { LoadingOverlay, ExamPage, DashboardPage, AnswerAnalysisPage, ProfilePage, CreateRAGPage, UserManagementPage },
+    components: { LoadingOverlay, ExamPage, DashboardPage, AnalysisPage, ProfilePage, CreateRAGPage, UserManagementPage },
 
     setup() {
       const router = useRouter();
@@ -112,10 +112,10 @@
               </li>
               <li class="nav-item">
                 <router-link
-                  to="/main/answer-analysis"
+                  to="/main/analysis"
                   class="nav-link"
                   active-class="active"
-                >答題分析</router-link>
+                >分析</router-link>
               </li>
               <li class="nav-item">
                 <router-link
@@ -159,7 +159,7 @@
       <main class="flex-grow-1 overflow-hidden">
         <ExamPage v-if="currentView === 'work'" :tabId="MAIN_WORK_TAB_ID" />
         <DashboardPage v-else-if="currentView === 'dashboard'" />
-        <AnswerAnalysisPage v-else-if="currentView === 'answerAnalysis'" />
+        <AnalysisPage v-else-if="currentView === 'analysis'" />
         <ProfilePage v-else-if="currentView === 'profile'" />
         <CreateRAGPage v-else-if="currentView === 'createRAG'" :tabId="MAIN_WORK_TAB_ID" />
         <UserManagementPage v-else-if="currentView === 'userManagement'" />

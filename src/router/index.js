@@ -1,17 +1,17 @@
 /**
- * 路由：/login 登入頁；/main 為主頁，/main/:view 對應各功能（exam、答題分析、儀表板等）。
+ * 路由：/login 登入頁；/main 為主頁，/main/:view 對應各功能（exam、分析、儀表板等）。
  */
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 
 /** 允許的 view 路徑（網址用） */
-const VALID_VIEWS = ['work', 'answer-analysis', 'dashboard', 'profile', 'create-rag', 'users'];
+const VALID_VIEWS = ['work', 'analysis', 'dashboard', 'profile', 'create-rag', 'users'];
 
 /** 各 view 的頁面標題 */
 const VIEW_TITLES = {
   work: 'Exam - AIQuiz',
-  'answer-analysis': '答題分析 - AIQuiz',
+  'analysis': '分析 - AIQuiz',
   dashboard: '儀表板 - AIQuiz',
   profile: '個資修改 - AIQuiz',
   'create-rag': '建立 RAG - AIQuiz',
