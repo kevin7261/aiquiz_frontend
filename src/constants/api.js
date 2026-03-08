@@ -43,3 +43,8 @@ export const API_TEST_GENERATE_QUIZ = '/exam/generate-quiz';
 export const API_TEST_QUIZ_GRADE = '/exam/quiz-grade';
 /** Exam：GET /exam/quiz-grade-result/{job_id} Get Exam Grade Result */
 export const API_TEST_QUIZ_GRADE_RESULT = '/exam/quiz-grade-result';
+
+/** 系統設定：GET /system-settings/llm-api-key 取得目前使用者的 LLM API Key（Header X-Person-Id）；無資料時回傳 llm_api_key 等為 null */
+export const API_GET_LLM_API_KEY = '/system-settings/llm-api-key';
+/** 系統設定：PUT /system-settings/llm-api-key 寫入或更新 LLM API Key（Header X-Person-Id）；body: { llm_api_key }，空字串表示清除 */
+export const API_PUT_LLM_API_KEY = '/system-settings/llm-api-key';
