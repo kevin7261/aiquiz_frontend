@@ -4,6 +4,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_QUIZZES_BY_PERSON } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
+import { downloadSummaryExcel } from '../utils/exportExcel.js';
 
 const authStore = useAuthStore();
 
@@ -154,6 +155,21 @@ async function fetchQuizAnswers() {
   }
 }
 
+function getSummaryRows() {
+  return items.value.map((item, idx) => [
+    idx + 1,
+    item.rag_name ?? item.exam_name ?? '—',
+    getDifficultyLabel(item.quiz_level),
+    getSingleAnswer(item)?.answer_grade ?? '—',
+    getSingleAnswer(item)?.created_at ?? '—'
+  ]);
+}
+
+async function onDownloadExcel() {
+  const headers = ['題號', '單元', '難度', '分數', '時間'];
+  await downloadSummaryExcel(headers, getSummaryRows(), '個人分析-作答紀錄摘要.xlsx');
+}
+
 onMounted(() => {
   fetchQuizAnswers();
 });
@@ -207,7 +223,16 @@ onMounted(() => {
 
         <!-- 作答紀錄摘要表：題號 / 單元 / 難度 / 分數 / 時間（每題一筆作答） -->
         <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">作答紀錄摘要</div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
+            <span class="fs-5 fw-semibold">作答紀錄摘要</span>
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              @click="onDownloadExcel"
+            >
+              下載 Excel
+            </button>
+          </div>
           <div class="table-responsive">
             <table class="table table-bordered table-sm mb-0 small">
               <thead class="table-light">
