@@ -1,6 +1,6 @@
 <script setup>
 /** 分析頁面：讀取 GET /analysis/quizzes-by-person/{person_id}，顯示 Exam_Quiz 與關聯的 Exam_Answer 列表。query 可帶 language（en/zh）；不需 llm_api_key。 */
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_QUIZZES_BY_PERSON } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
@@ -12,6 +12,33 @@ const count = ref(0);
 const weaknessReport = ref('');
 const loading = ref(false);
 const error = ref('');
+
+/** 學習弱點分析報告：後端可能回傳純 JSON 或 ```json ... ```，key 為區塊標題、value 為字串陣列 */
+function extractJsonFromWeaknessReport(text) {
+  if (!text || typeof text !== 'string') return null;
+  let t = text.trim();
+  if (t.startsWith('```')) {
+    const endFence = t.indexOf('\n```');
+    const body = endFence >= 0 ? t.slice(t.indexOf('\n') + 1, endFence) : t.replace(/^```\w*\n?/, '').replace(/\n?```\s*$/, '');
+    t = body.trim();
+  }
+  if (!t.startsWith('{')) return null;
+  try {
+    const obj = JSON.parse(t);
+    return obj && typeof obj === 'object' ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+const weaknessReportParsed = computed(() => extractJsonFromWeaknessReport(weaknessReport.value));
+
+/** 依 JSON 的 key 順序產生的區塊列表 */
+const weaknessReportSections = computed(() => {
+  const obj = weaknessReportParsed.value;
+  if (!obj) return [];
+  return Object.keys(obj);
+});
 
 /** 與測驗頁相同：將 answer_metadata / answer_feedback_metadata 轉成易讀的批改結果文字 */
 function formatGradingResult(text) {
@@ -97,7 +124,6 @@ async function fetchQuizAnswers() {
     const res = await fetch(url, { method: 'GET', headers });
     if (!res.ok) throw new Error(res.statusText || '無法載入答題資料');
     const data = await res.json();
-    console.log('/analysis/quizzes-by-person 回傳', data);
     items.value = data?.quizzes ?? [];
     count.value = data?.count ?? items.value.length;
     weaknessReport.value = (data?.weakness_report != null && String(data.weakness_report).trim() !== '') ? String(data.weakness_report).trim() : '';
@@ -132,25 +158,34 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 內容區：可上下捲動；基本資訊區塊樣式與建立 RAG、測驗一致 -->
+    <!-- 內容區：可上下捲動；基本資訊與分析合併為一區塊 -->
     <div class="flex-grow-1 overflow-auto bg-white p-4">
-      <!-- 基本資訊（與建立 RAG、測驗頁同一 style） -->
-      <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">基本資訊</div>
-      </div>
-
       <div v-if="loading" class="text-center py-5 text-muted" />
       <div v-else-if="items.length === 0" class="alert alert-info mt-0">尚無答題紀錄。</div>
 
       <template v-else>
         <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">分析</div>
+          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">基本資訊與分析</div>
           <div class="small text-secondary">共 {{ count }} 筆試題</div>
         </div>
 
         <div v-if="weaknessReport" class="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded text-start p-4 mb-3">
           <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">學習弱點分析報告</div>
-          <div class="small lh-base" style="white-space: pre-wrap;">{{ weaknessReport }}</div>
+          <template v-if="weaknessReportParsed">
+            <div
+              v-for="sectionKey in weaknessReportSections"
+              :key="sectionKey"
+              class="mb-3"
+            >
+              <div class="small fw-semibold text-secondary mb-2">{{ sectionKey }}</div>
+              <ul v-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length" class="small lh-base mb-0 ps-3">
+                <li v-for="(line, i) in weaknessReportParsed[sectionKey]" :key="i">{{ line }}</li>
+              </ul>
+              <div v-else-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length === 0" class="small text-muted">—</div>
+              <div v-else class="small">{{ weaknessReportParsed[sectionKey] }}</div>
+            </div>
+          </template>
+          <div v-else class="small lh-base" style="white-space: pre-wrap;">{{ weaknessReport }}</div>
         </div>
 
         <div
