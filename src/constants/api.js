@@ -25,7 +25,7 @@ export const API_UPLOAD_ZIP = '/rag/upload-zip';
 export const API_BUILD_RAG_ZIP = '/rag/build-rag-zip';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
 export const API_RAG_APPLIED = '/rag/applied';
-/** 試題頁用 RAG：GET /rag/for-exam 取得 for_exam=true 且 deleted=false（0 或 1 筆），回傳格式同 /rag/build-rag-zip；PATCH /rag/for-exam/{rag_tab_id} Set Rag For Exam */
+/** 試題頁用 RAG：GET /rag/for-exam 取得試題用 RAG（for_exam=true 且 deleted=false，0 或 1 筆），無 parameters；回傳格式同 /rag/build-rag-zip。PATCH /rag/for-exam/{rag_tab_id} Set Rag For Exam */
 export const API_RAG_FOR_EXAM = '/rag/for-exam';
 
 /** 個人答題分析：GET /person-analysis/quizzes-by-person/{person_id}；query 可選 language（en/zh）；LLM 依 person 從 system-settings 取；回傳 { quizzes, count, weakness_report? } */
@@ -44,7 +44,7 @@ export const API_TEST_QUIZ_GRADE = '/exam/quiz-grade';
 /** Exam：GET /exam/quiz-grade-result/{job_id} Get Exam Grade Result */
 export const API_TEST_QUIZ_GRADE_RESULT = '/exam/quiz-grade-result';
 
-/** 系統設定：GET /system-settings/llm-api-key 取得目前使用者的 LLM API Key（Header X-Person-Id）；無資料時回傳 llm_api_key 等為 null */
+/** 系統設定：GET /system-settings/llm-api-key 取用 LLM API Key。資料庫只會有一筆，不需傳 person_id。若尚無資料，回傳 llm_api_key_id 等皆為 null。 */
 export const API_GET_LLM_API_KEY = '/system-settings/llm-api-key';
-/** 系統設定：PUT /system-settings/llm-api-key 寫入或更新 LLM API Key；body 必填: { person_id, llm_api_key }，空字串表示清除 */
+/** 系統設定：PUT /system-settings/llm-api-key 寫入或更新 LLM API Key；body 必填: { llm_api_key }，空字串表示清除；不需傳 person_id。 */
 export const API_PUT_LLM_API_KEY = '/system-settings/llm-api-key';

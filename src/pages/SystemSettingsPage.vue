@@ -14,8 +14,7 @@ const message = ref('');
 const messageType = ref(''); // 'success' | 'danger'
 
 async function fetchLlmApiKey() {
-  const personId = authStore.user?.person_id;
-  if (!personId) {
+  if (!authStore.user) {
     llmApiKey.value = '';
     return;
   }
@@ -24,7 +23,6 @@ async function fetchLlmApiKey() {
   try {
     const res = await fetch(`${API_BASE}${API_GET_LLM_API_KEY}`, {
       method: 'GET',
-      headers: { 'X-Person-Id': String(personId) },
     });
     const text = await res.text();
     if (!res.ok) {
@@ -47,11 +45,10 @@ async function fetchLlmApiKey() {
   }
 }
 
-watch(() => authStore.user?.person_id, fetchLlmApiKey, { immediate: true });
+watch(() => authStore.user, fetchLlmApiKey, { immediate: true });
 
 async function saveLlmApiKey() {
-  const personId = authStore.user?.person_id;
-  if (!personId) {
+  if (!authStore.user) {
     message.value = '請先登入';
     messageType.value = 'danger';
     return;
@@ -61,11 +58,8 @@ async function saveLlmApiKey() {
   try {
     const res = await fetch(`${API_BASE}${API_PUT_LLM_API_KEY}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Person-Id': String(personId),
-      },
-      body: JSON.stringify({ person_id: String(personId), llm_api_key: llmApiKey.value ?? '' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ llm_api_key: llmApiKey.value ?? '' }),
     });
     const text = await res.text();
     if (!res.ok) {

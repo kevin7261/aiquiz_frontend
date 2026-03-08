@@ -1025,10 +1025,6 @@ async function confirmAnswer(item) {
                   <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 small">
                     {{ getSlotFormState(slotIndex).error }}
                   </div>
-                  <div v-if="getSlotFormState(slotIndex).responseJson !== null" class="mt-2">
-                    <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
-                    <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(getSlotFormState(slotIndex).responseJson, null, 2) }}</pre>
-                  </div>
                 </div>
               </div>
             </template>

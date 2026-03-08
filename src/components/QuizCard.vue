@@ -74,10 +74,6 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
         <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
         <div class="small" style="white-space: pre-wrap;">{{ card.gradingResult || '尚未批改' }}</div>
       </div>
-      <div v-if="card.generateQuizResponseJson != null" class="mb-3">
-        <div class="form-label small text-secondary fw-medium mb-1">產生題目 API 回傳 JSON：</div>
-        <pre class="bg-body-secondary border rounded p-2 font-monospace small mb-0 overflow-auto" style="max-height: 20rem;">{{ JSON.stringify(card.generateQuizResponseJson, null, 2) }}</pre>
-      </div>
     </div>
   </div>
 </template>
