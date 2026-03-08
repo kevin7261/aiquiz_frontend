@@ -686,6 +686,11 @@ async function confirmAnswer(item) {
       :is-visible="isAnyLoading"
       loading-text="執行中..."
     />
+    <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0">建立 RAG</span>
+      </div>
+    </div>
     <RagTabsBar
       :rag-items="ragItems"
       :new-tab-items="newTabItems"

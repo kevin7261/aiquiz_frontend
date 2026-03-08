@@ -806,9 +806,14 @@ onMounted(() => {
       :is-visible="isAnyLoading"
       loading-text="執行中..."
     />
+    <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0">測驗</span>
+      </div>
+    </div>
     <!-- 固定 tab 頁籤列（與建立 RAG 頁一致，僅內容區可上下滑） -->
-    <div class="flex-shrink-0 bg-white border-bottom">
-      <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
+    <div class="flex-shrink-0 bg-white">
+      <div class="d-flex align-items-center px-4">
         <template v-if="examListLoading || forExamLoading">
           <span class="small text-secondary">—</span>
         </template>
@@ -823,18 +828,19 @@ onMounted(() => {
           </button>
         </template>
         <template v-else>
-          <ul class="nav nav-tabs mb-0">
+          <ul class="nav nav-tabs">
             <li v-for="exam in examList" :key="'exam-' + getExamTabId(exam)" class="nav-item">
               <button
                 type="button"
-                class="nav-link border-0 rounded-0"
+                class="nav-link"
                 :class="{ active: activeTabId === getExamTabId(exam) }"
+                :aria-current="activeTabId === getExamTabId(exam) ? 'page' : undefined"
                 @click="activeTabId = getExamTabId(exam)"
               >
                 {{ getExamTabLabel(exam) }}
               </button>
             </li>
-            <li class="nav-item ms-2 align-self-center">
+            <li class="nav-item ms-2">
               <button
                 type="button"
                 class="btn btn-sm btn-outline-primary"

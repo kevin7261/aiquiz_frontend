@@ -16,8 +16,8 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
 </script>
 
 <template>
-  <div class="flex-shrink-0 bg-white border-bottom">
-    <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
+  <div class="flex-shrink-0 bg-white">
+    <div class="d-flex align-items-center px-4">
       <template v-if="ragListLoading">
         <span class="small text-secondary">載入中...</span>
       </template>
@@ -32,12 +32,13 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
         </button>
       </template>
       <template v-else>
-        <ul class="nav nav-tabs mb-0">
+        <ul class="nav nav-tabs">
           <li v-for="item in ragItems" :key="'rag-' + item._tabId" class="nav-item">
             <button
               type="button"
-              class="nav-link border-0 rounded-0"
+              class="nav-link"
               :class="{ active: activeTabId === item._tabId }"
+              :aria-current="activeTabId === item._tabId ? 'page' : undefined"
               @click="emit('update:activeTabId', item._tabId)"
             >
               {{ item._label }}
@@ -48,12 +49,13 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
               type="button"
               class="nav-link"
               :class="{ active: activeTabId === item.id }"
+              :aria-current="activeTabId === item.id ? 'page' : undefined"
               @click="emit('update:activeTabId', item.id)"
             >
               {{ item.label }}
             </button>
           </li>
-          <li class="nav-item ms-2 align-self-center">
+          <li class="nav-item ms-2">
             <button
               type="button"
               class="btn btn-sm btn-outline-primary"

@@ -181,14 +181,13 @@ onMounted(() => {
       :is-visible="loading"
       loading-text="執行中..."
     />
-    <!-- 固定頂列：標題與錯誤（分析無 tab，僅一頁） -->
-    <div class="flex-shrink-0 bg-white border-bottom">
-      <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
-        <span class="fs-5 fw-semibold">個人分析</span>
+    <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0">個人分析</span>
       </div>
-      <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">
-        {{ error }}
-      </div>
+    </div>
+    <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">
+      {{ error }}
     </div>
 
     <!-- 內容區：可上下捲動；基本資訊與分析合併為一區塊 -->

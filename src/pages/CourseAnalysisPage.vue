@@ -138,14 +138,13 @@ onMounted(() => {
       :is-visible="loading"
       loading-text="執行中..."
     />
-    <!-- 固定頂列：標題與錯誤 -->
-    <div class="flex-shrink-0 bg-white border-bottom">
-      <div class="d-flex align-items-center gap-2 px-4 pt-2 pb-2">
-        <span class="fs-5 fw-semibold">課程分析</span>
+    <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0">課程分析</span>
       </div>
-      <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">
-        {{ error }}
-      </div>
+    </div>
+    <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">
+      {{ error }}
     </div>
 
     <!-- 內容區：與個人分析相同結構，不顯示 weakness_report（課程分析固定為 null） -->
