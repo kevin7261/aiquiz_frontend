@@ -1,5 +1,10 @@
 <script setup>
-/** 系統設定頁面：LLM API Key 的取得（GET /system-settings/llm-api-key）與更新（PUT）。 */
+/**
+ * SystemSettingsPage - 系統設定頁面
+ *
+ * 負責 LLM API Key：GET /system-settings/llm-api-key 取得、PUT /system-settings/llm-api-key 更新（body: llm_api_key，空字串表示清除）。
+ * 資料庫僅一筆，不需 person_id。進入頁面時依 authStore.user 觸發取得，儲存後顯示成功/失敗訊息。
+ */
 import { ref, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_GET_LLM_API_KEY, API_PUT_LLM_API_KEY } from '../constants/api.js';

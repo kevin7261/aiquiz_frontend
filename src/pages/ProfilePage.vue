@@ -1,5 +1,10 @@
 <script setup>
-/** 個資修改頁面：PATCH /user/profile 更新 name、user_type、llm_api_key（以 person_id 識別）；user_type=3（學生）時 llm_api_key 為唯讀。 */
+/**
+ * ProfilePage - 個資修改頁面
+ *
+ * 以 PATCH /user/profile 更新 name、user_type、llm_api_key（以 person_id 識別，Header X-Person-Id）。
+ * user_type=3（學生）時 llm_api_key 欄位為唯讀。會從 authStore 初始化表單，並可選從 GET /system-settings/llm-api-key 取得系統 LLM Key 顯示。
+ */
 import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_UPDATE_PROFILE, API_GET_LLM_API_KEY } from '../constants/api.js';

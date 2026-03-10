@@ -1,8 +1,17 @@
 <script setup>
 /**
- * 建立 RAG 頁面。
- * 資料對應：一個 RAG 頁面（一個 tab）= 後端 public."Rag" 表的一筆（主鍵 rag_id + rag_tab_id）。
- * 列表 GET /rag/rags；建立 tab（按 +）POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填）；上傳 ZIP POST /rag/upload-zip（Form: file、rag_tab_id、person_id）；build-rag-zip 傳入 system_prompt_instruction 等，會更新同筆的 rag_list、rag_metadata、chunk_size、chunk_overlap；上述 API 不需 llm_api_key。
+ * CreateRAG - 建立 RAG 頁面
+ *
+ * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 rag_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為試題用 RAG → 產生題目 → 作答與評分。
+ *
+ * API 對應：
+ * - 列表：GET /rag/rags
+ * - 建立 tab（按 +）：POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填）
+ * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
+ * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
+ * - 設為試題用：PATCH /rag/for-exam/{rag_tab_id}
+ * - 出題：POST /rag/generate-quiz；評分：POST /rag/quiz-grade、GET /rag/quiz-grade-result/{job_id}
+ * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';

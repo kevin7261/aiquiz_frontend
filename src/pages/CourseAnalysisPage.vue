@@ -1,5 +1,10 @@
 <script setup>
-/** 課程分析頁面：讀取 GET /course-analysis/quizzes，回傳 { exams, count, weakness_report: null }，每 exam 含 quizzes、answers。版面與個人分析一致。 */
+/**
+ * CourseAnalysisPage - 課程分析頁面
+ *
+ * 讀取 GET /course-analysis/quizzes，回傳 { exams, count, weakness_report: null }，每筆 exam 含 quizzes、answers。
+ * 版面與個人分析一致：作答紀錄摘要、批改結果、匯出 Excel；無 weakness_report 時不顯示弱點區塊。
+ */
 import { ref, onMounted } from 'vue';
 import { API_BASE, API_COURSE_ANALYSIS_QUIZZES } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';

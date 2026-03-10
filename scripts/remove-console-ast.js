@@ -1,3 +1,9 @@
+/**
+ * remove-console-ast.js - 以字元掃描方式移除 src 下 .js / .vue 中的 console.log
+ *
+ * 與 remove-console.js 目的一致（建置前移除 console.log），改以逐字元掃描處理
+ * 字串/範本/註解邊界，避免誤刪字面量內的 "console.log" 字樣。執行：node scripts/remove-console-ast.js
+ */
 const fs = require('fs');
 const path = require('path');
 

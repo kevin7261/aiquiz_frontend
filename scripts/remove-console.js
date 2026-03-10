@@ -1,3 +1,10 @@
+/**
+ * remove-console.js - 移除 src 下 .js / .vue 檔案中的 console.log
+ *
+ * 遍歷 src 目錄，對每檔做簡單字串處理：刪除單行 console.log(...); 與多行
+ * console.log( ... ); 區塊，處理完寫回檔案。用於建置前清理除錯用 log。
+ * 執行：node scripts/remove-console.js
+ */
 const fs = require('fs');
 const path = require('path');
 

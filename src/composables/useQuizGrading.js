@@ -1,15 +1,21 @@
 /**
- * 評分 composable：POST 送出評分、輪詢 job_id、格式化批改結果。
- * 供 CreateRAG、ExamPage 等使用。
+ * 評分 Composable
+ *
+ * 職責：送出評分請求、輪詢 job_id 取得結果、將回傳 JSON 格式化为易讀文字。
+ * 會直接修改題目卡片 item（confirmed、gradingResult、gradingResponseJson）。
+ * 供 CreateRAG 頁、ExamPage 等共用；Exam 可透過 options 覆寫 API 路徑為 /exam/quiz-grade。
  */
 import { API_BASE, API_GRADE_SUBMISSION, API_GRADE_RESULT } from '../constants/api.js';
 import { formatGradingResult } from '../utils/grading.js';
 
 /**
- * 送出評分並輪詢結果。會直接修改 item（item.confirmed、item.gradingResult、item.gradingResponseJson）。
- * @param {Object} item - 題目卡片物件，會被 mutate
- * @param {Object} context - { sourceTabId, ragId }
- * @param {Object} options - { gradeSubmissionPath, gradeResultPath } 可覆寫 API 路徑（預設為 RAG 的 /rag/quiz-grade）
+ * 送出評分並輪詢結果
+ *
+ * 流程：POST 送出 → 若 202 則取 job_id → 每 2 秒 GET 輪詢結果 → 解析 status ready/error → 寫入 item
+ *
+ * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
+ * @param {Object} context - { sourceTabId, ragId }（RAG 情境為 rag_tab_id、rag_id；Exam 為 exam_tab_id、exam_id）
+ * @param {Object} [options] - { gradeSubmissionPath, gradeResultPath } 可覆寫 API 路徑（預設為 RAG）
  */
 export async function submitGrade(item, context, options = {}) {
   const { sourceTabId, ragId } = context;
@@ -120,7 +126,10 @@ export async function submitGrade(item, context, options = {}) {
   }
 }
 
-/** 重寫答案：清空回答與批改狀態 */
+/**
+ * 重寫答案：清空作答區與批改狀態（不送 API）
+ * @param {Object} item - 題目卡片物件，會清空 answer、confirmed、gradingResult、gradingResponseJson
+ */
 export function rewriteAnswer(item) {
   item.answer = '';
   item.confirmed = false;

@@ -1,5 +1,10 @@
 <script setup>
-/** 使用者管理頁面：呼叫 GET /user/users 取得使用者列表並以表格顯示。 */
+/**
+ * UserManagementPage - 使用者管理頁面
+ *
+ * 呼叫 GET /user/users 取得使用者列表（users、count），以表格顯示 person_id、name、user_type、建立/更新時間等。
+ * 僅讀取與顯示，不提供新增/編輯/刪除（若後端有 API 可再擴充）。
+ */
 import { ref, onMounted } from 'vue';
 import { API_BASE } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';

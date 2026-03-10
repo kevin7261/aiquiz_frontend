@@ -1,5 +1,10 @@
 <script setup>
-/** 個人分析頁面：讀取 GET /person-analysis/quizzes/{person_id}，回傳 { exams, count, weakness_report }，每 exam 含 quizzes、answers。 */
+/**
+ * AnalysisPage - 個人分析頁面
+ *
+ * 讀取 GET /person-analysis/quizzes/{person_id}，回傳 { exams, count, weakness_report }。
+ * 每筆 exam 含 quizzes、answers；可顯示作答紀錄摘要、弱點報告（JSON 區塊）、匯出 Excel。
+ */
 import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_QUIZZES_BY_PERSON } from '../constants/api.js';

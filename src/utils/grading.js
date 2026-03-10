@@ -1,7 +1,19 @@
 /**
- * 將評分 API 回傳的 JSON 轉成易讀文字。
- * 支援完整 answer 物件（含 student_answer、answer_metadata / answer_feedback_metadata）。
- * 與 CreateRAG、ExamPage、AnalysisPage 顯示一致。
+ * 評分結果格式化工具
+ *
+ * 將評分 API 回傳的 JSON 轉成易讀的純文字，供題目卡片與分析頁顯示。
+ * 支援後端回傳的完整 answer 物件（含 answer_metadata / answer_feedback_metadata）。
+ * 與 CreateRAG、ExamPage、AnalysisPage 顯示格式一致。
+ */
+
+/**
+ * 將評分 API 回傳的 JSON 字串格式化为易讀文字
+ *
+ * 會解析 score、level、rubric、strengths、weaknesses、missing_items、action_items 等欄位，
+ * 組合成「總分 / 等級 / 評分項目 / 優點 / 待改進 / 遺漏項目 / 建議後續」區塊。
+ *
+ * @param {string} [text] - API 回傳的 JSON 字串或一般文字
+ * @returns {string} 格式化後的文字，非 JSON 或解析失敗時回傳原 text
  */
 export function formatGradingResult(text) {
   if (!text || typeof text !== 'string') return text;

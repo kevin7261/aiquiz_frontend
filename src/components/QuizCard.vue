@@ -1,10 +1,17 @@
 <script setup>
 /**
- * 單一題目卡片：顯示題目、提示、參考答案、回答區、批改結果。
- * 供 CreateRAG、ExamPage 使用。
+ * QuizCard - 單一題目卡片
+ *
+ * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、參考答案、回答區、批改結果。
+ * 未確定前可輸入答案並按「確定」送出評分；確定後可「重寫」清空再答。
+ * 供 CreateRAG 頁、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
+ *
+ * card 物件需含：quiz, hint, referenceAnswer, answer, confirmed, gradingResult, ragName, generateLevel, id 等。
  */
 defineProps({
+  /** 題目資料（含題目、提示、答案、批改結果等） */
   card: { type: Object, required: true },
+  /** 題號（從 1 開始，用於顯示「第 N 題」） */
   slotIndex: { type: Number, required: true },
 });
 
@@ -17,6 +24,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
       <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
     </div>
     <div class="card-body text-start">
+      <!-- 單元與難度（唯讀顯示） -->
       <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
         <div>
           <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
@@ -63,6 +71,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
             <button type="button" class="btn btn-sm btn-primary" @click="emit('confirm-answer', card)">確定</button>
           </div>
         </template>
+        <!-- 已確定：只顯示答案與「重寫」按鈕 -->
         <template v-else>
           <div class="rounded bg-body-tertiary small mb-2 p-2">{{ card.answer }}</div>
           <div class="d-flex gap-2 mb-3">
@@ -70,6 +79,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
           </div>
         </template>
       </div>
+      <!-- 批改結果區（由 useQuizGrading 格式化後顯示） -->
       <div class="border rounded bg-light p-3 mb-3">
         <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
         <div class="small" style="white-space: pre-wrap;">{{ card.gradingResult || '尚未批改' }}</div>

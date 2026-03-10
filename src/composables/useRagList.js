@@ -1,15 +1,22 @@
 /**
- * RAG 列表：GET /rag/rags 與載入狀態。
+ * RAG 列表 Composable
+ *
+ * 職責：呼叫 GET /rag/rags、維護 ragList / ragListLoading / ragListError，
+ * 並以 normalizeRagListResponse 正規化後端回傳格式。供 CreateRAG 頁與 RagTabsBar 使用。
  */
 import { ref } from 'vue';
 import { API_BASE } from '../constants/api.js';
 import { normalizeRagListResponse } from '../utils/rag.js';
 
 export function useRagList() {
+  /** RAG 項目陣列（正規化後） */
   const ragList = ref([]);
+  /** 是否正在載入 */
   const ragListLoading = ref(false);
+  /** 載入失敗時的錯誤訊息 */
   const ragListError = ref('');
 
+  /** 拉取 RAG 列表並更新 ragList / ragListLoading / ragListError */
   async function fetchRagList() {
     ragListLoading.value = true;
     ragListError.value = '';

@@ -1,14 +1,23 @@
 /**
- * 路由：/login 登入頁；/main 為主頁，/main/:view 對應各功能（exam、個人分析、個資修改等）。
+ * Vue Router 設定 - 前端路由與頁面標題
+ *
+ * 路由結構：
+ * - / → 重導向至 /login
+ * - /login → 登入頁（LoginView）
+ * - /main → 重導向至 /exam（保留 query）
+ * - /exam → 測驗/工作區（HomeView，等同 /main/work）
+ * - /main/:view → 主區塊各功能（analysis、profile、create-rag 等），由 HomeView 依 view 渲染
+ *
+ * 主區塊需登入的檢查在 main.js 的 router.beforeEach 中處理。
  */
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 
-/** 允許的 view 路徑（網址用） */
+/** 允許的 view 參數（對應 /main/:view 的網址片段，用於側邊選單與權限） */
 const VALID_VIEWS = ['work', 'analysis', 'course-analysis', 'profile', 'create-rag', 'users', 'settings'];
 
-/** 各 view 的頁面標題 */
+/** 各 view 對應的瀏覽器頁籤標題 */
 const VIEW_TITLES = {
   work: 'Exam - AIQuiz',
   'analysis': '個人分析 - AIQuiz',
@@ -57,6 +66,7 @@ const router = createRouter({
   },
 });
 
+/** 每次導航時依路由設定 document.title，方便書籤與多分頁辨識 */
 router.beforeEach((to, _from, next) => {
   if (to.name === 'Main' && to.params.view && VIEW_TITLES[to.params.view]) {
     document.title = VIEW_TITLES[to.params.view];

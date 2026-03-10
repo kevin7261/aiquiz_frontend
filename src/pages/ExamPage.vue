@@ -1,8 +1,13 @@
 <script setup>
 /**
- * Exam 頁面。版面與建立 RAG 頁相同寫法，但無 RAG 功能（建立、上傳 ZIP、Pack）。
- * 資料來源：GET /rag/for-exam 取得試題用 RAG（for_exam=true、deleted=false，0 或 1 筆；回傳格式與 file_metadata、quiz_metadata 一致）。
- * 測驗列表：GET /exam/exams；出題與評分：POST /exam/generate-quiz、POST /exam/quiz-grade、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}。
+ * ExamPage - 測驗頁面
+ *
+ * 與 CreateRAG 版面類似（分頁、題目卡片、出題/評分），但無 RAG 建立/上傳/Pack；題目來源為「試題用 RAG」與「測驗」。
+ *
+ * 資料來源：
+ * - GET /rag/for-exam：取得試題用 RAG（for_exam=true、deleted=false，0 或 1 筆）
+ * - GET /exam/exams：測驗列表；按 + 呼叫 POST /exam/create-exam 新增測驗
+ * 出題：POST /exam/generate-quiz；評分：POST /exam/quiz-grade、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
