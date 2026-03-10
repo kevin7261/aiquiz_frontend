@@ -2,70 +2,97 @@
 /**
  * SystemSettingsPage - 系統設定頁面
  *
- * 課程名稱：GET /system-settings/course-name、PUT /system-settings/course-name（body 僅傳 { course_name }）。
- * LLM API Key：GET /system-settings/llm-api-key、PUT /system-settings/llm-api-key（body 僅傳 { llm_api_key }，空字串表示清除）。
- * 進入頁面時依 authStore.user 觸發取得，儲存後顯示成功/失敗訊息。
+ * 課程名稱與 LLM API Key 共用同一套邏輯，僅 API 端點與欄位名、文案不同。
+ * 每區塊：GET 取得 → 顯示 → PUT 儲存（body 僅傳對應欄位），各自 loading / 訊息不連動。
  */
-import { ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_BASE, API_GET_LLM_API_KEY, API_GET_SYSTEM_SETTING_COURSE_NAME, API_PUT_SYSTEM_SETTING_COURSE_NAME, API_PUT_SYSTEM_SETTING_LLM_API_KEY } from '../constants/api.js';
+import {
+  API_BASE,
+  API_GET_LLM_API_KEY,
+  API_GET_SYSTEM_SETTING_COURSE_NAME,
+  API_PUT_SYSTEM_SETTING_COURSE_NAME,
+  API_PUT_SYSTEM_SETTING_LLM_API_KEY,
+} from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 
 const authStore = useAuthStore();
 
-const llmApiKey = ref('');
-const courseName = ref('');
+/** 區塊設定：僅 API 與文案不同，程式邏輯完全一致 */
+const BLOCKS = [
+  {
+    id: 'courseName',
+    getUrl: API_GET_SYSTEM_SETTING_COURSE_NAME,
+    putUrl: API_PUT_SYSTEM_SETTING_COURSE_NAME,
+    bodyKey: 'course_name',
+    title: '課程名稱',
+    description: '顯示於系統的課程名稱，可留空。',
+    label: '課程名稱',
+    placeholder: '選填',
+    getSuccessMessage: () => '課程名稱已儲存',
+  },
+  {
+    id: 'llmApiKey',
+    getUrl: API_GET_LLM_API_KEY,
+    putUrl: API_PUT_SYSTEM_SETTING_LLM_API_KEY,
+    bodyKey: 'llm_api_key',
+    title: 'LLM API Key',
+    description: '用於呼叫 LLM 的 API Key，留空並儲存可清除已儲存的 Key。',
+    label: 'API Key',
+    placeholder: '選填，用於呼叫 LLM',
+    getSuccessMessage: (value) => (value ? 'LLM API Key 已儲存' : 'LLM API Key 已清除'),
+  },
+];
+
 const fetchLoading = ref(false);
-const loadingCourseName = ref(false);
-const loadingLlmApiKey = ref(false);
-const messageCourseName = ref('');
-const messageTypeCourseName = ref(''); // 'success' | 'danger'
-const messageLlmApiKey = ref('');
-const messageTypeLlmApiKey = ref(''); // 'success' | 'danger'
+const state = reactive(
+  Object.fromEntries(
+    BLOCKS.map((b) => [
+      b.id,
+      { value: '', loading: false, message: '', messageType: '' },
+    ])
+  )
+);
 
 async function fetchSettings() {
   if (!authStore.user) {
-    llmApiKey.value = '';
-    courseName.value = '';
+    BLOCKS.forEach((b) => {
+      state[b.id].value = '';
+      state[b.id].message = '';
+    });
     return;
   }
   fetchLoading.value = true;
-  messageCourseName.value = '';
-  messageLlmApiKey.value = '';
+  BLOCKS.forEach((b) => (state[b.id].message = ''));
   try {
-    const [courseRes, llmRes] = await Promise.all([
-      fetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' }),
-      fetch(`${API_BASE}${API_GET_LLM_API_KEY}`, { method: 'GET' }),
-    ]);
-    const courseText = await courseRes.text();
-    const llmText = await llmRes.text();
-    if (!courseRes.ok) {
-      try {
-        const body = courseText ? JSON.parse(courseText) : {};
-        if (body.detail) messageCourseName.value = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
-      } catch {
-        if (courseText && courseText.length < 200) messageCourseName.value = courseText;
+    const responses = await Promise.all(
+      BLOCKS.map((b) => fetch(`${API_BASE}${b.getUrl}`, { method: 'GET' }))
+    );
+    const texts = await Promise.all(responses.map((r) => r.text()));
+
+    for (let i = 0; i < BLOCKS.length; i++) {
+      const block = BLOCKS[i];
+      const res = responses[i];
+      const text = texts[i];
+      if (!res.ok) {
+        try {
+          const body = text ? JSON.parse(text) : {};
+          state[block.id].message = body.detail != null
+            ? (typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+            : (text && text.length < 200 ? text : '儲存失敗');
+        } catch {
+          state[block.id].message = text && text.length < 200 ? text : '儲存失敗';
+        }
+        state[block.id].messageType = 'danger';
+        return;
       }
-      messageTypeCourseName.value = 'danger';
-      return;
+      const data = text ? JSON.parse(text) : {};
+      const val = data[block.bodyKey];
+      state[block.id].value = val != null ? String(val) : '';
     }
-    if (!llmRes.ok) {
-      try {
-        const body = llmText ? JSON.parse(llmText) : {};
-        if (body.detail) messageLlmApiKey.value = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
-      } catch {
-        if (llmText && llmText.length < 200) messageLlmApiKey.value = llmText;
-      }
-      messageTypeLlmApiKey.value = 'danger';
-      return;
-    }
-    const courseData = courseText ? JSON.parse(courseText) : {};
-    const llmData = llmText ? JSON.parse(llmText) : {};
-    courseName.value = courseData?.course_name != null ? String(courseData.course_name) : '';
-    llmApiKey.value = llmData?.llm_api_key != null ? String(llmData.llm_api_key) : '';
   } catch (e) {
-    messageCourseName.value = e.message || '無法連線，請確認後端已啟動';
-    messageTypeCourseName.value = 'danger';
+    state[BLOCKS[0].id].message = e.message || '無法連線，請確認後端已啟動';
+    state[BLOCKS[0].id].messageType = 'danger';
   } finally {
     fetchLoading.value = false;
   }
@@ -93,43 +120,24 @@ async function putSettingByUrl(url, body) {
   return text ? JSON.parse(text) : {};
 }
 
-async function saveCourseName() {
+async function save(block) {
   if (!authStore.user) {
-    messageCourseName.value = '請先登入';
-    messageTypeCourseName.value = 'danger';
+    state[block.id].message = '請先登入';
+    state[block.id].messageType = 'danger';
     return;
   }
-  loadingCourseName.value = true;
-  messageCourseName.value = '';
+  state[block.id].loading = true;
+  state[block.id].message = '';
   try {
-    await putSettingByUrl(API_PUT_SYSTEM_SETTING_COURSE_NAME, { course_name: courseName.value ?? '' });
-    messageCourseName.value = '課程名稱已儲存';
-    messageTypeCourseName.value = 'success';
+    const body = { [block.bodyKey]: state[block.id].value ?? '' };
+    await putSettingByUrl(block.putUrl, body);
+    state[block.id].message = block.getSuccessMessage(state[block.id].value);
+    state[block.id].messageType = 'success';
   } catch (e) {
-    messageCourseName.value = e.message || '無法連線，請確認後端已啟動';
-    messageTypeCourseName.value = 'danger';
+    state[block.id].message = e.message || '無法連線，請確認後端已啟動';
+    state[block.id].messageType = 'danger';
   } finally {
-    loadingCourseName.value = false;
-  }
-}
-
-async function saveLlmApiKey() {
-  if (!authStore.user) {
-    messageLlmApiKey.value = '請先登入';
-    messageTypeLlmApiKey.value = 'danger';
-    return;
-  }
-  loadingLlmApiKey.value = true;
-  messageLlmApiKey.value = '';
-  try {
-    await putSettingByUrl(API_PUT_SYSTEM_SETTING_LLM_API_KEY, { llm_api_key: llmApiKey.value ?? '' });
-    messageLlmApiKey.value = llmApiKey.value ? 'LLM API Key 已儲存' : 'LLM API Key 已清除';
-    messageTypeLlmApiKey.value = 'success';
-  } catch (e) {
-    messageLlmApiKey.value = e.message || '無法連線，請確認後端已啟動';
-    messageTypeLlmApiKey.value = 'danger';
-  } finally {
-    loadingLlmApiKey.value = false;
+    state[block.id].loading = false;
   }
 }
 </script>
@@ -137,7 +145,7 @@ async function saveLlmApiKey() {
 <template>
   <div class="d-flex flex-column bg-body-secondary h-100 position-relative">
     <LoadingOverlay
-      :is-visible="loadingCourseName || loadingLlmApiKey"
+      :is-visible="BLOCKS.some((b) => state[b.id].loading)"
       loading-text="儲存中..."
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
@@ -148,63 +156,43 @@ async function saveLlmApiKey() {
     <div class="flex-grow-1 overflow-auto bg-white p-4">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-8">
-      <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">課程名稱</div>
-        <p class="small text-secondary mb-3">
-          顯示於系統的課程名稱，可留空。
-        </p>
-        <div class="mb-3">
-          <label class="form-label small text-secondary fw-medium mb-1">課程名稱</label>
-          <input
-            v-model="courseName"
-            type="text"
-            class="form-control form-control-sm"
-            placeholder="選填"
-            :disabled="fetchLoading"
+          <div
+            v-for="block in BLOCKS"
+            :key="block.id"
+            class="bg-body-tertiary rounded text-start p-4 mb-3"
           >
-          <div v-if="fetchLoading" class="form-text small">載入中...</div>
-        </div>
-        <div v-if="messageCourseName" :class="['alert py-2 mb-3', messageTypeCourseName === 'success' ? 'alert-success' : 'alert-danger']" role="alert">
-          {{ messageCourseName }}
-        </div>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          :disabled="loadingCourseName || fetchLoading"
-          @click="saveCourseName"
-        >
-          儲存
-        </button>
-      </div>
-      <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">LLM API Key</div>
-        <p class="small text-secondary mb-3">
-          用於呼叫 LLM 的 API Key，留空並儲存可清除已儲存的 Key。
-        </p>
-        <div class="mb-3">
-          <label class="form-label small text-secondary fw-medium mb-1">API Key</label>
-          <input
-            v-model="llmApiKey"
-            type="text"
-            class="form-control form-control-sm"
-            placeholder="選填，用於呼叫 LLM"
-            autocomplete="off"
-            :disabled="fetchLoading"
-          >
-          <div v-if="fetchLoading" class="form-text small">載入中...</div>
-        </div>
-        <div v-if="messageLlmApiKey" :class="['alert py-2 mb-3', messageTypeLlmApiKey === 'success' ? 'alert-success' : 'alert-danger']" role="alert">
-          {{ messageLlmApiKey }}
-        </div>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          :disabled="loadingLlmApiKey || fetchLoading"
-          @click="saveLlmApiKey"
-        >
-          儲存
-        </button>
-      </div>
+            <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">{{ block.title }}</div>
+            <p class="small text-secondary mb-3">
+              {{ block.description }}
+            </p>
+            <div class="mb-3">
+              <label class="form-label small text-secondary fw-medium mb-1">{{ block.label }}</label>
+              <input
+                v-model="state[block.id].value"
+                type="text"
+                class="form-control form-control-sm"
+                :placeholder="block.placeholder"
+                :disabled="fetchLoading"
+                :autocomplete="block.id === 'llmApiKey' ? 'off' : undefined"
+              >
+              <div v-if="fetchLoading" class="form-text small">載入中...</div>
+            </div>
+            <div
+              v-if="state[block.id].message"
+              :class="['alert py-2 mb-3', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
+              role="alert"
+            >
+              {{ state[block.id].message }}
+            </div>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              :disabled="state[block.id].loading || fetchLoading"
+              @click="save(block)"
+            >
+              儲存
+            </button>
+          </div>
         </div>
       </div>
     </div>
