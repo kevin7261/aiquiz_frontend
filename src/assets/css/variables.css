@@ -37,16 +37,14 @@
 
   /**
    * 📝 主要字體家族 (Primary Font Family)
-   * 設定應用程式的主要字體，優先使用 Noto Sans TC 中文字體
-   * 備用字體為系統預設的 sans-serif 字體
+   * 英文與數字使用 Roboto，中文使用 Noto Sans TC（繁體中文）
+   * 瀏覽器會依字元自動選用：Latin/數字 → Roboto，CJK → Noto Sans TC
    *
    * 字體選擇理由：
-   * - Noto Sans TC：Google 開發的開源中文字體，支援繁體中文
-   * - 字體清晰易讀，適合螢幕顯示
-   * - 支援多種字重，提供豐富的視覺層次
-   * - 與 Material Design 字體系統兼容
+   * - Roboto：Google 開發，適合英文與數字，清晰易讀
+   * - Noto Sans TC：Google 開源繁體中文字體，與 Roboto 風格協調
    */
-  --my-font-family-primary: "Noto Sans TC", sans-serif;
+  --my-font-family-primary: "Roboto", "Noto Sans TC", sans-serif;
 
   /* ==================== 📏 字體大小層級 (Font Size Scale) ==================== */
 

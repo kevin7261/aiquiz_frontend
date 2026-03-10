@@ -1,7 +1,7 @@
 /* =============================================================================
    common.css - 全站共用樣式
    =============================================================================
-   職責：引入 variables.css 與 Noto Sans TC 字體、基礎重置、#app 佈局、
+   職責：引入 variables.css 與 Google Fonts（Roboto、Noto Sans TC）、基礎重置、#app 佈局、
    工具類（字體大小、顏色、背景色、載入遮罩、登入卡片等）。
    由 main.js 與 App.vue 引入，全專案可用。
    ============================================================================= */
@@ -11,7 +11,7 @@
    ============================================================================= */
 
 @import "./variables.css"; /* 基礎變數定義 */
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100..900&family=Roboto:wght@100;300;400;500;700;900&display=swap");
 
 /* =============================================================================
    🔧 基礎重置和全局設定 (Base Reset & Global Settings)
