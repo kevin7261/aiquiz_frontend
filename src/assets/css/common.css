@@ -1,21 +1,5 @@
-/* =============================================================================
-   common.css - 全站共用樣式
-   =============================================================================
-   職責：引入 variables.css 與 Google Fonts（Roboto、Noto Sans TC）、基礎重置、#app 佈局、
-   工具類（字體大小、顏色、背景色、載入遮罩、登入卡片等）。
-   由 main.js 與 App.vue 引入，全專案可用。
-   ============================================================================= */
-
-/* =============================================================================
-   📦 引入依賴 (Dependencies Import)
-   ============================================================================= */
-
-@import "./variables.css"; /* 基礎變數定義 */
+@import "./variables.css";
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100..900&family=Roboto:wght@100;300;400;500;700;900&display=swap");
-
-/* =============================================================================
-   🔧 基礎重置和全局設定 (Base Reset & Global Settings)
-   ============================================================================= */
 
 *,
 *::before,
@@ -38,7 +22,6 @@ body {
   background-color: var(--my-color-white);
 }
 
-/* 全站：無文字裝飾，僅保留版面設定 */
 a,
 button,
 .btn,
@@ -60,17 +43,11 @@ button:focus,
   text-decoration: none !important;
 }
 
-/* 應用程式佈局 (Application Layout)  */
-
 #app {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
-
-/* =============================================================================
-   工具類：字體大小 (Utility - Font Size)
-   ============================================================================= */
 
 .my-font-size-xs {
   font-size: var(--my-font-size-xs);
@@ -91,9 +68,6 @@ button:focus,
   font-size: var(--my-font-size-2xl);
 }
 
-/* =============================================================================
-   工具類：文字顏色 (Utility - Text Color)
-   ============================================================================= */
 .my-color-white {
   color: var(--my-color-white);
 }
@@ -186,9 +160,6 @@ button:focus,
   color: var(--my-color-brown);
 }
 
-/* =============================================================================
-   工具類：背景顏色 (Utility - Background Color)
-   ============================================================================= */
 .my-bgcolor-white {
   background-color: var(--my-color-white);
 }
@@ -297,8 +268,6 @@ button:focus,
   background-color: transparent;
 }
 
-/* 文字顏色 */
-
 .my-title-xl-black {
   font-size: var(--my-font-size-xl);
   color: var(--my-color-black);
@@ -307,6 +276,11 @@ button:focus,
 .my-title-xl-gray {
   font-size: var(--my-font-size-xl);
   color: var(--my-color-gray-600);
+}
+
+.my-title-lg-black {
+  font-size: var(--my-font-size-lg);
+  color: var(--my-color-black);
 }
 
 .my-title-lg-gray {
@@ -363,8 +337,6 @@ button:focus,
   font-size: var(--my-font-size-xs);
   color: var(--my-color-gray-600);
 }
-
-/* 按鈕模式 */
 
 .my-btn-transparent {
   color: var(--my-color-black);
@@ -450,102 +422,85 @@ button:focus,
   background-color: var(--my-color-gray-200);
 }
 
-/* 面板樣式  */
-
 .my-right-panel {
-  background-color: var(--my-color-white); /* 面板背景色 */
-  /* border-left: 1px solid var(--my-color-gray-200); */ /* 左邊框 */
+  background-color: var(--my-color-white);
 }
 
-/* 🌟 左側面板右側陰影 (Left Panel Right Shadow) */
 .my-left-panel {
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15); /* 增強右側陰影效果 */
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
   position: relative;
-  z-index: 1500; /* 提高層級，確保陰影顯示在地圖等所有元素上方 */
+  z-index: 1500;
 }
 
-/* 🌟 左側面板陰影偽元素 (Left Panel Shadow Pseudo Element) */
 .my-left-panel::after {
   content: "";
   position: absolute;
   top: 0;
-  right: -8px; /* 陰影延伸到右側 */
+  right: -8px;
   width: 8px;
   height: 100%;
   background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
-  pointer-events: none; /* 不影響滑鼠事件 */
-  z-index: 1501; /* 比面板本身更高的層級 */
+  pointer-events: none;
+  z-index: 1501;
 }
 
-/* 🌟 中間面板左側內陰影 (Middle Panel Left Inner Shadow) */
 .my-middle-panel {
-  box-shadow: inset 4px 0 8px rgba(0, 0, 0, 0.1); /* 左側內陰影效果 */
+  box-shadow: inset 4px 0 8px rgba(0, 0, 0, 0.1);
   position: relative;
-  z-index: 1; /* 確保在左側面板陰影下方 */
+  z-index: 1;
 }
 
-/* =============================================================================
-   📜 滾動條樣式 (Scrollbar Styles)
-   ============================================================================= */
-
-/* 🎨 自定義滾動條樣式 (Custom Scrollbar Styles) */
-/* 適用於 Webkit 瀏覽器 (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
-  width: 8px; /* 垂直滾動條寬度 */
-  height: 8px; /* 水平滾動條高度 */
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--my-color-gray-100); /* 滾動條軌道背景色 */
-  border-radius: 4px; /* 軌道圓角 */
+  background: var(--my-color-gray-100);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--my-color-gray-400); /* 滾動條顏色 */
-  border-radius: 4px; /* 滾動條圓角 */
-  transition: background-color 0.2s ease; /* 平滑過渡效果 */
+  background: var(--my-color-gray-400);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--my-color-gray-600); /* 滑鼠懸停時的顏色 */
+  background: var(--my-color-gray-600);
 }
 
 ::-webkit-scrollbar-corner {
-  background: white; /* 滾動條角落背景色 */
+  background: white;
 }
 
-/* 🎨 Firefox 滾動條樣式 */
 * {
-  scrollbar-width: thin; /* 細滾動條 */
-  scrollbar-color: var(--my-color-gray-400) var(--my-color-gray-100); /* 滾動條顏色 軌道顏色 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--my-color-gray-400) var(--my-color-gray-100);
 }
-
-/* 拖拉調整器樣式  */
 
 .my-resizer {
-  background-color: var(--my-color-gray-100); /* 調整器背景色 */
-  transition: all 0.2s ease; /* 平滑過渡效果 */
-  border: none; /* 移除邊框 */
+  background-color: var(--my-color-gray-100);
+  transition: all 0.2s ease;
+  border: none;
 }
 
 .my-resizer:hover {
-  background-color: var(--my-color-blue); /* 懸停時的背景色 */
+  background-color: var(--my-color-blue);
 }
 
-/* 🔧 垂直拖曳調整器 (Vertical Resizer) */
 .my-resizer-vertical {
   min-width: 4px;
   max-width: 4px;
-  cursor: col-resize; /* 左右調整游標 */
-  touch-action: none; /* 禁用觸控手勢，確保拖拉正常工作 */
+  cursor: col-resize;
+  touch-action: none;
 }
 
-/* 🔧 水平拖曳調整器 (Horizontal Resizer) */
 .my-resizer-horizontal {
   min-height: 4px;
   max-height: 4px;
-  cursor: row-resize; /* 上下調整游標 */
-  touch-action: none; /* 禁用觸控手勢，確保拖拉正常工作 */
+  cursor: row-resize;
+  touch-action: none;
 }
 
 .my-resizer-vertical:hover,
@@ -561,40 +516,35 @@ button:focus,
 }
 
 .my-resizer.my-dragging {
-  background-color: var(--my-color-blue) !important; /* 拖曳時的背景色 */
+  background-color: var(--my-color-blue) !important;
 }
 
-/* 🔧 不同位置的 resizer 顏色 (Different Resizer Colors) */
 .my-resizer-left {
-  background-color: var(--my-color-gray-00); /* 左側面板 resizer - gray-100 */
+  background-color: var(--my-color-gray-100);
 }
 
 .my-resizer-left:hover {
-  background-color: var(--my-color-blue); /* 懸停時保持主色 */
+  background-color: var(--my-color-blue);
 }
 
 .my-resizer-right {
-  background-color: var(--my-color-gray-200); /* 右側面板 resizer - white */
-  border-left: 1px solid var(--my-color-gray-300); /* 左邊框 */
+  background-color: var(--my-color-gray-200);
+  border-left: 1px solid var(--my-color-gray-300);
 }
 
 .my-resizer-right:hover {
-  background-color: var(--my-color-blue); /* 懸停時保持主色 */
+  background-color: var(--my-color-blue);
 }
 
 .my-resizer-middle {
-  background-color: var(--my-color-gray-200); /* 中間面板上下拉 resizer - gray-200 */
-  position: relative; /* 為偽元素提供定位上下文 */
-  border-top: 1px solid var(--my-color-gray-300); /* 上邊框分隔線 */
+  background-color: var(--my-color-gray-200);
+  position: relative;
+  border-top: 1px solid var(--my-color-gray-300);
 }
 
 .my-resizer-middle:hover {
-  background-color: var(--my-color-blue); /* 懸停時保持主色 */
+  background-color: var(--my-color-blue);
 }
-
-/* =============================================================================
-   🖱️ 防止選取樣式 (No-Select Styles)
-   ============================================================================= */
 
 .my-no-select {
   -webkit-user-select: none;
@@ -604,30 +554,25 @@ button:focus,
 }
 
 body.my-no-select {
-  cursor: inherit !important; /* 保持游標樣式 */
+  cursor: inherit !important;
 }
 
 body.my-no-select * {
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
   -ms-user-select: none !important;
-  user-select: none !important; /* 防止所有元素被選取 */
+  user-select: none !important;
 }
 
-/* 霧化樣式 */
 .my-blur {
   backdrop-filter: blur(4px) saturate(160%);
   -webkit-backdrop-filter: blur(4px) saturate(160%);
-  background-color: rgba(255, 255, 255, 0.4); /* 50% 透明度的白色 */
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .my-cursor-pointer {
   cursor: pointer;
 }
-
-/* =============================================================================
-   📑 分頁列 (Tab Bar)
-   ============================================================================= */
 
 .my-tab-head {
   cursor: pointer;
@@ -652,10 +597,6 @@ body.my-no-select * {
 .my-tab-item-drop-target {
   box-shadow: inset 0 0 0 2px var(--my-color-blue, #0d6efd);
 }
-
-/* =============================================================================
-   ⏳ 載入遮罩 (Loading Overlay)
-   ============================================================================= */
 
 .my-loading-overlay-backdrop {
   background-color: rgba(0, 0, 0, 0.7);
@@ -683,18 +624,10 @@ body.my-no-select * {
   color: var(--my-color-white);
 }
 
-/* =============================================================================
-   🔐 登入頁 (Login)
-   ============================================================================= */
-
 .my-login-card {
   width: 100%;
   max-width: 360px;
 }
-
-/* =============================================================================
-   📊 儀表板進度條 (Dashboard Progress)
-   ============================================================================= */
 
 .my-progress-tall {
   height: 20px;

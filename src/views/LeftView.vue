@@ -4,10 +4,11 @@
    *
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、使用者資訊、導覽連結、登出
+   * - 依 userType 顯示選單：1=系統開發者全部，2=課程管理者除系統設定外，3=學生僅測驗/個人測驗分析/個資修改
    * - 透過 router-link 與 active-class 標示當前頁面
    * - 登出時 emit('logout') 由父層處理
    */
-  import { ref, onMounted } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
 
   export default {
@@ -16,11 +17,21 @@
       userAccount: { type: String, default: '' },
       userName: { type: String, default: '' },
       userTypeLabel: { type: String, default: '' },
+      /** 1=系統開發者 2=課程管理者 3=學生 */
+      userType: { type: Number, default: 3 },
     },
     emits: ['logout'],
     setup(props, { emit }) {
       const courseName = ref('AIQuiz');
       const onLogout = () => emit('logout');
+
+      const showExam = computed(() => true);
+      const showAnalysis = computed(() => true);
+      const showCreateRag = computed(() => props.userType === 1 || props.userType === 2);
+      const showCourseAnalysis = computed(() => props.userType === 1 || props.userType === 2);
+      const showUsers = computed(() => props.userType === 1 || props.userType === 2);
+      const showSettings = computed(() => props.userType === 1);
+      const showProfile = computed(() => true);
 
       onMounted(async () => {
         try {
@@ -36,7 +47,17 @@
         }
       });
 
-      return { courseName, onLogout };
+      return {
+        courseName,
+        onLogout,
+        showExam,
+        showAnalysis,
+        showCreateRag,
+        showCourseAnalysis,
+        showUsers,
+        showSettings,
+        showProfile,
+      };
     },
   };
 </script>
@@ -48,13 +69,13 @@
       {{ userAccount }} / {{ userName }} / {{ userTypeLabel }}
     </div>
     <nav class="sidebar-nav">
-      <router-link to="/exam" class="sidebar-link" active-class="active">測驗</router-link>
-      <router-link to="/main/analysis" class="sidebar-link" active-class="active">個人測驗分析</router-link>
-      <router-link to="/main/create-rag" class="sidebar-link" active-class="active">建立出題群組</router-link>
-      <router-link to="/main/course-analysis" class="sidebar-link" active-class="active">課程測驗分析</router-link>
-      <router-link to="/main/users" class="sidebar-link" active-class="active">使用者管理</router-link>
-      <router-link to="/main/settings" class="sidebar-link" active-class="active">系統設定</router-link>
-      <router-link to="/main/profile" class="sidebar-link" active-class="active">個資修改</router-link>
+      <router-link v-if="showExam" to="/exam" class="sidebar-link" active-class="active">測驗</router-link>
+      <router-link v-if="showAnalysis" to="/main/analysis" class="sidebar-link" active-class="active">個人測驗分析</router-link>
+      <router-link v-if="showCreateRag" to="/main/create-rag" class="sidebar-link" active-class="active">建立出題群組</router-link>
+      <router-link v-if="showCourseAnalysis" to="/main/course-analysis" class="sidebar-link" active-class="active">課程測驗分析</router-link>
+      <router-link v-if="showUsers" to="/main/users" class="sidebar-link" active-class="active">使用者管理</router-link>
+      <router-link v-if="showSettings" to="/main/settings" class="sidebar-link" active-class="active">系統設定</router-link>
+      <router-link v-if="showProfile" to="/main/profile" class="sidebar-link" active-class="active">個資修改</router-link>
     </nav>
     <div class="sidebar-footer">
       <a class="sidebar-link sidebar-link-logout" href="#" @click.prevent="onLogout">登出</a>

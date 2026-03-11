@@ -53,6 +53,11 @@
         const ut = authStore.user?.user_type;
         return ut === 1 || ut === 2 || ut === 3 ? USER_TYPE_LABELS[ut] : (ut != null ? String(ut) : '—');
       });
+      /** 1=系統開發者 2=課程管理者 3=學生；用於 LeftView 選單權限 */
+      const userType = computed(() => {
+        const ut = authStore.user?.user_type;
+        return ut === 1 || ut === 2 || ut === 3 ? ut : 3;
+      });
 
       /** 切換顯示區塊（由導覽連結或程式呼叫）；work 導向 /exam，其餘導向 /main/:view */
       const setView = (type) => {
@@ -80,6 +85,7 @@
         userAccount,
         userName,
         userTypeLabel,
+        userType,
         setView,
         onLogout,
       };
@@ -103,6 +109,7 @@
           :user-account="userAccount"
           :user-name="userName"
           :user-type-label="userTypeLabel"
+          :user-type="userType"
           @logout="onLogout"
         />
       </div>
