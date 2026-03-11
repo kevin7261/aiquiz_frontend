@@ -939,7 +939,7 @@ onMounted(() => {
                   <div class="card-body text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                         <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                       </div>
                       <div>
@@ -1005,7 +1005,7 @@ onMounted(() => {
                   <div class="card-body text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
+                        <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                         <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
                           <option value="">— 請選擇 —</option>
                           <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>

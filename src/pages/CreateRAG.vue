@@ -771,7 +771,7 @@ async function confirmAnswer(item) {
       <!-- 基本資訊、llm_api_key、ZIP 上傳與 file_metadata 合併為一區塊 -->
       <div class="bg-body-tertiary rounded text-start p-4 mb-3">
         <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <span>基本資訊、API 與 ZIP 上傳</span>
+          <span>檔案上傳</span>
           <div v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)" class="d-flex align-items-center gap-2">
             <button
               type="button"
@@ -1023,7 +1023,7 @@ async function confirmAnswer(item) {
                 <div class="card-body text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div>
-                      <label class="form-label small text-secondary fw-medium mb-1">選擇單元</label>
+                      <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                       <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
                         <option value="">— 請先執行 Pack —</option>
                         <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
