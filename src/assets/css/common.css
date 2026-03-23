@@ -642,3 +642,10 @@ body.my-no-select * {
 .my-progress-w-78 {
   width: 78%;
 }
+
+/**
+ * 內文可捲動區：主要區塊之間縱向間距（大於 Bootstrap mb-3）
+ */
+.page-block-spacing {
+  margin-bottom: 2.25rem;
+}

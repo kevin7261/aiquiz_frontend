@@ -4,34 +4,25 @@
    *
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、使用者資訊、導覽連結、登出
-   * - 依 userType 顯示選單：1=系統開發者全部，2=課程管理者除系統設定外，3=學生僅測驗/個人測驗分析/個資修改
    * - 透過 router-link 與 active-class 標示當前頁面
    * - 登出時 emit('logout') 由父層處理
    */
-  import { ref, computed, onMounted } from 'vue';
+  import { ref, onMounted } from 'vue';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
+  import { canSeeNavLink } from '../router/permissions.js';
 
   export default {
     name: 'LeftView',
     props: {
       userAccount: { type: String, default: '' },
       userName: { type: String, default: '' },
-      userTypeLabel: { type: String, default: '' },
-      /** 1=系統開發者 2=課程管理者 3=學生 */
-      userType: { type: Number, default: 3 },
+      /** 後端 user_type；3 為學生，側邊欄僅顯示允許的項目 */
+      userType: { type: [Number, String], default: undefined },
     },
     emits: ['logout'],
-    setup(props, { emit }) {
+    setup(_props, { emit }) {
       const courseName = ref('AIQuiz');
       const onLogout = () => emit('logout');
-
-      const showExam = computed(() => true);
-      const showAnalysis = computed(() => true);
-      const showCreateRag = computed(() => props.userType === 1 || props.userType === 2);
-      const showCourseAnalysis = computed(() => props.userType === 1 || props.userType === 2);
-      const showUsers = computed(() => props.userType === 1 || props.userType === 2);
-      const showSettings = computed(() => props.userType === 1);
-      const showProfile = computed(() => true);
 
       onMounted(async () => {
         try {
@@ -50,13 +41,7 @@
       return {
         courseName,
         onLogout,
-        showExam,
-        showAnalysis,
-        showCreateRag,
-        showCourseAnalysis,
-        showUsers,
-        showSettings,
-        showProfile,
+        canSeeNavLink,
       };
     },
   };
@@ -66,16 +51,58 @@
   <aside class="sidebar h-100">
     <div class="sidebar-brand">{{ courseName }}</div>
     <div v-if="userName" class="sidebar-user text-muted small">
-      {{ userAccount }} / {{ userName }} / {{ userTypeLabel }}
+      {{ userAccount }} / {{ userName }}
     </div>
     <nav class="sidebar-nav">
-      <router-link v-if="showExam" to="/exam" class="sidebar-link" active-class="active">測驗</router-link>
-      <router-link v-if="showAnalysis" to="/main/analysis" class="sidebar-link" active-class="active">個人測驗分析</router-link>
-      <router-link v-if="showCreateRag" to="/main/create-rag" class="sidebar-link" active-class="active">建立出題群組</router-link>
-      <router-link v-if="showCourseAnalysis" to="/main/course-analysis" class="sidebar-link" active-class="active">課程測驗分析</router-link>
-      <router-link v-if="showUsers" to="/main/users" class="sidebar-link" active-class="active">使用者管理</router-link>
-      <router-link v-if="showSettings" to="/main/settings" class="sidebar-link" active-class="active">系統設定</router-link>
-      <router-link v-if="showProfile" to="/main/profile" class="sidebar-link" active-class="active">個資修改</router-link>
+      <router-link
+        v-if="canSeeNavLink(userType, 'work')"
+        to="/exam"
+        class="sidebar-link"
+        active-class="active"
+        >測驗</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'analysis')"
+        to="/main/analysis"
+        class="sidebar-link"
+        active-class="active"
+        >個人測驗分析</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'create-rag')"
+        to="/main/create-rag"
+        class="sidebar-link"
+        active-class="active"
+        >建立出題群組</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'course-analysis')"
+        to="/main/course-analysis"
+        class="sidebar-link"
+        active-class="active"
+        >課程測驗分析</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'users')"
+        to="/main/users"
+        class="sidebar-link"
+        active-class="active"
+        >使用者管理</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'settings')"
+        to="/main/settings"
+        class="sidebar-link"
+        active-class="active"
+        >系統設定</router-link
+      >
+      <router-link
+        v-if="canSeeNavLink(userType, 'profile')"
+        to="/main/profile"
+        class="sidebar-link"
+        active-class="active"
+        >個資修改</router-link
+      >
     </nav>
     <div class="sidebar-footer">
       <a class="sidebar-link sidebar-link-logout" href="#" @click.prevent="onLogout">登出</a>

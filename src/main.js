@@ -14,6 +14,7 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import App from './App.vue';
 import router from './router';
+import { userMayAccessRoute } from './router/permissions.js';
 import { useAuthStore } from './stores/authStore.js';
 
 /* 第三方樣式與全域樣式 */
@@ -26,18 +27,33 @@ const app = createApp(App);
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
 
-app.use(router);
+// Pinia 須在 Router 之前註冊，navigation guard 內的 useAuthStore 才能正確讀到 persist 還原後的 user
 app.use(pinia);
+app.use(router);
 
 /**
- * 全域路由守衛：主區塊需登入
- * - 主區塊包含：路由名稱為 Main、路徑為 /main 或 /main/* 的頁面
- * - 若使用者未登入（authStore.user 為空），導向 /login
+ * 全域路由守衛：主區塊與 /exam 需登入；依 user_type 限制可進入的路由（學生不可直連無權限 path）
+ * - 需登入：/exam、/main、/main/*
+ * - user_type 3：僅 /exam、/main/analysis、/main/profile；其餘導向 /exam
+ * - 未定義路徑：已登入 → /exam；未登入 → /login
  */
 router.beforeEach((to, _from, next) => {
-  const isMainArea = to.name === 'Main' || to.path === '/main' || to.path.startsWith('/main/');
-  if (isMainArea && !useAuthStore().user) {
+  const authStore = useAuthStore();
+
+  if (!to.matched.length) {
+    next(authStore.user ? { path: '/exam', replace: true } : { path: '/login', replace: true });
+    return;
+  }
+
+  const requiresAuth =
+    to.name === 'Exam' || to.name === 'Main' || to.path === '/main' || to.path.startsWith('/main/');
+
+  if (requiresAuth && !authStore.user) {
     next('/login');
+    return;
+  }
+  if (requiresAuth && authStore.user && !userMayAccessRoute(authStore.user, to)) {
+    next({ path: '/exam', replace: true });
     return;
   }
   next();

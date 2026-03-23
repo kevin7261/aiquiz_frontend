@@ -3,7 +3,7 @@
  * QuizCard - 單一題目卡片
  *
  * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、參考答案、回答區、批改結果。
- * 未確定前可輸入答案並按「確定」送出評分；確定後可「重寫」清空再答。
+ * 未確定前可輸入答案並按「確定」送出評分。
  * 供 CreateRAG 頁、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
  * card 物件需含：quiz, hint, referenceAnswer, answer, confirmed, gradingResult, ragName, generateLevel, id 等。
@@ -15,11 +15,11 @@ defineProps({
   slotIndex: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'update:answer']);
+const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:answer']);
 </script>
 
 <template>
-  <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+  <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
     <div class="card-header py-2">
       <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
     </div>
@@ -67,16 +67,11 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'rewrite-answer', 'up
           />
           <div class="form-text small">{{ card.answer.length }} / 2000</div>
           <div class="d-flex gap-2 mt-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" @click="emit('rewrite-answer', card)">重寫</button>
             <button type="button" class="btn btn-sm btn-primary" @click="emit('confirm-answer', card)">確定</button>
           </div>
         </template>
-        <!-- 已確定：只顯示答案與「重寫」按鈕 -->
         <template v-else>
           <div class="rounded bg-body-tertiary small mb-2 p-2">{{ card.answer }}</div>
-          <div class="d-flex gap-2 mb-3">
-            <button type="button" class="btn btn-sm btn-outline-secondary" @click="emit('rewrite-answer', card)">重寫</button>
-          </div>
         </template>
       </div>
       <!-- 批改結果區（由 useQuizGrading 格式化後顯示） -->

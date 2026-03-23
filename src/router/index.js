@@ -8,13 +8,13 @@
  * - /exam → 測驗/工作區（HomeView，等同 /main/work）
  * - /main/:view → 主區塊各功能（analysis、profile、create-rag 等），由 HomeView 依 view 渲染
  *
- * 主區塊需登入的檢查在 main.js 的 router.beforeEach 中處理。
+ * 主區塊與 /exam 需登入、依 user_type 限制路由，見 main.js 的 router.beforeEach 與 permissions.js。
  */
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 
-/** 允許的 view 參數（對應 /main/:view 的網址片段，用於側邊選單與權限） */
+/** 允許的 view 參數（對應 /main/:view 的網址片段，用於側邊選單） */
 const VALID_VIEWS = ['work', 'analysis', 'course-analysis', 'profile', 'create-rag', 'users', 'settings'];
 
 /** 各 view 對應的瀏覽器頁籤標題 */

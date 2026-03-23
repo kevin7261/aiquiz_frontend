@@ -8,13 +8,14 @@
    * - /exam 對應 work（ExamPage），/main/:view 對應 analysis / createRAG 等
    * - onMounted 時在 dataStore 註冊一個工作分頁（MAIN_WORK_TAB_ID）供 Exam 使用
    */
-  import { computed, onMounted } from 'vue';
+  import { computed, onMounted, watch } from 'vue';
   import { useRouter, useRoute } from 'vue-router';
   import LoadingOverlay from '../components/LoadingOverlay.vue';
   import LeftView from './LeftView.vue';
   import RightView from './RightView.vue';
   import { useDataStore } from '../stores/dataStore.js';
   import { useAuthStore } from '../stores/authStore.js';
+  import { userMayAccessRoute } from '../router/permissions.js';
 
   /** Exam 頁使用的固定分頁 id（與 dataStore workTabs 對應） */
   const MAIN_WORK_TAB_ID = 'main';
@@ -47,17 +48,6 @@
       });
       const userAccount = computed(() => (authStore.user ? `ID ${authStore.user.user_id}` : '未登入'));
       const userName = computed(() => (authStore.user && authStore.user.name ? authStore.user.name : '—'));
-      /** user_type 對應中文：1=系統開發者 2=課程管理者 3=學生 */
-      const USER_TYPE_LABELS = { 1: '系統開發者', 2: '課程管理者', 3: '學生' };
-      const userTypeLabel = computed(() => {
-        const ut = authStore.user?.user_type;
-        return ut === 1 || ut === 2 || ut === 3 ? USER_TYPE_LABELS[ut] : (ut != null ? String(ut) : '—');
-      });
-      /** 1=系統開發者 2=課程管理者 3=學生；用於 LeftView 選單權限 */
-      const userType = computed(() => {
-        const ut = authStore.user?.user_type;
-        return ut === 1 || ut === 2 || ut === 3 ? ut : 3;
-      });
 
       /** 切換顯示區塊（由導覽連結或程式呼叫）；work 導向 /exam，其餘導向 /main/:view */
       const setView = (type) => {
@@ -79,13 +69,24 @@
         dataStore.addWorkTab(MAIN_WORK_TAB_ID);
       });
 
+      /** 與全域守衛雙重確認：若仍落在無權限路由（例如狀態還原時序），強制導向 /exam */
+      watch(
+        () => [route.fullPath, authStore.user],
+        () => {
+          if (!authStore.user) return;
+          if (!userMayAccessRoute(authStore.user, route)) {
+            router.replace({ path: '/exam', replace: true });
+          }
+        },
+        { immediate: true }
+      );
+
       return {
         currentView,
         MAIN_WORK_TAB_ID,
         userAccount,
         userName,
-        userTypeLabel,
-        userType,
+        authStore,
         setView,
         onLogout,
       };
@@ -104,16 +105,15 @@
     />
 
     <div class="row h-100 g-0 home-layout">
-      <div class="col-4 col-lg-3 col-xl-2 col-xxl-2 h-100 overflow-hidden">
+      <div class="col-4 col-md-3 col-lg-2 h-100 overflow-hidden">
         <LeftView
           :user-account="userAccount"
           :user-name="userName"
-          :user-type-label="userTypeLabel"
-          :user-type="userType"
+          :user-type="authStore.user?.user_type"
           @logout="onLogout"
         />
       </div>
-      <div class="col-8 col-lg-9 col-xl-10 col-xxl-10 h-100 overflow-hidden d-flex flex-column">
+      <div class="col-8 col-md-9 col-lg-10 h-100 overflow-hidden d-flex flex-column">
         <RightView :current-view="currentView" :tab-id="MAIN_WORK_TAB_ID" />
       </div>
     </div>

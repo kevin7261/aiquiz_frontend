@@ -195,6 +195,31 @@ const currentExamDisplay = computed(() => {
   };
 });
 
+/** 原「基本資訊」區塊改為載入完成後於 console 輸出（切換測驗 tab、for-exam／列表載入就緒時） */
+watch(
+  [
+    () => activeTabId.value,
+    () => examList.value.length,
+    () => examListLoading.value,
+    () => forExamLoading.value,
+    () => `${currentExamDisplay.value.exam_tab_id}|${currentExamDisplay.value.exam_name}`,
+    () => `${forExamRagIdAndTabId.value.rag_id}|${forExamRagIdAndTabId.value.rag_tab_id}`,
+    () => String(forExamRag.value?.system_prompt_instruction ?? ''),
+  ],
+  () => {
+    if (examList.value.length === 0 || !activeTabId.value) return;
+    if (examListLoading.value || forExamLoading.value) return;
+    console.log('[測驗] 基本資訊', {
+      當前測驗: { ...currentExamDisplay.value },
+      試題用RAG: { ...forExamRagIdAndTabId.value },
+      system_prompt_instruction:
+        forExamRag.value && forExamRag.value.system_prompt_instruction != null
+          ? forExamRag.value.system_prompt_instruction
+          : '—',
+    });
+  }
+);
+
 /** 產生題目／評分是否應停用（未選測驗 tab 或無試題用 RAG）；llm_api_key 使用登入帳號 */
 const generateDisabled = computed(() => {
   if (!activeTabId.value) return true;
@@ -684,13 +709,6 @@ function formatGradingResult(text) {
   }
 }
 
-function rewriteAnswer(item) {
-  item.answer = '';
-  item.confirmed = false;
-  item.gradingResult = '';
-  item.gradingResponseJson = null;
-}
-
 /** 評分：POST /exam/quiz-grade；body: llm_api_key, exam_id, exam_tab_id, exam_quiz_id, quiz_content, answer（皆 string）；回傳 202 + job_id；輪詢 GET /exam/quiz-grade-result/{job_id} */
 async function confirmAnswer(item) {
   if (!item.answer.trim()) return;
@@ -839,30 +857,45 @@ onMounted(() => {
             :disabled="createExamLoading"
             @click="addNewTab"
           >
-            +
+            {{ createExamLoading ? '建立中...' : '+ 新增' }}
           </button>
         </template>
         <template v-else>
           <ul class="nav nav-tabs">
             <li v-for="exam in examList" :key="'exam-' + getExamTabId(exam)" class="nav-item">
-              <button
-                type="button"
-                class="nav-link"
+              <div
+                role="tab"
+                class="nav-link d-flex align-items-center gap-1"
                 :class="{ active: activeTabId === getExamTabId(exam) }"
                 :aria-current="activeTabId === getExamTabId(exam) ? 'page' : undefined"
-                @click="activeTabId = getExamTabId(exam)"
               >
-                {{ getExamTabLabel(exam) }}
-              </button>
+                <span
+                  class="flex-grow-1 text-start"
+                  style="cursor: pointer;"
+                  @click="activeTabId = getExamTabId(exam)"
+                >
+                  {{ getExamTabLabel(exam) }}
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-link btn-sm p-0 text-muted text-decoration-none"
+                  style="min-width: 1.25rem; line-height: 1;"
+                  aria-label="刪除此測驗"
+                  :disabled="deleteExamLoading"
+                  @click.stop="deleteExam(getExamTabId(exam))"
+                >
+                  ×
+                </button>
+              </div>
             </li>
-            <li class="nav-item ms-2">
+            <li class="nav-item ms-2 d-flex align-items-center">
               <button
                 type="button"
-                class="btn btn-sm btn-outline-primary"
+                class="btn btn-sm btn-outline-primary mb-2"
                 :disabled="createExamLoading"
                 @click="addNewTab"
               >
-                +
+                {{ createExamLoading ? '建立中...' : '+ 新增' }}
               </button>
             </li>
           </ul>
@@ -877,72 +910,29 @@ onMounted(() => {
       <div v-if="createExamError" class="alert alert-danger py-2 small mx-4 mb-3">
         {{ createExamError }}
       </div>
+      <div v-if="deleteExamError" class="alert alert-danger py-2 small mx-4 mb-3">
+        {{ deleteExamError }}
+      </div>
     </div>
 
     <!-- 內容區：可上下捲動 -->
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
+    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
       <template v-if="examList.length > 0">
-        <!-- 基本資訊：當前測驗（exam）＋試題用 RAG -->
-        <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <span>基本資訊</span>
-            <div v-if="activeTabId" class="d-flex align-items-center gap-2">
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-danger"
-                :disabled="deleteExamLoading"
-                @click="deleteExam(activeTabId)"
-              >
-                刪除
-              </button>
-            </div>
-          </div>
-          <div v-if="deleteExamError" class="alert alert-danger py-2 small mb-2">
-            {{ deleteExamError }}
-          </div>
-          <div class="mb-3 small">
-            <div class="form-label small text-secondary fw-medium mb-1">當前測驗</div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">exam_tab_id：</span>
-              <span>{{ currentExamDisplay.exam_tab_id }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">exam_name：</span>
-              <span>{{ currentExamDisplay.exam_name }}</span>
-            </div>
-          </div>
-          <div class="mb-3 small">
-            <div class="form-label small text-secondary fw-medium mb-1">試題用 RAG</div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">rag_id：</span>
-              <span>{{ forExamRagIdAndTabId.rag_id }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">rag_tab_id：</span>
-              <span>{{ forExamRagIdAndTabId.rag_tab_id }}</span>
-            </div>
-          </div>
-          <div class="small mb-2">
-            <div class="d-flex align-items-start gap-2 mb-1">
-              <span class="text-secondary" style="min-width: 10rem;">system_prompt_instruction：</span>
-              <code class="d-block mt-0">{{ (forExamRag && forExamRag.system_prompt_instruction) ? forExamRag.system_prompt_instruction : '—' }}</code>
-            </div>
-          </div>
-        </div>
-
         <!-- 產生題目與作答：與建立 RAG 頁一模一樣（出題與評分）；資料來自 GET /rag/for-exam，使用 /exam/generate-quiz、/exam/quiz-grade -->
-        <div v-if="activeTabId && forExamRag != null" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': generateDisabled }">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">產生題目與作答</div>
-
+        <div
+          v-if="activeTabId && forExamRag != null"
+          class="text-start page-block-spacing"
+          :class="{ 'opacity-75': generateDisabled }"
+        >
           <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
-          <div class="bg-light rounded mb-3">
+          <div class="mb-4">
             <template v-for="(slotIndex) in currentState.quizSlotsCount" :key="slotIndex">
               <!-- 第 slotIndex 題：若已有該題卡片則顯示卡片，否則顯示產生題目表單 -->
               <template v-if="currentState.cardList[slotIndex - 1]">
                 <!-- 已有卡片：顯示完整題目區塊 -->
-                <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+                <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
                   <div class="card-header py-2">
                     <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
                   </div>
@@ -988,15 +978,11 @@ onMounted(() => {
                         />
                         <div class="form-text small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
                         <div class="d-flex gap-2 mt-2">
-                          <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
                           <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
                         </div>
                       </template>
                       <template v-else>
                         <div class="rounded bg-body-tertiary small mb-2 p-2">{{ currentState.cardList[slotIndex - 1].answer }}</div>
-                        <div class="d-flex gap-2 mb-3">
-                          <button type="button" class="btn btn-sm btn-outline-secondary" @click="rewriteAnswer(currentState.cardList[slotIndex - 1])">重寫</button>
-                        </div>
                       </template>
                     </div>
                     <div class="border rounded bg-light p-3 mb-3">
@@ -1008,7 +994,7 @@ onMounted(() => {
               </template>
               <template v-else>
                 <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
-                <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+                <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
                   <div class="card-header py-2">
                     <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
                   </div>

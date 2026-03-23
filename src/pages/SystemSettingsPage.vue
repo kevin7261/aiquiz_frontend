@@ -153,19 +153,19 @@ async function save(block) {
         <span class="navbar-brand mb-0">系統設定</span>
       </div>
     </div>
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
+    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
           <div
             v-for="block in BLOCKS"
             :key="block.id"
-            class="bg-body-tertiary rounded text-start p-4 mb-3"
+            class="text-start page-block-spacing"
           >
-            <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">{{ block.title }}</div>
-            <p class="small text-secondary mb-3">
+            <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">{{ block.title }}</div>
+            <p class="small text-secondary mb-4">
               {{ block.description }}
             </p>
-            <div class="mb-3">
+            <div class="mb-4">
               <label class="form-label small text-secondary fw-medium mb-1">{{ block.label }}</label>
               <input
                 v-model="state[block.id].value"
@@ -179,7 +179,7 @@ async function save(block) {
             </div>
             <div
               v-if="state[block.id].message"
-              :class="['alert py-2 mb-3', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
+              :class="['alert py-2 mb-4', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
               role="alert"
             >
               {{ state[block.id].message }}
@@ -193,11 +193,11 @@ async function save(block) {
               儲存
             </button>
           </div>
-          <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-            <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">
+          <div class="text-start page-block-spacing">
+            <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">
               API 基底網址
             </div>
-            <p class="small text-secondary mb-3">
+            <p class="small text-secondary mb-4">
               目前前端實際使用的後端位址（本機開啟時連本機後端，其餘連正式環境）。
             </p>
             <div class="mb-0">

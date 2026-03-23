@@ -4,7 +4,8 @@
  *
  * 顯示：後端 RAG 列表（ragItems）+ 尚未儲存的「新增」分頁（newTabItems）+ 「+」按鈕。
  * 點選分頁會 emit update:activeTabId；點「+」會 emit add-new-tab。
- * 若 RAG 列表與新分頁皆空，僅顯示一個「+」按鈕以建立第一個 RAG。
+ * 已儲存的 ragItems 分頁右側有 ×，emit delete-rag（tab id）；newTabItems 無刪除鈕。
+ * 若 RAG 列表與新分頁皆空，僅顯示「+ 新增」按鈕以建立第一個 RAG。
  * 下方可顯示 ragListError、createRagError 警告/錯誤訊息。
  */
 defineProps({
@@ -22,9 +23,11 @@ defineProps({
   ragListError: { type: String, default: '' },
   /** 建立 RAG 失敗訊息 */
   createRagError: { type: String, default: '' },
+  /** 刪除 RAG 請求進行中（禁用各分頁 ×） */
+  deleteRagLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
+const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag']);
 </script>
 
 <template>
@@ -34,7 +37,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
       <template v-if="ragListLoading">
         <span class="small text-secondary">載入中...</span>
       </template>
-      <!-- 無任何分頁時只顯示一個「+」建立按鈕 -->
+      <!-- 無任何分頁時只顯示「+ 新增」建立按鈕 -->
       <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
         <button
           type="button"
@@ -42,22 +45,37 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
           :disabled="createRagLoading"
           @click="emit('add-new-tab')"
         >
-          {{ createRagLoading ? '建立中...' : '+' }}
+          {{ createRagLoading ? '建立中...' : '+ 新增' }}
         </button>
       </template>
-      <!-- 有分頁時顯示 nav-tabs + 右側「+」按鈕 -->
+      <!-- 有分頁時顯示 nav-tabs + 右側「+ 新增」（與底線留距，不貼齊） -->
       <template v-else>
         <ul class="nav nav-tabs">
           <li v-for="item in ragItems" :key="'rag-' + item._tabId" class="nav-item">
-            <button
-              type="button"
-              class="nav-link"
+            <div
+              role="tab"
+              class="nav-link d-flex align-items-center gap-1"
               :class="{ active: activeTabId === item._tabId }"
               :aria-current="activeTabId === item._tabId ? 'page' : undefined"
-              @click="emit('update:activeTabId', item._tabId)"
             >
-              {{ item._label }}
-            </button>
+              <span
+                class="flex-grow-1 text-start"
+                style="cursor: pointer;"
+                @click="emit('update:activeTabId', item._tabId)"
+              >
+                {{ item._label }}
+              </span>
+              <button
+                type="button"
+                class="btn btn-link btn-sm p-0 text-muted text-decoration-none"
+                style="min-width: 1.25rem; line-height: 1;"
+                aria-label="刪除此出題群組"
+                :disabled="deleteRagLoading"
+                @click.stop="emit('delete-rag', item._tabId)"
+              >
+                ×
+              </button>
+            </div>
           </li>
           <li v-for="item in newTabItems" :key="'new-' + item.id" class="nav-item">
             <button
@@ -70,14 +88,14 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab']);
               {{ item.label }}
             </button>
           </li>
-          <li class="nav-item ms-2">
+          <li class="nav-item ms-2 d-flex align-items-center">
             <button
               type="button"
-              class="btn btn-sm btn-outline-primary"
+              class="btn btn-sm btn-outline-primary mb-2"
               :disabled="createRagLoading"
               @click="emit('add-new-tab')"
             >
-              {{ createRagLoading ? '建立中...' : '+' }}
+              {{ createRagLoading ? '建立中...' : '+ 新增' }}
             </button>
           </li>
         </ul>

@@ -2,8 +2,9 @@
 /**
  * ProfilePage - 個資修改頁面
  *
- * 以 PATCH /user/profile 更新 name、user_type、llm_api_key（以 person_id 識別，Header X-Person-Id）。
- * user_type=3（學生）時 llm_api_key 欄位為唯讀。會從 authStore 初始化表單，並可選從 GET /system-settings/llm-api-key 取得系統 LLM Key 顯示。
+ * 以 PATCH /user/profile 更新 name、llm_api_key（以 person_id 識別，Header X-Person-Id）。
+ * llm_api_key 僅 user_type 1／2 可見與變更；其餘類型不顯示、不寫入 payload。
+ * 可從 GET /system-settings/llm-api-key 取得系統 LLM Key 顯示（僅 1／2）。
  */
 import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -12,33 +13,33 @@ import LoadingOverlay from '../components/LoadingOverlay.vue';
 
 const authStore = useAuthStore();
 
-const USER_TYPE_OPTIONS = [
-  { value: 1, label: '系統開發者' },
-  { value: 2, label: '課程管理者' },
-  { value: 3, label: '學生' },
-];
-
 const name = ref('');
-const userType = ref(3);
 const llmApiKey = ref('');
 const loading = ref(false);
 const message = ref('');
 const messageType = ref(''); // 'success' | 'danger'
 
 const account = computed(() => authStore.user?.person_id ?? '—');
-const isLlmApiKeyDisabled = computed(() => Number(userType.value) === 3);
+
+/** 僅系統開發者／課程管理者可設定 LLM API Key */
+const canEditLlmApiKey = computed(() => {
+  const t = Number(authStore.user?.user_type);
+  return t === 1 || t === 2;
+});
 
 function initFromUser() {
   const u = authStore.user;
   name.value = u?.name ?? '';
-  const ut = u?.user_type;
-  userType.value = ut === 1 || ut === 2 || ut === 3 ? Number(ut) : 3;
-  llmApiKey.value = u?.llm_api_key ?? '';
+  if (canEditLlmApiKey.value) {
+    llmApiKey.value = u?.llm_api_key ?? '';
+  } else {
+    llmApiKey.value = '';
+  }
 }
 watch(() => authStore.user, initFromUser, { immediate: true });
 
 async function fetchLlmApiKey() {
-  if (!authStore.user) return;
+  if (!authStore.user || !canEditLlmApiKey.value) return;
   try {
     const res = await fetch(`${API_BASE}${API_GET_LLM_API_KEY}`, { method: 'GET' });
     if (res.ok) {
@@ -61,8 +62,12 @@ async function saveProfile() {
   const u = authStore.user;
   const payload = {};
   if (name.value !== (u?.name ?? '')) payload.name = name.value;
-  if (Number(userType.value) !== (u?.user_type ?? 3)) payload.user_type = Number(userType.value);
-  if (!isLlmApiKeyDisabled.value && (llmApiKey.value ?? '') !== (u?.llm_api_key ?? '')) payload.llm_api_key = llmApiKey.value ?? ''; // 空字串表示清除
+  if (
+    canEditLlmApiKey.value &&
+    (llmApiKey.value ?? '') !== (u?.llm_api_key ?? '')
+  ) {
+    payload.llm_api_key = llmApiKey.value ?? ''; // 空字串表示清除
+  }
   if (Object.keys(payload).length === 0) {
     message.value = '未變更任何欄位';
     messageType.value = 'danger';
@@ -118,26 +123,19 @@ async function saveProfile() {
         <span class="navbar-brand mb-0">個資修改</span>
       </div>
     </div>
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
+    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-      <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">個人資料</div>
-        <div class="mb-3">
-          <label class="form-label small text-secondary fw-medium mb-1">帳號（person_id）</label>
+      <div class="text-start page-block-spacing">
+        <div class="mb-4">
+          <label class="form-label small text-secondary fw-medium mb-1">帳號</label>
           <input :value="account" type="text" class="form-control form-control-sm" placeholder="帳號" readonly disabled>
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
           <label class="form-label small text-secondary fw-medium mb-1">名稱</label>
           <input v-model="name" type="text" class="form-control form-control-sm" placeholder="名稱">
         </div>
-        <div class="mb-3">
-          <label class="form-label small text-secondary fw-medium mb-1">身分（user_type）</label>
-          <select v-model.number="userType" class="form-select form-select-sm">
-            <option v-for="opt in USER_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
-        </div>
-        <div class="mb-3">
+        <div v-if="canEditLlmApiKey" class="mb-4">
           <label class="form-label small text-secondary fw-medium mb-1">LLM API Key</label>
           <input
             v-model="llmApiKey"
@@ -145,11 +143,9 @@ async function saveProfile() {
             class="form-control form-control-sm"
             placeholder="選填，用於呼叫 LLM"
             autocomplete="off"
-            :disabled="isLlmApiKeyDisabled"
           >
-          <div v-if="isLlmApiKeyDisabled" class="form-text small">學生身分無法編輯 LLM API Key</div>
         </div>
-        <div v-if="message" :class="['alert py-2 mb-3', messageType === 'success' ? 'alert-success' : 'alert-danger']" role="alert">
+        <div v-if="message" :class="['alert py-2 mb-4', messageType === 'success' ? 'alert-success' : 'alert-danger']" role="alert">
           {{ message }}
         </div>
         <button type="button" class="btn btn-primary btn-sm" :disabled="loading" @click="saveProfile">

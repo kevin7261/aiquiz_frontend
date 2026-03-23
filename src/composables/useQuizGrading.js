@@ -125,14 +125,3 @@ export async function submitGrade(item, context, options = {}) {
     item.gradingResult = '評分失敗：後端逾時或服務喚醒中，請稍後再試。';
   }
 }
-
-/**
- * 重寫答案：清空作答區與批改狀態（不送 API）
- * @param {Object} item - 題目卡片物件，會清空 answer、confirmed、gradingResult、gradingResponseJson
- */
-export function rewriteAnswer(item) {
-  item.answer = '';
-  item.confirmed = false;
-  item.gradingResult = '';
-  item.gradingResponseJson = null;
-}

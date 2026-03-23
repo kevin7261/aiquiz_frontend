@@ -27,7 +27,7 @@ import {
   is504OrNetworkError,
 } from '../services/ragApi.js';
 import { formatGradingResult } from '../utils/grading.js';
-import { submitGrade, rewriteAnswer } from '../composables/useQuizGrading.js';
+import { submitGrade } from '../composables/useQuizGrading.js';
 import { generateTabId, deriveRagNameFromTabId, deriveRagName, parsePackTasksList, parseRagMetadataObject, DEFAULT_SYSTEM_INSTRUCTION, QUIZ_LEVEL_LABELS } from '../utils/rag.js';
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
@@ -454,6 +454,14 @@ async function deleteRag(rag, e) {
   }
 }
 
+/** 分頁列 ×：依 tab id 找到列表項目後刪除 */
+function onDeleteRagTab(tabId) {
+  const id = tabId != null ? String(tabId) : '';
+  if (!id) return;
+  const rag = ragList.value.find((r) => String(r.rag_tab_id ?? r.id ?? r) === id);
+  if (rag) deleteRag(rag, null);
+}
+
 /** create-rag 回傳的 created_at 與 tab 標籤用 name（key = rag_id） */
 const ragCreatedAtMap = ref({});
 
@@ -786,29 +794,23 @@ async function confirmAnswer(item) {
       :create-rag-loading="createRagLoading"
       :rag-list-error="ragListError"
       :create-rag-error="createRagError"
+      :delete-rag-loading="deleteRagLoading"
       @update:active-tab-id="activeTabId = $event"
       @add-new-tab="addNewTab"
+      @delete-rag="onDeleteRagTab"
     />
 
     <!-- 內容區：可上下捲動 -->
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
+    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
       <!-- 無資料時不顯示表單，點「+」後才顯示；有資料時顯示對應 tab 表單 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
       <!-- 基本資訊、llm_api_key、ZIP 上傳與 file_metadata 合併為一區塊 -->
-      <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="text-start page-block-spacing">
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
           <span>檔案上傳</span>
           <div v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)" class="d-flex align-items-center gap-2">
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-danger"
-              :disabled="deleteRagLoading"
-              @click="deleteRag(currentRagItem, $event)"
-            >
-              刪除
-            </button>
             <button
               type="button"
               class="btn btn-sm btn-success"
@@ -879,8 +881,8 @@ async function confirmAnswer(item) {
         </div>
       </div>
       <!-- 建立 RAG：要有 file_metadata 才顯示；未上傳 ZIP 時 disable -->
-      <div v-if="fileMetadataToShow != null" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75 pe-none': packAndGenerateDisabled }">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">建立出題群組</div>
+      <div v-if="fileMetadataToShow != null" class="text-start page-block-spacing" :class="{ 'opacity-75 pe-none': packAndGenerateDisabled }">
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">建立出題群組</div>
 
           <!-- 課程：可拖曳至出題群組 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
@@ -1025,11 +1027,15 @@ async function confirmAnswer(item) {
           </div>
       </div>
       <!-- 產生題目與作答：要有 rag_metadata 才顯示；點「新增題目」後才出現題目生成子區塊 -->
-      <div v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''" class="bg-body-tertiary rounded text-start p-4 mb-3" :class="{ 'opacity-75': ragGenerateDisabled }">
-        <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">產生題目與作答</div>
+      <div
+        v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
+        class="text-start page-block-spacing"
+        :class="{ 'opacity-75': ragGenerateDisabled }"
+      >
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">產生題目與作答</div>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
-        <div class="bg-light rounded mb-3">
+        <div class="mb-4">
           <template v-for="(slotIndex) in currentState.quizSlotsCount" :key="slotIndex">
             <!-- 第 slotIndex 題：若已有該題卡片則顯示卡片，否則顯示產生題目表單 -->
             <template v-if="currentState.cardList[slotIndex - 1]">
@@ -1038,13 +1044,12 @@ async function confirmAnswer(item) {
                 :slot-index="slotIndex"
                 @toggle-hint="toggleHint"
                 @confirm-answer="confirmAnswer"
-                @rewrite-answer="rewriteAnswer"
                 @update:answer="(val) => { currentState.cardList[slotIndex - 1].answer = val }"
               />
             </template>
             <template v-else>
               <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
-              <div class="card mb-3" :class="{ 'mt-4': slotIndex > 1 }">
+              <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
                 <div class="card-header py-2">
                   <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
                 </div>

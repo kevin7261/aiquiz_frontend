@@ -195,21 +195,16 @@ onMounted(() => {
       {{ error }}
     </div>
 
-    <!-- 內容區：可上下捲動；基本資訊與分析合併為一區塊 -->
-    <div class="flex-grow-1 overflow-auto bg-white p-4">
+    <!-- 內容區：可上下捲動 -->
+    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
       <div v-if="loading" class="text-center py-5 text-muted" />
       <div v-else-if="items.length === 0" class="alert alert-info mt-0">尚無答題紀錄。</div>
 
       <template v-else>
-        <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">基本資訊與個人測驗分析</div>
-          <div class="small text-secondary">共 {{ items.length }} 題</div>
-        </div>
-
-        <div v-if="weaknessReport" class="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded text-start p-4 mb-3">
-          <div class="fs-5 fw-semibold mb-3 pb-2 border-bottom">學習弱點分析報告</div>
+        <div v-if="weaknessReport" class="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded text-start p-4 page-block-spacing">
+          <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">學習弱點分析報告</div>
           <template v-if="weaknessReportParsed">
             <div
               v-for="sectionKey in weaknessReportSections"
@@ -228,8 +223,8 @@ onMounted(() => {
         </div>
 
         <!-- 作答紀錄摘要表：題號 / 單元 / 難度 / 分數 / 時間（每題一筆作答） -->
-        <div class="bg-body-tertiary rounded text-start p-4 mb-3">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <div class="text-start page-block-spacing">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 pb-2 border-bottom">
             <span class="fs-5 fw-semibold">作答紀錄摘要</span>
             <button
               type="button"
@@ -267,7 +262,7 @@ onMounted(() => {
         <div
           v-for="(item, idx) in items"
           :key="item.exam_quiz_id ?? idx"
-          class="card mb-3"
+          class="card mb-4"
         >
           <div class="card-header py-2">
             <span class="fs-6 fw-semibold mb-0">第 {{ idx + 1 }} 題</span>
