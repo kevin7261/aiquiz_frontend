@@ -5,7 +5,8 @@
  * 與 CreateRAG 版面類似（分頁、題目卡片、出題/評分），但無 RAG 建立/上傳/Pack；題目來源為「試題用 RAG」與「測驗」。
  *
  * 資料來源：
- * - GET /rag/for-exam：取得試題用 RAG（for_exam=true、deleted=false，0 或 1 筆）
+ * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試驗／題目關聯由 GET /exam/exams 等提供即可）
+ * - GET /rag/for-exam：試題用 RAG 完整 payload（出題單元；無 outputs／rag_list 時仍可用 rag_tab_id 合成一個單元）
  * - GET /exam/exams：測驗列表；按 + 呼叫 POST /exam/create-exam 新增測驗
  * 出題：POST /exam/generate-quiz；評分：POST /exam/quiz-grade、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
  */
@@ -152,19 +153,30 @@ const generateQuizUnits = computed(() => {
     return nestedOutputs.map(mapOutput);
   }
   const ragListStr = rag.rag_list ?? '';
-  if (!ragListStr) return [];
-  return String(ragListStr)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((group) => {
-      const ragName = group.replace(/\+/g, '_');
-      return {
-        rag_tab_id: `${ragName}_rag` || sourceTabId,
-        filename: `${ragName}_rag.zip`,
-        rag_name: ragName,
-      };
-    });
+  if (ragListStr) {
+    return String(ragListStr)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((group) => {
+        const ragName = group.replace(/\+/g, '_');
+        return {
+          rag_tab_id: `${ragName}_rag` || sourceTabId,
+          filename: `${ragName}_rag.zip`,
+          rag_name: ragName,
+        };
+      });
+  }
+  // 僅有 rag_tab_id、尚無 outputs／rag_list（後端精簡回傳）時仍要能選單元並出題
+  if (sourceTabId) {
+    const nm = String(rag.rag_name ?? '').replace(/\+/g, '_').trim() || sourceTabId;
+    return [{
+      rag_tab_id: sourceTabId,
+      filename: `${nm}_rag.zip`,
+      rag_name: nm,
+    }];
+  }
+  return [];
 });
 
 /** 試題用 RAG 的 rag_tab_id（GET /rag/for-exam 回傳），供產生題目與評分使用 */
@@ -220,12 +232,18 @@ watch(
   }
 );
 
-/** 產生題目／評分是否應停用（未選測驗 tab 或無試題用 RAG）；llm_api_key 使用登入帳號 */
-const generateDisabled = computed(() => {
-  if (!activeTabId.value) return true;
-  if (!sourceTabId.value) return true;
-  return false;
+/** 可出題：以 GET /rag/for-exam 為準（含 rag_tab_id 且能組出至少一個單元，見 generateQuizUnits） */
+const canGenerateExamQuiz = computed(() => {
+  if (!activeTabId.value) return false;
+  if (!sourceTabId.value || generateQuizUnits.value.length === 0) return false;
+  return true;
 });
+
+/** 「產生題目」「新增題目」共用：for-exam 載入中或條件不足則停用 */
+const generateQuizBlocked = computed(() =>
+  forExamLoading.value ||
+  !canGenerateExamQuiz.value
+);
 
 /** 當試題用 RAG（forExamRag）載入後，填入 system instruction；llm_api_key 一律使用登入回傳的 authStore.user.llm_api_key */
 watch(forExamRag, (rag) => {
@@ -603,6 +621,10 @@ async function generateQuiz(slotIndex) {
   const ragName = selectedUnit?.rag_name?.trim();
   const exam = currentExamItem.value;
   const examId = exam?.exam_id ?? exam?.test_id;
+  if (!canGenerateExamQuiz.value) {
+    slotState.error = '目前沒有可用RAG';
+    return;
+  }
   if (!activeTabId.value) {
     slotState.error = '尚未建立測驗（請按 + 新增測驗）或請確認已載入試題用 RAG（GET /rag/for-exam）';
     return;
@@ -922,9 +944,8 @@ onMounted(() => {
       <template v-if="examList.length > 0">
         <!-- 產生題目與作答：與建立 RAG 頁一模一樣（出題與評分）；資料來自 GET /rag/for-exam，使用 /exam/generate-quiz、/exam/quiz-grade -->
         <div
-          v-if="activeTabId && forExamRag != null"
+          v-if="activeTabId"
           class="text-start page-block-spacing"
-          :class="{ 'opacity-75': generateDisabled }"
         >
           <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
           <div class="mb-4">
@@ -1027,7 +1048,7 @@ onMounted(() => {
                       <button
                         type="button"
                         class="btn btn-sm btn-primary"
-                        :disabled="getSlotFormState(slotIndex).loading || generateDisabled"
+                        :disabled="getSlotFormState(slotIndex).loading || generateQuizBlocked"
                         @click="generateQuiz(slotIndex)"
                       >
                         產生題目
@@ -1046,10 +1067,17 @@ onMounted(() => {
               <button
                 type="button"
                 class="btn btn-sm btn-primary"
+                :disabled="generateQuizBlocked"
                 @click="openNextQuizSlot"
               >
                 新增題目
               </button>
+              <p
+                v-if="generateQuizBlocked && !forExamLoading && activeTabId"
+                class="small text-secondary mb-0 mt-2"
+              >
+                目前沒有可用RAG
+              </p>
             </div>
           </div>
         </div>

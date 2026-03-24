@@ -9,7 +9,7 @@
  * - 建立 tab（按 +）：POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填；local 由前端依網址是否為 localhost/127.0.0.1 帶入）
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
- * - 設為試題用：PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（body.rag_id）
+ * - 試題用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為試題用RAG」
  * - 出題：POST /rag/generate-quiz；評分：POST /rag/quiz-grade、GET /rag/quiz-grade-result/{job_id}
  * 上述 API 不需 llm_api_key。
  */
@@ -21,7 +21,9 @@ import {
   apiCreateRag,
   apiUploadZip,
   apiDeleteRag,
+  apiGetRagForExamSetting,
   apiSetRagForExam,
+  parseRagIdFromRagForExamSettingPayload,
   apiBuildRagZip,
   apiGenerateQuiz,
   is504OrNetworkError,
@@ -162,6 +164,21 @@ const currentRagItem = computed(() => {
   return ragList.value.find(
     (rag) => (rag.rag_tab_id ?? rag.id ?? String(rag)) === id
   ) ?? null;
+});
+
+/** GET /system-settings/rag-for-exam-* 的 rag_id（列表未帶 for_exam 時仍可比對） */
+const ragForExamSettingRagId = ref(null);
+
+/** 目前分頁 RAG 是否為試題用（列表 for_exam 或與系統設定 rag_id 相同） */
+const currentRagIsExamRag = computed(() => {
+  const rag = currentRagItem.value;
+  if (!rag) return false;
+  if (rag.for_exam === true) return true;
+  const rid = rag.rag_id ?? rag.id;
+  if (rid == null || rid === '') return false;
+  const fromSetting = ragForExamSettingRagId.value;
+  if (fromSetting == null) return false;
+  return String(fromSetting) === String(rid);
 });
 
 /** 當前 tab 的 rag_id、rag_tab_id（僅 console 記錄；未上傳則為「未上傳」） */
@@ -455,9 +472,19 @@ watch(chunkOverlap, (v) => {
   if (n !== v && (v === '' || v == null || Number.isNaN(Number(v)))) chunkOverlap.value = n;
 }, { flush: 'post' });
 
+async function refreshRagForExamSetting() {
+  try {
+    const data = await apiGetRagForExamSetting();
+    ragForExamSettingRagId.value = parseRagIdFromRagForExamSettingPayload(data);
+  } catch {
+    ragForExamSettingRagId.value = null;
+  }
+}
+
 /** 畫面一打開就抓 GET /rag/rags，每一筆 RAG 一個 tab；並清空檔案選擇讓上傳欄位一開始是空的 */
 onMounted(() => {
   fetchRagList();
+  refreshRagForExamSetting();
   clearZipFileInput();
 });
 
@@ -482,6 +509,29 @@ async function setRagForExam() {
   try {
     await apiSetRagForExam(ragId);
     await fetchRagList();
+    await refreshRagForExamSetting();
+  } catch (err) {
+    state.forExamError = err.message || String(err);
+  } finally {
+    state.forExamLoading = false;
+  }
+}
+
+/** 取消試題用 RAG（PUT rag_id 空字串） */
+async function clearRagForExam() {
+  if (!currentRagIsExamRag.value || isNewTabId(activeTabId.value)) return;
+  const personId = getPersonId(authStore);
+  if (!personId) {
+    alert('請先登入');
+    return;
+  }
+  const state = getTabState(activeTabId.value);
+  state.forExamLoading = true;
+  state.forExamError = '';
+  try {
+    await apiSetRagForExam(null);
+    await fetchRagList();
+    await refreshRagForExamSetting();
   } catch (err) {
     state.forExamError = err.message || String(err);
   } finally {
@@ -997,11 +1047,11 @@ async function confirmAnswer(item) {
           >
             <button
               type="button"
-              class="btn btn-sm btn-success"
-              :disabled="currentState.forExamLoading || currentRagItem?.for_exam === true"
-              @click="setRagForExam"
+              :class="currentRagIsExamRag ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-success'"
+              :disabled="currentState.forExamLoading"
+              @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
             >
-              設為試題用 RAG
+              {{ currentRagIsExamRag ? '取消設為試題用RAG' : '設為試題用 RAG' }}
             </button>
           </div>
           <div v-if="currentState.forExamError" class="alert alert-danger py-2 small mb-0 mt-2">

@@ -96,16 +96,56 @@ export async function apiDeleteRag(ragTabId, personId) {
   }
 }
 
+function ragForExamSettingPath() {
+  return isFrontendLocalHost() ? API_PUT_RAG_FOR_EXAM_LOCALHOST : API_PUT_RAG_FOR_EXAM_DEPLOY;
+}
+
 /**
- * 設為試題用 RAG：PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（依前端是否為 localhost）
- * @param {string | number} ragId - Rag.rag_id
+ * 從 GET /system-settings/rag-for-exam-* 回傳解析試題用 rag_id（支援 rag_id、value）
+ * @param {object | null} data
+ * @returns {number | null}
+ */
+export function parseRagIdFromRagForExamSettingPayload(data) {
+  if (data == null || typeof data !== 'object') return null;
+  const raw = data.rag_id ?? data.value;
+  if (raw === '' || raw == null) return null;
+  const s = String(raw).trim();
+  if (s === '') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（依前端網址）
+ * @returns {Promise<object>}
+ */
+export async function apiGetRagForExamSetting() {
+  const res = await fetch(`${API_BASE}${ragForExamSettingPath()}`, { method: 'GET' });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * 設為試題用或清空：PUT 同上。body.rag_id 為正整數；清空傳 rag_id 空字串。
+ * @param {string | number | null | undefined} ragId - 傳 null／undefined／'' 表示取消試題用設定
  */
 export async function apiSetRagForExam(ragId) {
-  const path = isFrontendLocalHost() ? API_PUT_RAG_FOR_EXAM_LOCALHOST : API_PUT_RAG_FOR_EXAM_DEPLOY;
-  const res = await fetch(`${API_BASE}${path}`, {
+  const clear = ragId == null || ragId === '';
+  let body;
+  if (clear) {
+    body = { rag_id: '' };
+  } else {
+    const n = Number(ragId);
+    if (!Number.isInteger(n) || n < 1) {
+      throw new Error('無效的 rag_id（須為正整數）');
+    }
+    body = { rag_id: n };
+  }
+  const res = await fetch(`${API_BASE}${ragForExamSettingPath()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rag_id: Number(ragId) || 0 }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
