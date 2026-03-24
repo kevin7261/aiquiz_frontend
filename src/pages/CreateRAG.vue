@@ -5,8 +5,8 @@
  * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 rag_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為試題用 RAG → 產生題目 → 作答與評分。
  *
  * API 對應：
- * - 列表：GET /rag/rags
- * - 建立 tab（按 +）：POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填）
+ * - 列表：GET /rag/rags?local=（與 create-rag 的 local 一致）
+ * - 建立 tab（按 +）：POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填；local 由前端依網址是否為 localhost/127.0.0.1 帶入）
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 設為試題用：PATCH /rag/for-exam/{rag_tab_id}
@@ -68,6 +68,12 @@ function checkRagHasList(rag) {
   return rag.rag_list != null && String(rag.rag_list).trim() !== '';
 }
 
+/** 至少一個出題群組，且每群至少一個單元（與「開始建立」按鈕啟用條件一致） */
+function isPackTasksListReady(list) {
+  if (!Array.isArray(list) || list.length < 1) return false;
+  return list.every((g) => Array.isArray(g) && g.length >= 1);
+}
+
 const hasRagMetadata = computed(() => checkRagHasMetadata(currentRagItem.value));
 const hasRagListOrMetadata = computed(() => checkRagHasMetadata(currentRagItem.value) || checkRagHasList(currentRagItem.value));
 
@@ -90,7 +96,8 @@ const ragListReadonlyInlineText = computed(() =>
   ragListReadonlyGroups.value.map((g) => (Array.isArray(g) ? g.join(' + ') : '')).filter(Boolean).join(' · ')
 );
 
-const packAndGenerateDisabled = computed(() => {
+/** 尚無法編輯出題群組（未上傳 ZIP 等）；與拖放、區塊鎖定一致，不包含「群組是否已填滿」 */
+const packGroupsEditBlocked = computed(() => {
   if (hasRagMetadata.value) return true;
   if (hasRagListOrMetadata.value) return false;
   const id = activeTabId.value;
@@ -99,10 +106,10 @@ const packAndGenerateDisabled = computed(() => {
   return false;
 });
 
-/** 未執行 Pack 時，RAG 產生題目區塊與產生題目按鈕 disable（需有 packResponseJson）；若有 rag_metadata 則 enable */
+/** 尚未完成建立 RAG 壓縮時，產生題目區塊 disable（需有 packResponseJson）；若有 rag_metadata 則 enable */
 const ragGenerateDisabled = computed(() => {
   if (hasRagMetadata.value) return false;
-  return packAndGenerateDisabled.value || currentState.value.packResponseJson == null;
+  return packGroupsEditBlocked.value || currentState.value.packResponseJson == null;
 });
 
 /** Pack 回傳的 outputs 陣列（依當前 tab 的 packResponseJson） */
@@ -259,7 +266,7 @@ const {
   addRagListGroup,
   addAllSecondFoldersAsGroups,
   setAllSecondFoldersAsSingleGroup,
-} = usePackTasks(currentState, fileMetadataToShow, packAndGenerateDisabled);
+} = usePackTasks(currentState, fileMetadataToShow, packGroupsEditBlocked);
 
 /** Tab 列用：rag 項目含 _tabId、_label */
 const ragItems = computed(() =>
@@ -665,7 +672,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** 執行 Pack（build-rag-zip） */
+/** 開始建立（build-rag-zip） */
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipTabId ?? '').trim();
@@ -677,6 +684,10 @@ async function confirmPack() {
   }
   if (!personId) {
     state.packError = '請先登入以取得 person_id';
+    return;
+  }
+  if (!isPackTasksListReady(state.packTasksList ?? [])) {
+    state.packError = '請至少建立一個出題群組，且每個群組至少包含一個單元';
     return;
   }
   if (!ragList) {
@@ -777,7 +788,7 @@ async function generateQuiz(slotIndex) {
     return;
   }
   if (!ragName) {
-    slotState.error = '請先選擇單元（需先執行 Pack 取得 RAG 壓縮檔）';
+    slotState.error = '請先選擇單元（需先按「開始建立」取得 RAG 壓縮檔）';
     return;
   }
   slotState.loading = true;
@@ -899,8 +910,8 @@ async function confirmAnswer(item) {
       </div>
       <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「建立出題群組」內 -->
       <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start page-block-spacing">
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">上傳檔案</div>
         <div class="mb-3">
-          <div class="form-label small text-secondary fw-medium mb-2">上傳教材 ZIP 檔</div>
           <input
             ref="zipFileInputRef"
             type="file"
@@ -909,7 +920,7 @@ async function confirmAnswer(item) {
             @change="onZipChange"
           >
           <div
-            class="zip-drop-zone rounded border border-dashed p-4 text-center position-relative"
+            class="zip-drop-zone rounded border border-dashed p-5 text-center position-relative"
             :class="{ 'zip-drop-zone-over': isZipDragOver }"
             @dragover="onZipDragOver"
             @dragenter="onZipDragOver"
@@ -947,12 +958,12 @@ async function confirmAnswer(item) {
       <div
         v-if="fileMetadataToShow != null"
         class="text-start page-block-spacing"
-        :class="{ 'opacity-75 pe-none': !hasRagMetadata && packAndGenerateDisabled }"
+        :class="{ 'opacity-75 pe-none': !hasRagMetadata && packGroupsEditBlocked }"
       >
         <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">{{ hasRagMetadata ? '出題群組' : '建立出題群組' }}</div>
 
         <div class="mb-3">
-          <div class="small text-secondary fw-medium mb-1">檔案名稱</div>
+          <div class="small text-secondary fw-medium mb-1">上傳檔案名稱</div>
           <div class="small text-break">{{ uploadedZipDisplayName }}</div>
         </div>
 
@@ -1136,10 +1147,10 @@ async function confirmAnswer(item) {
             <button
               type="button"
               class="btn btn-sm btn-primary"
-              :disabled="packAndGenerateDisabled"
+              :disabled="packGroupsEditBlocked || !isPackTasksListReady(currentState.packTasksList ?? [])"
               @click="confirmPack"
             >
-              執行 Pack
+              開始建立
             </button>
           </div>
           <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">
@@ -1179,7 +1190,7 @@ async function confirmAnswer(item) {
                     <div>
                       <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                       <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
-                        <option value="">— 請先執行 Pack —</option>
+                        <option value="">— 請先按「開始建立」—</option>
                         <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
                       </select>
                     </div>

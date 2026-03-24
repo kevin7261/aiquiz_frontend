@@ -11,14 +11,19 @@ const API_BASE_PRODUCTION = 'https://aiquiz-backend-z4mo.onrender.com';
 const API_BASE_LOCAL = 'http://127.0.0.1:8000';
 
 /**
- * 後端 API 基底網址：前端網址為 localhost 或 127.0.0.1 時連本機後端，否則連 Render 預設後端。
- * （Node／測試環境無 window 時視為正式網址。）
+ * 前端是否在本機網址開啟（localhost / 127.0.0.1）。與 API_BASE 一致；供 create-rag body.local、GET /rag/rags?local=。
+ * （Node／測試環境無 window 時為 false。）
  */
-export const API_BASE =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? API_BASE_LOCAL
-    : API_BASE_PRODUCTION;
+export function isFrontendLocalHost() {
+  if (typeof window === 'undefined' || !window.location?.hostname) return false;
+  const h = String(window.location.hostname).toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1';
+}
+
+/**
+ * 後端 API 基底網址：本機前端網址時連本機後端，否則連 Render 預設後端。
+ */
+export const API_BASE = isFrontendLocalHost() ? API_BASE_LOCAL : API_BASE_PRODUCTION;
 
 /** 修改個資：PATCH /user/profile；以 person_id 識別（body 或 Header X-Person-Id，二擇一）；body 可傳 name、user_type（1=系統開發者 2=課程管理者 3=學生）、llm_api_key（空字串表示清除）；回傳更新後使用者資訊（不含 password） */
 export const API_UPDATE_PROFILE = '/user/profile';
@@ -34,8 +39,10 @@ export const API_REQUEST_QUIZ_CONTENT = 'quiz_content';
 export const API_GRADE_SUBMISSION = '/rag/quiz-grade';
 export const API_GRADE_RESULT = '/rag/quiz-grade-result';
 
-/** 建立 RAG（建立 tab 時按 +）：POST /rag/create-rag，body 必填 rag_tab_id、person_id、rag_name；回傳 rag_id、rag_tab_id、person_id、rag_name、created_at */
+/** 建立 RAG（建立 tab 時按 +）：POST /rag/create-rag，body 必填 rag_tab_id、person_id、rag_name，選填 local（本機網址為 true）；回傳 rag_id、rag_tab_id、person_id、rag_name、local、created_at */
 export const API_CREATE_RAG = '/rag/create-rag';
+/** 列出 RAG：GET /rag/rags；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam）、quizzes（每題含 answers）、頂層 answers */
+export const API_RAG_LIST = '/rag/rags';
 /** 上傳 ZIP：POST /rag/upload-zip，需先 create-rag；Form: file、rag_tab_id、person_id（必填）；不需 llm_api_key；回傳 file_metadata */
 export const API_UPLOAD_ZIP = '/rag/upload-zip';
 /** 建 RAG ZIP：POST /rag/build-rag-zip；body: rag_tab_id, person_id, rag_list, chunk_size, chunk_overlap, system_prompt_instruction；不需 llm_api_key */

@@ -4,7 +4,15 @@
  * 集中封裝 create-rag、upload-zip、build-rag-zip、generate-quiz、for-exam、delete 等
  * 使用 fetch，錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
  */
-import { API_BASE, API_CREATE_RAG, API_UPLOAD_ZIP, API_BUILD_RAG_ZIP, API_GENERATE_QUIZ, API_RAG_FOR_EXAM } from '../constants/api.js';
+import {
+  API_BASE,
+  API_CREATE_RAG,
+  API_UPLOAD_ZIP,
+  API_BUILD_RAG_ZIP,
+  API_GENERATE_QUIZ,
+  API_RAG_FOR_EXAM,
+  isFrontendLocalHost,
+} from '../constants/api.js';
 import { parseFetchError } from '../utils/apiError.js';
 
 /**
@@ -32,13 +40,18 @@ function parseJson(text) {
  * @param {string} personId
  * @param {string} ragTabId
  * @param {string} ragName
- * @returns {Promise<object>} 後端回傳的 RAG 資料（rag_id、rag_tab_id 等）
+ * @returns {Promise<object>} 後端回傳的 RAG 資料（rag_id、rag_tab_id、local、created_at 等）
  */
 export async function apiCreateRag(personId, ragTabId, ragName) {
   const res = await fetch(`${API_BASE}${API_CREATE_RAG}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rag_tab_id: ragTabId, person_id: personId, rag_name: ragName }),
+    body: JSON.stringify({
+      rag_tab_id: ragTabId,
+      person_id: personId,
+      rag_name: ragName,
+      local: isFrontendLocalHost(),
+    }),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
