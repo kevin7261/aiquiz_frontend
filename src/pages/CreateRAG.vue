@@ -10,7 +10,7 @@
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 試題用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為試題用RAG」
- * - 出題：POST /rag/create-quiz；評分：POST /rag/grade-quiz、GET /rag/quiz-grade-result/{job_id}
+ * - 出題：POST /rag/create-quiz（含 unit_name）；評分：POST /rag/grade-quiz、GET /rag/quiz-grade-result/{job_id}
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
@@ -128,18 +128,28 @@ const generateQuizUnits = computed(() => {
   const singleTabId = data && typeof data === 'object' && data.rag_tab_id != null ? data.rag_tab_id : null;
   const withId = out.filter((o) => o && o.rag_tab_id != null);
   if (withId.length) {
-    return withId.map((o) => ({
-      rag_tab_id: String(o.rag_tab_id),
-      filename: o.filename || o.rag_filename || 'RAG',
-      rag_name: deriveRagName(o),
-    }));
+    return withId.map((o) => {
+      const rag_name = deriveRagName(o);
+      const unit_name = String(o.unit_name ?? o.rag_name ?? rag_name ?? '').trim().replace(/\+/g, '_') || rag_name;
+      return {
+        rag_tab_id: String(o.rag_tab_id),
+        filename: o.filename || o.rag_filename || 'RAG',
+        rag_name,
+        unit_name,
+      };
+    });
   }
   if (singleTabId && out.length) {
-    return out.map((o) => ({
-      rag_tab_id: String(singleTabId),
-      filename: o.filename || o.rag_filename || 'RAG',
-      rag_name: deriveRagName(o),
-    }));
+    return out.map((o) => {
+      const rag_name = deriveRagName(o);
+      const unit_name = String(o.unit_name ?? o.rag_name ?? rag_name ?? '').trim().replace(/\+/g, '_') || rag_name;
+      return {
+        rag_tab_id: String(singleTabId),
+        filename: o.filename || o.rag_filename || 'RAG',
+        rag_name,
+        unit_name,
+      };
+    });
   }
   // fallback：Pack 尚未執行，從 /rags 的 rag_list 推導
   return generateQuizUnitsFromRag.value;
@@ -324,10 +334,19 @@ const generateQuizUnitsFromRag = computed(() => {
           : derivedName
             ? `${derivedName}_rag`
             : sourceTabId;
+      const label = deriveRagName(o);
+      const rawUnit =
+        (o.unit_name != null && String(o.unit_name).trim() !== '')
+          ? String(o.unit_name).trim()
+          : (o.rag_name != null && String(o.rag_name).trim() !== '')
+            ? String(o.rag_name).trim()
+            : label;
+      const unit_name = String(rawUnit || '').replace(/\+/g, '_') || label || sourceTabId;
       return {
         rag_tab_id: tabId,
-        filename: o.filename ?? o.rag_filename ?? `${derivedName || deriveRagName(o) || 'RAG'}.zip`,
-        rag_name: deriveRagName(o),
+        filename: o.filename ?? o.rag_filename ?? `${derivedName || label || 'RAG'}.zip`,
+        rag_name: label,
+        unit_name,
       };
     });
   }
@@ -343,6 +362,7 @@ const generateQuizUnitsFromRag = computed(() => {
         rag_tab_id: sourceTabId || `${ragName}_rag`,
         filename: `${ragName}_rag.zip`,
         rag_name: ragName,
+        unit_name: ragName,
       };
     });
 });
@@ -830,7 +850,8 @@ async function generateQuiz(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const sourceTabId = String(state.zipTabId ?? '').trim();
   const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
-  const ragName = selectedUnit?.rag_name?.trim();
+  const unitName = String(selectedUnit?.unit_name ?? selectedUnit?.rag_name ?? '').trim();
+  const ragName = selectedUnit?.rag_name?.trim() || unitName;
   const rag = currentRagItem.value;
   const ragId = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
   if (!sourceTabId) {
@@ -841,7 +862,7 @@ async function generateQuiz(slotIndex) {
     slotState.error = '無法取得 rag_id（請先上傳 ZIP 或確認已載入 RAG）';
     return;
   }
-  if (!ragName) {
+  if (!unitName) {
     slotState.error = '請先選擇單元（需先按「開始建立」取得 RAG 壓縮檔）';
     return;
   }
@@ -850,7 +871,7 @@ async function generateQuiz(slotIndex) {
   slotState.responseJson = null;
   const quizLevel = difficultyOptions.indexOf(filterDifficulty.value);
   try {
-    const data = await apiGenerateQuiz(ragId, sourceTabId, quizLevel >= 0 ? quizLevel : 0);
+    const data = await apiGenerateQuiz(ragId, sourceTabId, quizLevel >= 0 ? quizLevel : 0, unitName);
     slotState.responseJson = data;
     const quizContent = data[API_RESPONSE_QUIZ_CONTENT] ?? data[API_RESPONSE_QUIZ_LEGACY] ?? data.quiz_content ?? '';
     const hintText = data.quiz_hint ?? data.hint ?? '';

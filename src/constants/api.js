@@ -28,7 +28,7 @@ export const API_BASE = isFrontendLocalHost() ? API_BASE_LOCAL : API_BASE_PRODUC
 /** 修改個資：PATCH /user/profile；以 person_id 識別（body 或 Header X-Person-Id，二擇一）；body 可傳 name、user_type（1=系統開發者 2=課程管理者 3=學生）、llm_api_key（空字串表示清除）；回傳更新後使用者資訊（不含 password） */
 export const API_UPDATE_PROFILE = '/user/profile';
 
-/** RAG 出題：POST /rag/create-quiz；body: rag_id, rag_tab_id, quiz_level（number）；不需 llm_api_key；回傳 quiz_content 等 */
+/** RAG 出題：POST /rag/create-quiz；body: rag_id, rag_tab_id, quiz_level（number）、unit_name（對應 outputs 選 ZIP）；不需 llm_api_key；回傳 quiz_content 等 */
 export const API_GENERATE_QUIZ = '/rag/create-quiz';
 export const API_RESPONSE_QUIZ_CONTENT = 'quiz_content';
 export const API_RESPONSE_QUIZ_LEGACY = 'quiz';
@@ -45,6 +45,8 @@ export const API_CREATE_RAG = '/rag/create-rag';
 export const API_RAG_LIST = '/rag/rags';
 /** 上傳 ZIP：POST /rag/upload-zip，需先 create-rag；Form: file、rag_tab_id、person_id（必填）；不需 llm_api_key；回傳 file_metadata */
 export const API_UPLOAD_ZIP = '/rag/upload-zip';
+/** 刪除 RAG：POST /rag/delete/{rag_tab_id}；Header X-Person-Id */
+export const API_RAG_DELETE = '/rag/delete';
 /** 建 RAG ZIP：POST /rag/build-rag-zip；body: rag_tab_id, person_id, rag_list, chunk_size, chunk_overlap, system_prompt_instruction；不需 llm_api_key */
 export const API_BUILD_RAG_ZIP = '/rag/build-rag-zip';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */

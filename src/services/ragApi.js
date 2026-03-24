@@ -8,6 +8,7 @@ import {
   API_BASE,
   API_CREATE_RAG,
   API_UPLOAD_ZIP,
+  API_RAG_DELETE,
   API_BUILD_RAG_ZIP,
   API_GENERATE_QUIZ,
   API_PUT_RAG_FOR_EXAM_DEPLOY,
@@ -76,7 +77,7 @@ export async function apiUploadZip(file, ragTabId, personId) {
     body: formData,
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`${res.status}: ${parseFetchError(res, text)}`);
+  if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
 }
 
@@ -86,7 +87,7 @@ export async function apiUploadZip(file, ragTabId, personId) {
  * @param {string} personId - 以 X-Person-Id header 傳送
  */
 export async function apiDeleteRag(ragTabId, personId) {
-  const res = await fetch(`${API_BASE}/rag/delete/${encodeURIComponent(String(ragTabId))}`, {
+  const res = await fetch(`${API_BASE}${API_RAG_DELETE}/${encodeURIComponent(String(ragTabId))}`, {
     method: 'POST',
     headers: { 'X-Person-Id': String(personId) },
   });
@@ -178,29 +179,24 @@ export async function apiBuildRagZip(body) {
  * @param {string | number} ragId
  * @param {string | number} ragTabId
  * @param {number} quizLevel - 0 基礎 / 1 進階
+ * @param {string} [unitName] - 對應 rag_metadata.outputs 選 ZIP（與 /exam/create-quiz 一致）
  * @returns {Promise<object>} 含 quiz_content、quiz_hint、reference_answer 等
  */
-export async function apiGenerateQuiz(ragId, ragTabId, quizLevel) {
+export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
+  const body = {
+    rag_id: Number(ragId) || 0,
+    rag_tab_id: Number(ragTabId) || 0,
+    quiz_level: quizLevel >= 0 ? quizLevel : 0,
+  };
+  const un = unitName != null ? String(unitName).trim() : '';
+  if (un) body.unit_name = un;
   const res = await fetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      rag_id: Number(ragId) || 0,
-      rag_tab_id: Number(ragTabId) || 0,
-      quiz_level: quizLevel >= 0 ? quizLevel : 0,
-    }),
+    body: JSON.stringify(body),
   });
   const text = await res.text();
-  if (!res.ok) {
-    let msg = res.statusText;
-    try {
-      const errBody = JSON.parse(text);
-      msg = errBody.detail ? JSON.stringify(errBody.detail) : msg;
-    } catch {
-      if (text) msg = text;
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
 }
 
