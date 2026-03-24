@@ -837,7 +837,7 @@ async function confirmAnswer(item) {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">建立出題群組</span>
+        <span class="navbar-brand mb-0">{{ hasRagMetadata ? '出題群組' : '建立出題群組' }}</span>
       </div>
     </div>
     <RagTabsBar
@@ -920,7 +920,7 @@ async function confirmAnswer(item) {
               <span class="text-secondary small">上傳中...</span>
             </template>
             <template v-else-if="currentState.zipFileName">
-              <span class="small text-success">{{ currentState.zipFileName }}</span>
+              <span class="small text-body">{{ currentState.zipFileName }}</span>
               <div class="mt-1 small text-muted">點擊可重新選擇檔案</div>
             </template>
             <template v-else>
@@ -948,11 +948,11 @@ async function confirmAnswer(item) {
         class="text-start page-block-spacing"
         :class="{ 'opacity-75 pe-none': !hasRagMetadata && packAndGenerateDisabled }"
       >
-        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">建立出題群組</div>
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">{{ hasRagMetadata ? '出題群組' : '建立出題群組' }}</div>
 
         <div class="mb-3">
           <div class="small text-secondary fw-medium mb-1">檔案名稱</div>
-          <div class="small text-success text-break">{{ uploadedZipDisplayName }}</div>
+          <div class="small text-break">{{ uploadedZipDisplayName }}</div>
         </div>
 
         <template v-if="hasRagMetadata">
