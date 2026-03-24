@@ -6,7 +6,7 @@
  *
  * 資料來源：
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試驗／題目關聯由 GET /exam/exams 等提供即可）
- * - GET /rag/for-exam：試題用 RAG 完整 payload（出題單元；無 outputs／rag_list 時仍可用 rag_tab_id 合成一個單元）
+ * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／rag_list 時仍可用 rag_tab_id 合成單元）
  * - GET /exam/exams：測驗列表；按 + 呼叫 POST /exam/create-exam 新增測驗
  * 出題：POST /exam/generate-quiz；評分：POST /exam/quiz-grade、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
  */
@@ -133,16 +133,22 @@ const currentExamItem = computed(() => {
   return examList.value.find((exam) => getExamTabId(exam) === id) ?? null;
 });
 
-/** 從試題用 RAG 推導 generateQuizUnits；格式同 /rag/build-rag-zip：頂層 outputs、rag_tab_id，或 rag_metadata.outputs / rag_list */
+/** 從試題用 RAG 推導 generateQuizUnits；格式同 /rag/build-rag-zip；後端可能用 unit_name 取代 rag_name */
 const generateQuizUnits = computed(() => {
   const rag = forExamRag.value;
   if (!rag || typeof rag !== 'object') return [];
   const sourceTabId = String(rag.rag_tab_id ?? '');
-  const mapOutput = (o) => ({
-    rag_tab_id: o.rag_tab_id || `${(o.rag_name ?? '').replace(/\+/g, '_')}_rag` || sourceTabId,
-    filename: o.filename ?? o.rag_filename ?? `${(o.rag_name ?? '').replace(/\+/g, '_')}.zip`,
-    rag_name: (o.rag_name ?? '').replace(/\+/g, '_') || (o.filename || o.rag_filename || '').replace(/_rag\.zip?$/i, '').replace(/\.zip$/i, ''),
-  });
+  const outputBaseName = (o) => String((o.rag_name ?? o.unit_name ?? '').trim()).replace(/\+/g, '_');
+  const mapOutput = (o) => {
+    const base = outputBaseName(o);
+    const fromFile = (o.filename || o.rag_filename || '').replace(/_rag\.zip?$/i, '').replace(/\.zip$/i, '');
+    const label = base || fromFile;
+    return {
+      rag_tab_id: o.rag_tab_id || (base ? `${base}_rag` : '') || sourceTabId,
+      filename: o.filename ?? o.rag_filename ?? (label ? `${label.replace(/\+/g, '_')}.zip` : `${sourceTabId}.zip`),
+      rag_name: label || sourceTabId,
+    };
+  };
   // 與 build-rag-zip 相同：頂層 outputs
   const topOutputs = rag.outputs;
   if (Array.isArray(topOutputs) && topOutputs.length > 0) {
@@ -169,7 +175,7 @@ const generateQuizUnits = computed(() => {
   }
   // 僅有 rag_tab_id、尚無 outputs／rag_list（後端精簡回傳）時仍要能選單元並出題
   if (sourceTabId) {
-    const nm = String(rag.rag_name ?? '').replace(/\+/g, '_').trim() || sourceTabId;
+    const nm = String(rag.rag_name ?? rag.unit_name ?? '').replace(/\+/g, '_').trim() || sourceTabId;
     return [{
       rag_tab_id: sourceTabId,
       filename: `${nm}_rag.zip`,
@@ -306,7 +312,7 @@ function buildCardFromExamQuiz(quiz, ragName) {
     hint: quiz.quiz_hint ?? '',
     referenceAnswer: quiz.reference_answer ?? '',
     sourceFilename: quiz.file_name ?? null,
-    ragName: (ragName || quiz.rag_name || '').trim() || null,
+    ragName: (ragName || quiz.rag_name || quiz.unit_name || '').trim() || null,
     answer: latestAnswer?.student_answer ?? '',
     hintVisible: false,
     confirmed: !!latestAnswer,
@@ -331,7 +337,15 @@ watch(
     const quizzes = exam.quizzes ?? [];
     const examAnswers = exam.answers ?? [];
     const units = generateQuizUnits.value;
-    const firstRagName = (units[0]?.rag_name ?? forExamRag.value?.outputs?.[0]?.rag_name ?? forExamRag.value?.rag_metadata?.outputs?.[0]?.rag_name ?? quizzes[0]?.rag_name ?? '').trim();
+    const out0 = forExamRag.value?.outputs?.[0];
+    const meta0 = forExamRag.value?.rag_metadata?.outputs?.[0];
+    const firstRagName = (
+      units[0]?.rag_name
+      ?? out0?.rag_name ?? out0?.unit_name
+      ?? meta0?.rag_name ?? meta0?.unit_name
+      ?? quizzes[0]?.rag_name ?? quizzes[0]?.unit_name
+      ?? ''
+    ).trim();
     if (quizzes.length > 0) {
       const answersByQuizId = examAnswers.reduce((acc, a) => {
         const id = a.exam_quiz_id ?? a.quiz_id;
@@ -346,7 +360,7 @@ watch(
       });
       state.showQuizGeneratorBlock = true;
       state.quizSlotsCount = quizzesWithAnswers.length;
-      state.cardList = quizzesWithAnswers.map((q) => buildCardFromExamQuiz(q, q.rag_name ?? firstRagName));
+      state.cardList = quizzesWithAnswers.map((q) => buildCardFromExamQuiz(q, q.rag_name ?? q.unit_name ?? firstRagName));
     } else {
       state.quizSlotsCount = 0;
       state.cardList = [];
@@ -664,7 +678,7 @@ async function generateQuiz(slotIndex) {
     const hintText = data.quiz_hint ?? data.hint ?? '';
     const targetFilename = data.file_name ?? data.unit_filename ?? data.target_filename ?? selectedUnit?.filename ?? null;
     const referenceAnswerText = data.reference_answer ?? data.answer ?? '';
-    const displayRagName = (data.rag_name ?? ragName ?? '').trim() || ragName;
+    const displayRagName = (data.unit_name ?? data.rag_name ?? ragName ?? '').trim() || ragName;
     const quizId = data.exam_quiz_id != null ? Number(data.exam_quiz_id) : (data.quiz_id != null ? Number(data.quiz_id) : null);
     setCardAtSlot(slotIndex, quizContent, hintText, targetFilename, referenceAnswerText, displayRagName, data, filterDifficulty.value, (forExamState.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION, quizId);
   } catch (err) {
