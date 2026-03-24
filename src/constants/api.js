@@ -61,13 +61,13 @@ export const API_QUIZZES_BY_PERSON = '/person-analysis/quizzes';
 /** 課程測驗分析：GET /course-analysis/quizzes；回傳格式同 List Quizzes By Person（exams、count、weakness_report 固定 null） */
 export const API_COURSE_ANALYSIS_QUIZZES = '/course-analysis/quizzes';
 
-/** Exam API：GET /exam/exams List Exams（僅 deleted=false；每筆含 quizzes、answers，格式同 GET /rag/rags；每題 quiz 含 rag_name、file_name（Exam_Quiz）；query: person_id 可選） */
+/** Exam API：GET /exam/exams List Exams（deleted=false；Exam.local 須與 query local 相符；未傳 local 時後端依連線判定；query: person_id 可選、local 建議與 create-rag 一致） */
 export const API_EXAM_TESTS = '/exam/exams';
-/** Exam：POST /exam/create-exam Create Exam，body 可選 exam_tab_id、person_id、exam_name；回傳 exam_id、exam_tab_id、person_id、exam_name、created_at */
+/** Exam：POST /exam/create-exam；body 可選 exam_tab_id、person_id、exam_name、local（預設 false；本機前端應傳 true 與 create-rag 一致）；回傳含 local、created_at 等 */
 export const API_CREATE_EXAM = '/exam/create-exam';
 /** Exam：POST /exam/delete/{exam_tab_id} Delete Exam */
 export const API_EXAM_DELETE = '/exam/delete';
-/** Exam：POST /exam/generate-quiz；body: exam_id, exam_tab_id, quiz_level（number）；回傳 quiz_content, quiz_hint, reference_answer, exam_quiz_id, rag_name, file_name 等；後端由系統設定取 llm_api_key */
+/** Exam：POST /exam/generate-quiz；body: exam_id, exam_tab_id, quiz_level、rag_id、rag_tab_id（試題用 RAG 父層 tab）、unit_name（選中之出題單元顯示名）；可選 unit_rag_tab_id（下拉 value，如 xxx_rag）；後端由系統設定取 llm_api_key */
 export const API_TEST_GENERATE_QUIZ = '/exam/generate-quiz';
 /** Exam：POST /exam/quiz-grade；body: exam_id, exam_tab_id, exam_quiz_id, quiz_content, answer（皆 string）；後端由系統設定取 llm_api_key */
 export const API_TEST_QUIZ_GRADE = '/exam/quiz-grade';

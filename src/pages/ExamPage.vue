@@ -7,7 +7,7 @@
  * 資料來源：
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試驗／題目關聯由 GET /exam/exams 等提供即可）
  * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／rag_list 時仍可用 rag_tab_id 合成單元）
- * - GET /exam/exams：測驗列表；按 + 呼叫 POST /exam/create-exam 新增測驗
+ * - GET /exam/exams?local=&person_id=：local 與 GET /rag/rags 相同（依網址是否 localhost）；POST /exam/create-exam body 含 local
  * 出題：POST /exam/generate-quiz；評分：POST /exam/quiz-grade、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
@@ -23,6 +23,7 @@ import {
   API_TEST_GENERATE_QUIZ,
   API_TEST_QUIZ_GRADE,
   API_TEST_QUIZ_GRADE_RESULT,
+  isFrontendLocalHost,
 } from '../constants/api.js';
 import { parseRagMetadataObject } from '../utils/rag.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
@@ -380,17 +381,18 @@ function getCurrentPersonId() {
   return null;
 }
 
-/** 載入測驗列表：GET /exam/exams；僅 deleted=false，每筆含表上所有欄位 + quizzes（每題帶 answers）、頂層 answers；格式同 GET /rag/rags。query: person_id 可選。 */
+/** 載入測驗列表：GET /exam/exams；Exam.local 須與 query local 相符（與 /rag/rags?local= 一致） */
 async function fetchExamTests() {
   examListLoading.value = true;
   examListError.value = '';
   try {
     const personId = getCurrentPersonId();
     const params = new URLSearchParams();
+    params.set('local', String(isFrontendLocalHost()));
     if (personId) {
       params.set('person_id', personId);
     }
-    const url = params.toString() ? `${API_BASE}${API_EXAM_TESTS}?${params}` : `${API_BASE}${API_EXAM_TESTS}`;
+    const url = `${API_BASE}${API_EXAM_TESTS}?${params}`;
     const headers = {};
     if (personId) {
       headers['X-Person-Id'] = personId;
@@ -476,7 +478,7 @@ function getExamTabId(exam) {
   return String(exam.exam_tab_id ?? exam.test_tab_id ?? exam.id ?? '');
 }
 
-/** 按 + 新增測驗：POST /exam/create-exam，body 用 exam_tab_id、exam_name；加入 examList 並切到新 tab。 */
+/** 按 + 新增測驗：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-rag 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -487,6 +489,7 @@ async function addNewTab() {
   createExamLoading.value = true;
   const examTabId = generateTabId(personId);
   const examName = deriveNameFromTabId(examTabId) || examTabId;
+  const local = isFrontendLocalHost();
   try {
     const res = await fetch(`${API_BASE}${API_CREATE_EXAM}`, {
       method: 'POST',
@@ -495,6 +498,7 @@ async function addNewTab() {
         exam_tab_id: examTabId,
         person_id: personId,
         exam_name: examName,
+        local,
       }),
     });
     if (!res.ok) {
@@ -512,6 +516,7 @@ async function addNewTab() {
       test_tab_id: tabIdVal,
       test_name: data.exam_name ?? data.test_name ?? examName,
       person_id: data.person_id,
+      local: data.local ?? local,
       created_at: data.created_at,
     };
     examList.value = [...examList.value, item];
@@ -628,13 +633,16 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
   };
 }
 
-/** 出題：POST /exam/generate-quiz；body: llm_api_key, exam_id, exam_tab_id, quiz_level（number）。回傳 quiz_content, quiz_hint, reference_answer, exam_quiz_id 等。 */
+/** 出題：POST /exam/generate-quiz；須帶選中之單元（unit_name 等），否則後端易固定寫入第一個 output（例如始終為 10_ERGMs） */
 async function generateQuiz(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
   const ragName = selectedUnit?.rag_name?.trim();
   const exam = currentExamItem.value;
   const examId = exam?.exam_id ?? exam?.test_id;
+  const rag = forExamRag.value;
+  const ragId = rag?.rag_id ?? rag?.id;
+  const parentRagTabId = sourceTabId.value;
   if (!canGenerateExamQuiz.value) {
     slotState.error = '目前沒有可用RAG';
     return;
@@ -645,6 +653,22 @@ async function generateQuiz(slotIndex) {
   }
   if (examId == null) {
     slotState.error = '無法取得當前測驗的 exam_id';
+    return;
+  }
+  if (ragId == null || ragId === '') {
+    slotState.error = '無法取得試題用 rag_id';
+    return;
+  }
+  if (!parentRagTabId) {
+    slotState.error = '無法取得試題用 rag_tab_id';
+    return;
+  }
+  if (!selectedUnit || !slotState.generateQuizTabId) {
+    slotState.error = '請選擇單元';
+    return;
+  }
+  if (!ragName) {
+    slotState.error = '請選擇有效單元（單元名稱不可為空）';
     return;
   }
   slotState.loading = true;
@@ -659,6 +683,10 @@ async function generateQuiz(slotIndex) {
         exam_id: Number(examId) || 0,
         exam_tab_id: activeTabId.value != null && activeTabId.value !== '' ? String(activeTabId.value) : '',
         quiz_level: quizLevel >= 0 ? quizLevel : 0,
+        rag_id: Number(ragId) || 0,
+        rag_tab_id: String(parentRagTabId),
+        unit_name: String(ragName),
+        unit_rag_tab_id: String(slotState.generateQuizTabId),
       }),
     });
     const text = await res.text();
