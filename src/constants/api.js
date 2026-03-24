@@ -28,7 +28,7 @@ export const API_BASE = isFrontendLocalHost() ? API_BASE_LOCAL : API_BASE_PRODUC
 /** 修改個資：PATCH /user/profile；以 person_id 識別（body 或 Header X-Person-Id，二擇一）；body 可傳 name、user_type（1=系統開發者 2=課程管理者 3=學生）、llm_api_key（空字串表示清除）；回傳更新後使用者資訊（不含 password） */
 export const API_UPDATE_PROFILE = '/user/profile';
 
-/** RAG 出題：POST /rag/create-quiz；body: rag_id, rag_tab_id, quiz_level（number）、unit_name（對應 outputs 選 ZIP）；不需 llm_api_key；回傳 quiz_content 等 */
+/** RAG 出題：POST /rag/create-quiz；body: rag_id（必填）、rag_tab_id（選填，可 ""）、quiz_level、unit_name（選填，可 ""；與 build-rag-zip outputs[].unit_name 一致，空則後端用第一筆）；LLM Key 依 Rag.person_id 自 User；回傳 quiz_content、quiz_hint、reference_answer、rag_quiz_id 等 */
 export const API_GENERATE_QUIZ = '/rag/create-quiz';
 export const API_RESPONSE_QUIZ_CONTENT = 'quiz_content';
 export const API_RESPONSE_QUIZ_LEGACY = 'quiz';
@@ -69,7 +69,7 @@ export const API_EXAM_TESTS = '/exam/exams';
 export const API_CREATE_EXAM = '/exam/create-exam';
 /** Exam：POST /exam/delete/{exam_tab_id} Delete Exam */
 export const API_EXAM_DELETE = '/exam/delete';
-/** Exam：POST /exam/create-quiz；body: exam_id 或 exam_tab_id、quiz_level、unit_name（對應 rag_metadata.outputs）；回傳 quiz_content 等；llm_api_key 由 system-settings */
+/** Exam：POST /exam/create-quiz；body: exam_id 或 exam_tab_id（二擇一；可 ""／0 搭配另一欄）、quiz_level、unit_name（選填可 ""，與 outputs[].unit_name 一致，空則第一筆）；LLM Key 由 GET /system-settings/llm-api-key；試題 RAG 依連線讀 System_Setting rag_localhost／rag_deploy；回傳 quiz_content、quiz_hint、reference_answer、exam_quiz_id 等 */
 export const API_TEST_GENERATE_QUIZ = '/exam/create-quiz';
 /** Exam：POST /exam/grade-quiz；body: exam_id, exam_tab_id, exam_quiz_id, quiz_content, answer（皆 string）；後端由系統設定取 llm_api_key */
 export const API_TEST_QUIZ_GRADE = '/exam/grade-quiz';

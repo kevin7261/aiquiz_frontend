@@ -8,7 +8,7 @@
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試驗／題目關聯由 GET /exam/exams 等提供即可）
  * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／rag_list 時仍可用 rag_tab_id 合成單元）
  * - GET /exam/exams?local=&person_id=：local 與 GET /rag/rags 相同（依網址是否 localhost）；POST /exam/create-exam body 含 local
- * 出題：POST /exam/create-quiz；評分：POST /exam/grade-quiz、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
+ * 出題：POST /exam/create-quiz（exam_id 或 exam_tab_id 二擇一；unit_name 可空由後端用第一筆 outputs）；評分：POST /exam/grade-quiz、GET /exam/quiz-grade-result/{job_id}；刪除：POST /exam/delete/{exam_tab_id}
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -25,7 +25,13 @@ import {
   API_TEST_QUIZ_GRADE_RESULT,
   isFrontendLocalHost,
 } from '../constants/api.js';
-import { parseRagMetadataObject } from '../utils/rag.js';
+import { parseFetchError } from '../utils/apiError.js';
+import {
+  parseRagMetadataObject,
+  unitSelectValue,
+  reconcileQuizUnitSelectSlot,
+  findQuizUnitBySlotSelection,
+} from '../utils/rag.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 
 defineProps({
@@ -102,10 +108,8 @@ function getTabState(id) {
     };
   }
   if (!tabStateMap[resolvedId]) {
-    const units = generateQuizUnits.value;
-    const first = units.length ? units[0].rag_tab_id : '';
     tabStateMap[resolvedId] = reactive({
-      generateQuizTabId: first,
+      generateQuizTabId: '',
       cardList: [],
       slotFormState: {},
       showQuizGeneratorBlock: false,
@@ -286,23 +290,13 @@ watch(examList, (list) => {
   }
 }, { immediate: true });
 
-/** 選擇單元預設第一筆（每個 tab 各自）；同步各題 slot 的下拉值 */
+/** 單元下拉預設不選；清單變動時重新對齊選取（與出題群組頁一致） */
 watch(generateQuizUnits, (units) => {
-  if (units.length === 0) return;
   const state = currentState.value;
-  const firstTabId = units[0].rag_tab_id;
-  const currentInList = units.some((u) => u.rag_tab_id === state.generateQuizTabId);
-  if (!state.generateQuizTabId || !currentInList) {
-    state.generateQuizTabId = firstTabId;
-  }
+  reconcileQuizUnitSelectSlot(state, units);
   const count = state.quizSlotsCount || 0;
   for (let i = 1; i <= count; i++) {
-    const slot = state.slotFormState?.[i];
-    if (!slot) continue;
-    const slotOk = units.some((u) => u.rag_tab_id === slot.generateQuizTabId);
-    if (!slot.generateQuizTabId || !slotOk) {
-      slot.generateQuizTabId = firstTabId;
-    }
+    reconcileQuizUnitSelectSlot(state.slotFormState?.[i], units);
   }
 }, { immediate: true });
 
@@ -598,10 +592,8 @@ async function deleteExam(examTabId) {
 function getSlotFormState(slotIndex) {
   const state = currentState.value;
   if (!state.slotFormState[slotIndex]) {
-    const units = generateQuizUnits.value;
-    const first = units.length ? units[0].rag_tab_id : '';
     state.slotFormState[slotIndex] = reactive({
-      generateQuizTabId: first,
+      generateQuizTabId: '',
       loading: false,
       error: '',
       responseJson: null,
@@ -643,56 +635,51 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
   };
 }
 
-/** 出題：POST /exam/create-quiz；body: exam_id、exam_tab_id、quiz_level、unit_name（供後端對 rag_metadata.outputs 選 ZIP）。回傳 quiz_content 等。 */
+/** 出題：POST /exam/create-quiz；body 與 OpenAPI 一致（四欄）；exam_id／exam_tab_id 二擇一。 */
 async function generateQuiz(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
-  const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
-  const unitName = String(selectedUnit?.unit_name ?? selectedUnit?.rag_name ?? '').trim();
-  const ragName = selectedUnit?.rag_name?.trim();
+  const selectedUnit = findQuizUnitBySlotSelection(generateQuizUnits.value, slotState.generateQuizTabId);
+  if (!selectedUnit) {
+    slotState.error = '請先選擇單元';
+    return;
+  }
+  const unitName = String(selectedUnit.unit_name ?? selectedUnit.rag_name ?? '').trim();
+  const ragName = selectedUnit.rag_name?.trim();
   const exam = currentExamItem.value;
-  const examId = exam?.exam_id ?? exam?.test_id;
+  const examIdRaw = exam?.exam_id ?? exam?.test_id;
+  const examTabIdStr = activeTabId.value != null && activeTabId.value !== '' ? String(activeTabId.value).trim() : '';
+  const eidNum = Number(examIdRaw);
+  const hasValidExamId = Number.isFinite(eidNum) && eidNum >= 1;
   if (!canGenerateExamQuiz.value) {
     slotState.error = '目前沒有可用RAG';
     return;
   }
-  if (!activeTabId.value) {
-    slotState.error = '尚未建立測驗（請按 + 新增測驗）或請確認已載入試題用 RAG（GET /rag/for-exam）';
+  if (!hasValidExamId && !examTabIdStr) {
+    slotState.error = '尚未建立測驗（請按 + 新增測驗）或無法取得 exam_id／exam_tab_id';
     return;
   }
-  if (examId == null) {
-    slotState.error = '無法取得當前測驗的 exam_id';
-    return;
-  }
-  if (!unitName) {
-    slotState.error = '請選擇單元';
+  if (!generateQuizUnits.value.length) {
+    slotState.error = '請確認已載入試題用 RAG（GET /rag/for-exam）且具 outputs';
     return;
   }
   slotState.loading = true;
   slotState.error = '';
   slotState.responseJson = null;
   const quizLevel = difficultyOptions.indexOf(filterDifficulty.value);
+  const body = {
+    exam_id: hasValidExamId ? eidNum : 0,
+    exam_tab_id: hasValidExamId ? '' : examTabIdStr,
+    quiz_level: quizLevel >= 0 ? quizLevel : 0,
+    unit_name: unitName,
+  };
   try {
     const res = await fetch(`${API_BASE}${API_TEST_GENERATE_QUIZ}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        exam_id: Number(examId) || 0,
-        exam_tab_id: activeTabId.value != null && activeTabId.value !== '' ? String(activeTabId.value) : '',
-        quiz_level: quizLevel >= 0 ? quizLevel : 0,
-        unit_name: unitName,
-      }),
+      body: JSON.stringify(body),
     });
     const text = await res.text();
-    if (!res.ok) {
-      let msg = res.statusText;
-      try {
-        const errBody = JSON.parse(text);
-        msg = errBody.detail ? JSON.stringify(errBody.detail) : msg;
-      } catch (_) {
-        if (text) msg = text;
-      }
-      throw new Error(msg);
-    }
+    if (!res.ok) throw new Error(parseFetchError(res, text));
     const data = text ? JSON.parse(text) : {};
     slotState.responseJson = data;
     const quizContent = data[API_RESPONSE_QUIZ_CONTENT] ?? data[API_RESPONSE_QUIZ_LEGACY] ?? data.quiz_content ?? '';
@@ -1059,8 +1046,14 @@ onMounted(() => {
                       <div>
                         <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                         <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
-                          <option value="">— 請選擇 —</option>
-                          <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
+                          <option value="">— 請選擇單元 —</option>
+                          <option
+                            v-for="(opt, i) in generateQuizUnits"
+                            :key="unitSelectValue(opt) || 'u-' + i"
+                            :value="unitSelectValue(opt)"
+                          >
+                            {{ opt.rag_name }}
+                          </option>
                         </select>
                       </div>
                       <div>
@@ -1083,7 +1076,7 @@ onMounted(() => {
                       <button
                         type="button"
                         class="btn btn-sm btn-primary"
-                        :disabled="getSlotFormState(slotIndex).loading || generateQuizBlocked"
+                        :disabled="getSlotFormState(slotIndex).loading || generateQuizBlocked || !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()"
                         @click="generateQuiz(slotIndex)"
                       >
                         產生題目

@@ -65,6 +65,52 @@ export function deriveRagName(o) {
 }
 
 /**
+ * 「產生題目」單元下拉的 v-model：優先 unit_name（與 create-quiz 一致，build-rag-zip 前後較不易因 rag_tab_id 重算而失效）
+ * @param {object} [opt]
+ * @returns {string}
+ */
+export function unitSelectValue(opt) {
+  if (!opt || typeof opt !== 'object') return '';
+  const un = String(opt.unit_name ?? '').trim();
+  if (un) return un;
+  const tid = String(opt.rag_tab_id ?? '').trim();
+  if (tid) return tid;
+  return String(opt.rag_name ?? '').trim();
+}
+
+/**
+ * outputs 清單更新後，對齊 slot.generateQuizTabId；對不到則清空（避免原生 select 無匹配 value 時誤顯示第一筆）
+ * @param {{ generateQuizTabId?: string }} slot
+ * @param {object[]} units
+ */
+export function reconcileQuizUnitSelectSlot(slot, units) {
+  if (!slot || !Array.isArray(units)) return;
+  const raw = slot.generateQuizTabId;
+  if (raw == null || String(raw).trim() === '') return;
+  const key = String(raw).trim();
+  if (units.some((u) => unitSelectValue(u) === key)) return;
+  const legacy = units.find((u) => String(u.rag_tab_id ?? '').trim() === key);
+  if (legacy) {
+    slot.generateQuizTabId = unitSelectValue(legacy);
+    return;
+  }
+  slot.generateQuizTabId = '';
+}
+
+/**
+ * 依下拉目前值找出單元（支援舊版只存 rag_tab_id）
+ * @param {object[]} units
+ * @param {string} [generateQuizTabId]
+ * @returns {object | undefined}
+ */
+export function findQuizUnitBySlotSelection(units, generateQuizTabId) {
+  const key = String(generateQuizTabId ?? '').trim();
+  if (!key || !Array.isArray(units)) return undefined;
+  return units.find((u) => unitSelectValue(u) === key)
+    || units.find((u) => String(u.rag_tab_id ?? '').trim() === key);
+}
+
+/**
  * 將 GET /rag/rags 單筆的 rag_metadata 正規化為物件。
  * 後端常將 rag_metadata 存成 JSON 字串，若直接用 rag.rag_metadata.outputs 會讀不到。
  * @param {object} [rag]

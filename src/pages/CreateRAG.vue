@@ -10,7 +10,7 @@
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 試題用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為試題用RAG」
- * - 出題：POST /rag/create-quiz（含 unit_name）；評分：POST /rag/grade-quiz、GET /rag/quiz-grade-result/{job_id}
+ * - 出題：POST /rag/create-quiz（rag_id 必填；rag_tab_id、unit_name 選填可 ""，空 unit_name 後端用 outputs 第一筆）；評分：POST /rag/grade-quiz、GET /rag/quiz-grade-result/{job_id}
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
@@ -30,7 +30,18 @@ import {
 } from '../services/ragApi.js';
 import { formatGradingResult } from '../utils/grading.js';
 import { submitGrade } from '../composables/useQuizGrading.js';
-import { generateTabId, deriveRagNameFromTabId, deriveRagName, parsePackTasksList, parseRagMetadataObject, DEFAULT_SYSTEM_INSTRUCTION, QUIZ_LEVEL_LABELS } from '../utils/rag.js';
+import {
+  generateTabId,
+  deriveRagNameFromTabId,
+  deriveRagName,
+  parsePackTasksList,
+  parseRagMetadataObject,
+  DEFAULT_SYSTEM_INSTRUCTION,
+  QUIZ_LEVEL_LABELS,
+  unitSelectValue,
+  reconcileQuizUnitSelectSlot,
+  findQuizUnitBySlotSelection,
+} from '../utils/rag.js';
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
 import { usePackTasks } from '../composables/usePackTasks.js';
@@ -441,23 +452,13 @@ function buildCardFromRagQuiz(quiz, ragName) {
   };
 }
 
-/** 選擇單元預設一定要第一筆；並同步各題 slot（下拉綁定 slotFormState，非 state.generateQuizTabId） */
+/** 單元下拉預設不選；清單變動時用 unit_name／rag_tab_id 重新對齊選取（避免無匹配 value 時 select 誤顯示第一筆） */
 watch(generateQuizUnits, (units) => {
   const state = currentState.value;
-  if (units.length === 0) return;
-  const firstTabId = units[0].rag_tab_id;
-  const currentInList = units.some((u) => u.rag_tab_id === state.generateQuizTabId);
-  if (!state.generateQuizTabId || !currentInList) {
-    state.generateQuizTabId = firstTabId;
-  }
+  reconcileQuizUnitSelectSlot(state, units);
   const count = state.quizSlotsCount || 0;
   for (let i = 1; i <= count; i++) {
-    const slot = state.slotFormState?.[i];
-    if (!slot) continue;
-    const slotOk = units.some((u) => u.rag_tab_id === slot.generateQuizTabId);
-    if (!slot.generateQuizTabId || !slotOk) {
-      slot.generateQuizTabId = firstTabId;
-    }
+    reconcileQuizUnitSelectSlot(state.slotFormState?.[i], units);
   }
 }, { immediate: true });
 
@@ -797,10 +798,8 @@ const difficultyOptions = ['基礎', '進階'];
 function getSlotFormState(slotIndex) {
   const state = currentState.value;
   if (!state.slotFormState[slotIndex]) {
-    const units = generateQuizUnits.value;
-    const first = units.length ? units[0].rag_tab_id : '';
     state.slotFormState[slotIndex] = reactive({
-      generateQuizTabId: first,
+      generateQuizTabId: '',
       loading: false,
       error: '',
       responseJson: null,
@@ -848,22 +847,26 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
 async function generateQuiz(slotIndex) {
   const state = currentState.value;
   const slotState = getSlotFormState(slotIndex);
-  const sourceTabId = String(state.zipTabId ?? '').trim();
-  const selectedUnit = generateQuizUnits.value.find((u) => u.rag_tab_id === slotState.generateQuizTabId);
-  const unitName = String(selectedUnit?.unit_name ?? selectedUnit?.rag_name ?? '').trim();
-  const ragName = selectedUnit?.rag_name?.trim() || unitName;
   const rag = currentRagItem.value;
-  const ragId = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
-  if (!sourceTabId) {
-    slotState.error = '請先上傳 ZIP 取得 rag_tab_id';
+  const tidFromZip = String(state.zipTabId ?? '').trim();
+  const tidFromRag = rag?.rag_tab_id != null ? String(rag.rag_tab_id).trim() : '';
+  const aid = activeTabId.value;
+  const tidFromActive = aid && !isNewTabId(aid) ? String(aid).trim() : '';
+  const sourceTabId = tidFromZip || tidFromRag || tidFromActive;
+  const selectedUnit = findQuizUnitBySlotSelection(generateQuizUnits.value, slotState.generateQuizTabId);
+  if (!selectedUnit) {
+    slotState.error = '請先選擇單元';
     return;
   }
+  const unitName = String(selectedUnit.unit_name ?? selectedUnit.rag_name ?? '').trim();
+  const ragName = selectedUnit.rag_name?.trim() || unitName;
+  const ragId = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
   if (ragId == null) {
     slotState.error = '無法取得 rag_id（請先上傳 ZIP 或確認已載入 RAG）';
     return;
   }
-  if (!unitName) {
-    slotState.error = '請先選擇單元（需先按「開始建立」取得 RAG 壓縮檔）';
+  if (!generateQuizUnits.value.length) {
+    slotState.error = '請先按「開始建立」取得 RAG 壓縮檔（outputs），或重新載入列表';
     return;
   }
   slotState.loading = true;
@@ -1265,8 +1268,14 @@ async function confirmAnswer(item) {
                     <div>
                       <label class="form-label small text-secondary fw-medium mb-1">單元</label>
                       <select v-model="getSlotFormState(slotIndex).generateQuizTabId" class="form-select form-select-sm">
-                        <option value="">— 請先按「開始建立」—</option>
-                        <option v-for="(opt, i) in generateQuizUnits" :key="i" :value="opt.rag_tab_id">{{ opt.rag_name }}</option>
+                        <option value="">— 請選擇單元 —</option>
+                        <option
+                          v-for="(opt, i) in generateQuizUnits"
+                          :key="unitSelectValue(opt) || 'u-' + i"
+                          :value="unitSelectValue(opt)"
+                        >
+                          {{ opt.rag_name }}
+                        </option>
                       </select>
                     </div>
                     <div>
@@ -1289,7 +1298,7 @@ async function confirmAnswer(item) {
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
-                      :disabled="getSlotFormState(slotIndex).loading"
+                      :disabled="getSlotFormState(slotIndex).loading || !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()"
                       @click="generateQuiz(slotIndex)"
                     >
                       產生題目

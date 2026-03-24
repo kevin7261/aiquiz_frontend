@@ -175,21 +175,27 @@ export async function apiBuildRagZip(body) {
 }
 
 /**
- * 產生題目：POST /rag/create-quiz
- * @param {string | number} ragId
- * @param {string | number} ragTabId
+ * 產生題目：POST /rag/create-quiz（與 OpenAPI 範例一致：四欄皆送出，選填欄可為 ""）
+ * @param {string | number} ragId - Rag 表主鍵
+ * @param {string | number | null | undefined} [ragTabId] - 選填；空則傳 ""
  * @param {number} quizLevel - 0 基礎 / 1 進階
- * @param {string} [unitName] - 對應 rag_metadata.outputs 選 ZIP（與 /exam/create-quiz 一致）
- * @returns {Promise<object>} 含 quiz_content、quiz_hint、reference_answer 等
+ * @param {string | null | undefined} [unitName] - 選填；空字串則後端依 outputs 用第一筆
+ * @returns {Promise<object>} 含 quiz_content、quiz_hint、reference_answer、rag_quiz_id 等
  */
 export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
-  const body = {
-    rag_id: Number(ragId) || 0,
-    rag_tab_id: Number(ragTabId) || 0,
-    quiz_level: quizLevel >= 0 ? quizLevel : 0,
-  };
+  const rid = Number(ragId);
+  if (!Number.isFinite(rid) || rid < 1) {
+    throw new Error('無效的 rag_id（須為 Rag 表主鍵正整數）');
+  }
+  const tid =
+    ragTabId != null && String(ragTabId).trim() !== '' ? String(ragTabId).trim() : '';
   const un = unitName != null ? String(unitName).trim() : '';
-  if (un) body.unit_name = un;
+  const body = {
+    rag_id: rid,
+    rag_tab_id: tid,
+    quiz_level: quizLevel >= 0 ? quizLevel : 0,
+    unit_name: un,
+  };
   const res = await fetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
