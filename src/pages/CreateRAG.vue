@@ -896,32 +896,6 @@ async function confirmAnswer(item) {
           </div>
         </div>
       </div>
-      <!-- 設為試題用 RAG：需後端已有 rag_metadata 才顯示按鈕；錯誤訊息同區塊 -->
-      <div
-        v-if="(hasRagMetadata && !isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)) || currentState.forExamError"
-        class="text-start page-block-spacing"
-      >
-        <div
-          v-if="hasRagMetadata && !isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
-          class="d-flex flex-wrap justify-content-end align-items-center gap-2"
-        >
-          <button
-            type="button"
-            class="btn btn-sm btn-success"
-            :disabled="currentState.forExamLoading || currentRagItem?.for_exam === true"
-            @click="setRagForExam"
-          >
-            設為試題用 RAG
-          </button>
-        </div>
-        <div
-          v-if="currentState.forExamError"
-          class="alert alert-danger py-2 small mb-0"
-          :class="{ 'mt-2': hasRagMetadata && !isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id) }"
-        >
-          {{ currentState.forExamError }}
-        </div>
-      </div>
       <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「建立出題群組」內 -->
       <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start page-block-spacing">
         <div class="mb-3">
@@ -997,9 +971,25 @@ async function confirmAnswer(item) {
               <div class="small">{{ chunkOverlap }}</div>
             </div>
           </div>
-          <div class="mb-0">
+          <div class="mb-3">
             <div class="small text-secondary fw-medium mb-1">出題規範</div>
             <div class="small lh-base text-break" style="white-space: pre-wrap;">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</div>
+          </div>
+          <div
+            v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
+            class="d-flex flex-wrap justify-content-end align-items-center gap-2"
+          >
+            <button
+              type="button"
+              class="btn btn-sm btn-success"
+              :disabled="currentState.forExamLoading || currentRagItem?.for_exam === true"
+              @click="setRagForExam"
+            >
+              設為試題用 RAG
+            </button>
+          </div>
+          <div v-if="currentState.forExamError" class="alert alert-danger py-2 small mb-0 mt-2">
+            {{ currentState.forExamError }}
           </div>
         </template>
 
