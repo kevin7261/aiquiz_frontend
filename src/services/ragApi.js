@@ -2,7 +2,7 @@
  * RAG 相關 API 呼叫模組
  *
  * 集中封裝 create-unit、upload-zip、build-rag-zip、create-quiz、設為試題用（system-settings）、delete 等
- * 使用 fetch，錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
+ * 使用 loggedFetch（會輸出回應內容），錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
  */
 import {
   API_BASE,
@@ -16,6 +16,7 @@ import {
   isFrontendLocalHost,
 } from '../constants/api.js';
 import { parseFetchError } from '../utils/apiError.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
 import { quizLevelStringForApi } from '../utils/rag.js';
 
 /**
@@ -46,7 +47,7 @@ function parseJson(text) {
  * @returns {Promise<object>} rag_id、rag_tab_id、person_id、rag_name、local、created_at
  */
 export async function apiCreateUnit(personId, ragTabId, ragName) {
-  const res = await fetch(`${API_BASE}${API_CREATE_UNIT}`, {
+  const res = await loggedFetch(`${API_BASE}${API_CREATE_UNIT}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -73,7 +74,7 @@ export async function apiUploadZip(file, ragTabId, personId) {
   formData.append('file', file);
   formData.append('rag_tab_id', String(ragTabId));
   formData.append('person_id', String(personId));
-  const res = await fetch(`${API_BASE}${API_UPLOAD_ZIP}`, {
+  const res = await loggedFetch(`${API_BASE}${API_UPLOAD_ZIP}`, {
     method: 'POST',
     body: formData,
   });
@@ -88,7 +89,7 @@ export async function apiUploadZip(file, ragTabId, personId) {
  * @param {string} personId - 以 X-Person-Id header 傳送
  */
 export async function apiDeleteRag(ragTabId, personId) {
-  const res = await fetch(`${API_BASE}${API_RAG_DELETE}/${encodeURIComponent(String(ragTabId))}`, {
+  const res = await loggedFetch(`${API_BASE}${API_RAG_DELETE}/${encodeURIComponent(String(ragTabId))}`, {
     method: 'POST',
     headers: { 'X-Person-Id': String(personId) },
   });
@@ -122,7 +123,7 @@ export function parseRagIdFromRagForExamSettingPayload(data) {
  * @returns {Promise<object>}
  */
 export async function apiGetRagForExamSetting() {
-  const res = await fetch(`${API_BASE}${ragForExamSettingPath()}`, { method: 'GET' });
+  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, { method: 'GET' });
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
@@ -144,7 +145,7 @@ export async function apiSetRagForExam(ragId) {
     }
     body = { rag_id: n };
   }
-  const res = await fetch(`${API_BASE}${ragForExamSettingPath()}`, {
+  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -161,7 +162,7 @@ export async function apiSetRagForExam(ragId) {
  * @returns {Promise<object | string>} 後端回傳的 JSON 或原始文字
  */
 export async function apiBuildRagZip(body) {
-  const res = await fetch(`${API_BASE}${API_BUILD_RAG_ZIP}`, {
+  const res = await loggedFetch(`${API_BASE}${API_BUILD_RAG_ZIP}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -181,7 +182,7 @@ export async function apiBuildRagZip(body) {
  * @param {string | number | null | undefined} [ragTabId] - 選填；空則傳 ""
  * @param {string | number} quizLevel - 「基礎」／「進階」，或舊版 0／1
  * @param {string | null | undefined} [unitName] - 選填；空字串則後端依 outputs 用第一筆
- * @returns {Promise<object>} 含 quiz_content、quiz_hint、reference_answer、rag_quiz_id 等
+ * @returns {Promise<object>} 含 quiz_content、quiz_hint、quiz_answer_reference、rag_quiz_id 等
  */
 export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
   const rid = Number(ragId);
@@ -197,7 +198,7 @@ export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
     quiz_level: quizLevelStringForApi(quizLevel),
     unit_name: un,
   };
-  const res = await fetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
+  const res = await loggedFetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

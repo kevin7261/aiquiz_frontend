@@ -10,7 +10,9 @@ import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_QUIZZES_BY_PERSON } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import { downloadSummaryExcel } from '../utils/exportExcel.js';
-import { normalizeQuizLevelLabel } from '../utils/rag.js';
+import { normalizeQuizLevelLabel, examQuizLevelFromRow } from '../utils/rag.js';
+import { formatGradingResult, formatQuizGradeDisplay } from '../utils/grading.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 const authStore = useAuthStore();
 
@@ -60,60 +62,6 @@ const weaknessReportSections = computed(() => {
   return Object.keys(obj);
 });
 
-/** 與測驗頁相同：將 answer_metadata / answer_feedback_metadata 轉成易讀的批改結果文字 */
-function formatGradingResult(text) {
-  if (!text || typeof text !== 'string') return text;
-  const t = text.trim();
-  if (!t.startsWith('{')) return text;
-  try {
-    const raw = JSON.parse(text);
-    let data = raw;
-    if (raw.answer_metadata && typeof raw.answer_metadata === 'object') {
-      data = raw.answer_metadata;
-    } else if (raw.answer_feedback_metadata) {
-      const parsed =
-        typeof raw.answer_feedback_metadata === 'string'
-          ? (() => {
-              try {
-                return JSON.parse(raw.answer_feedback_metadata);
-              } catch {
-                return null;
-              }
-            })()
-          : raw.answer_feedback_metadata;
-      if (parsed) data = parsed;
-    }
-    const lines = [];
-    if (data.score != null) lines.push(`總分：${data.score} / 10`);
-    if (data.level) lines.push(`等級：${data.level}`);
-    if (lines.length) lines.push('');
-    const rubric = data.rubric;
-    if (Array.isArray(rubric) && rubric.length > 0) {
-      lines.push('【評分項目】');
-      rubric.forEach((r) => {
-        const criteria = r.criteria ?? '';
-        const score = r.score != null ? ` (${r.score}分)` : '';
-        const comment = r.comment ? `\n  ${r.comment}` : '';
-        lines.push(`• ${criteria}${score}${comment}`);
-      });
-      lines.push('');
-    }
-    const section = (title, arr) => {
-      if (!Array.isArray(arr) || arr.length === 0) return;
-      lines.push(`【${title}】`);
-      arr.forEach((s) => lines.push(`• ${s}`));
-      lines.push('');
-    };
-    section('優點', data.strengths);
-    section('待改進', data.weaknesses);
-    section('遺漏項目', data.missing_items);
-    section('建議後續', data.action_items);
-    return lines.join('\n').trim() || text;
-  } catch (_) {
-    return text;
-  }
-}
-
 /** 從單筆 answer 取得批改結果文字（與測驗頁顯示一致） */
 function getGradingResultText(ans) {
   if (!ans) return '尚未批改';
@@ -141,7 +89,7 @@ async function fetchQuizAnswers() {
     const query = params.toString();
     const url = `${API_BASE}${API_QUIZZES_BY_PERSON}/${encodeURIComponent(personId)}${query ? `?${query}` : ''}`;
     const headers = { 'X-Person-Id': String(personId) };
-    const res = await fetch(url, { method: 'GET', headers });
+    const res = await loggedFetch(url, { method: 'GET', headers });
     if (!res.ok) throw new Error(res.statusText || '無法載入答題資料');
     const data = await res.json();
     const exams = data?.exams ?? [];
@@ -165,8 +113,8 @@ function getSummaryRows() {
   return items.value.map((item, idx) => [
     idx + 1,
     item.rag_name ?? item.exam_name ?? '—',
-    getDifficultyLabel(item.quiz_level),
-    getSingleAnswer(item)?.answer_grade ?? '—',
+    getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level),
+    formatQuizGradeDisplay(getSingleAnswer(item)?.quiz_grade ?? getSingleAnswer(item)?.answer_grade),
     getSingleAnswer(item)?.created_at ?? '—'
   ]);
 }
@@ -241,8 +189,8 @@ onMounted(() => {
                 <tr v-for="(item, idx) in items" :key="item.exam_quiz_id ?? idx">
                   <td>{{ idx + 1 }}</td>
                   <td>{{ item.rag_name ?? item.exam_name ?? '—' }}</td>
-                  <td>{{ getDifficultyLabel(item.quiz_level) }}</td>
-                  <td>{{ getSingleAnswer(item)?.answer_grade ?? '—' }}</td>
+                  <td>{{ getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level) }}</td>
+                  <td>{{ formatQuizGradeDisplay(getSingleAnswer(item)?.quiz_grade ?? getSingleAnswer(item)?.answer_grade) }}</td>
                   <td>{{ getSingleAnswer(item)?.created_at ?? '—' }}</td>
                 </tr>
               </tbody>
@@ -276,7 +224,7 @@ onMounted(() => {
               </div>
               <div>
                 <label class="form-label small text-secondary fw-medium mb-1">難度</label>
-                <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ getDifficultyLabel(item.quiz_level) }}</div>
+                <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level) }}</div>
               </div>
             </div>
             <div class="mb-3">
@@ -291,14 +239,14 @@ onMounted(() => {
                 {{ item.quiz_hint }}
               </div>
             </div>
-            <div v-if="item.reference_answer" class="mb-3">
+            <div v-if="item.quiz_answer_reference || item.quiz_reference_answer" class="mb-3">
               <div class="form-label small text-secondary fw-medium mb-1">參考答案(暫存)</div>
-              <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ item.reference_answer }}</div>
+              <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ item.quiz_answer_reference ?? item.quiz_reference_answer }}</div>
             </div>
             <template v-if="getSingleAnswer(item)">
               <div class="mb-3">
                 <label class="form-label small text-secondary fw-medium mb-1">回答</label>
-                <div class="rounded bg-body-tertiary small mb-2 p-2">{{ getSingleAnswer(item).student_answer ?? '—' }}</div>
+                <div class="rounded bg-body-tertiary small mb-2 p-2">{{ getSingleAnswer(item).quiz_answer ?? getSingleAnswer(item).student_answer ?? '—' }}</div>
               </div>
               <div class="border rounded bg-light p-3 mb-3">
                 <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>

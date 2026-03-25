@@ -3,10 +3,11 @@
  *
  * 職責：送出評分請求、輪詢 job_id 取得結果、將回傳 JSON 格式化为易讀文字。
  * 會直接修改題目卡片 item（confirmed、gradingResult、gradingResponseJson）。
- * 供 CreateUnit 頁、ExamPage 等共用；Exam 可透過 options 覆寫 API 路徑為 /exam/grade-quiz。
+ * 供 CreateUnit 頁、ExamPage 等共用；Exam 可透過 options 覆寫 API 路徑為 /exam/quiz-grade。
  */
-import { API_BASE, API_GRADE_SUBMISSION, API_GRADE_RESULT } from '../constants/api.js';
+import { API_BASE, API_RAG_QUIZ_GRADE, API_RAG_QUIZ_GRADE_RESULT } from '../constants/api.js';
 import { formatGradingResult } from '../utils/grading.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 /**
  * 送出評分並輪詢結果
@@ -15,18 +16,20 @@ import { formatGradingResult } from '../utils/grading.js';
  *
  * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
  * @param {Object} context - { sourceTabId, ragId }（RAG 情境為 rag_tab_id、rag_id；Exam 為 exam_tab_id、exam_id）
- * @param {Object} [options] - { gradeSubmissionPath, gradeResultPath } 可覆寫 API 路徑（預設為 RAG）
+ * @param {Object} [options] - { quizGradeSubmissionPath, quizGradeResultPath } 可覆寫 API 路徑（預設為 RAG）
  */
 export async function submitGrade(item, context, options = {}) {
   const { sourceTabId, ragId } = context;
-  const gradeSubmissionPath = options.gradeSubmissionPath ?? API_GRADE_SUBMISSION;
-  const gradeResultPath = options.gradeResultPath ?? API_GRADE_RESULT;
+  const quizGradeSubmissionPath =
+    options.quizGradeSubmissionPath ?? options.gradeSubmissionPath ?? API_RAG_QUIZ_GRADE;
+  const quizGradeResultPath =
+    options.quizGradeResultPath ?? options.gradeResultPath ?? API_RAG_QUIZ_GRADE_RESULT;
 
   item.confirmed = true;
   item.gradingResult = '批改中...';
 
   try {
-    const res = await fetch(`${API_BASE}${gradeSubmissionPath}`, {
+    const res = await loggedFetch(`${API_BASE}${quizGradeSubmissionPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -34,7 +37,8 @@ export async function submitGrade(item, context, options = {}) {
         rag_tab_id: sourceTabId,
         rag_quiz_id: item.quiz_id != null ? String(item.quiz_id) : '',
         quiz_content: item.quiz ?? '',
-        answer: item.answer.trim(),
+        quiz_answer: item.quiz_answer.trim(),
+        quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
       }),
     });
     const text = await res.text();
@@ -84,7 +88,7 @@ export async function submitGrade(item, context, options = {}) {
       for (let r = 0; r <= maxRetries; r++) {
         if (r > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
         try {
-          pollRes = await fetch(`${API_BASE}${gradeResultPath}/${encodeURIComponent(jobId)}`);
+          pollRes = await loggedFetch(`${API_BASE}${quizGradeResultPath}/${encodeURIComponent(jobId)}`);
           pollText = await pollRes.text();
           if (pollRes.status !== 502 && pollRes.status !== 504) break;
         } catch (_) {
@@ -107,8 +111,19 @@ export async function submitGrade(item, context, options = {}) {
         return;
       }
       if (pollData.status === 'ready') {
-        item.gradingResponseJson = pollData.result;
-        item.gradingResult = formatGradingResult(JSON.stringify(pollData.result)) || '（無批改內容）';
+        const result = pollData.result;
+        item.gradingResponseJson = result;
+        if (
+          quizGradeSubmissionPath === API_RAG_QUIZ_GRADE &&
+          result &&
+          typeof result === 'object' &&
+          result.rag_answer_id != null &&
+          String(result.rag_answer_id).trim() !== ''
+        ) {
+          const rid = Number(result.rag_answer_id);
+          item.answer_id = Number.isFinite(rid) ? rid : result.rag_answer_id;
+        }
+        item.gradingResult = formatGradingResult(JSON.stringify(result)) || '（無批改內容）';
         return;
       }
       if (pollData.status === 'error') {

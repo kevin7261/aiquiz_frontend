@@ -12,6 +12,7 @@
   import { useAuthStore } from '../stores/authStore.js';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
   import LoadingOverlay from '../components/LoadingOverlay.vue';
+  import { loggedFetch } from '../utils/loggedFetch.js';
 
   export default {
     components: { LoadingOverlay },
@@ -27,7 +28,7 @@
 
       onMounted(async () => {
         try {
-          const res = await fetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
+          const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
           if (res.ok) {
             const data = await res.json();
             if (data.course_name && String(data.course_name).trim()) {
@@ -43,7 +44,7 @@
         error.value = '';
         loading.value = true;
         try {
-          const res = await fetch(`${API_BASE}/user/login`, {
+          const res = await loggedFetch(`${API_BASE}/user/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ person_id: personId.value, password: password.value }),

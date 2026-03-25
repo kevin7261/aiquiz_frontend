@@ -15,6 +15,7 @@ import {
   API_PUT_SYSTEM_SETTING_LLM_API_KEY,
 } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 const authStore = useAuthStore();
 
@@ -62,7 +63,7 @@ async function fetchSettings() {
   BLOCKS.forEach((b) => (state[b.id].message = ''));
   try {
     const responses = await Promise.all(
-      BLOCKS.map((b) => fetch(`${API_BASE}${b.getUrl}`, { method: 'GET' }))
+      BLOCKS.map((b) => loggedFetch(`${API_BASE}${b.getUrl}`, { method: 'GET' }))
     );
     const texts = await Promise.all(responses.map((r) => r.text()));
 
@@ -97,7 +98,7 @@ async function fetchSettings() {
 watch(() => authStore.user, fetchSettings, { immediate: true });
 
 async function putSettingByUrl(url, body) {
-  const res = await fetch(`${API_BASE}${url}`, {
+  const res = await loggedFetch(`${API_BASE}${url}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

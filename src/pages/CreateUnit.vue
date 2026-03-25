@@ -10,12 +10,17 @@
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 測驗用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為測驗用」
- * - 出題：POST /rag/create-quiz（rag_id 必填；rag_tab_id、unit_name 選填可 ""，空 unit_name 後端用 outputs 第一筆）；評分：POST /rag/grade-quiz、GET /rag/quiz-grade-result/{job_id}
+ * - 出題：POST /rag/create-quiz（rag_id 必填；rag_tab_id、unit_name 選填可 ""，空 unit_name 後端用 outputs 第一筆）；評分：POST /rag/quiz-grade、GET /rag/quiz-grade-result/{job_id}，ready 時 result: { quiz_score, quiz_comments, rag_answer_id }
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY } from '../constants/api.js';
+import {
+  API_BASE,
+  API_GET_SYSTEM_SETTING_COURSE_NAME,
+  API_RESPONSE_QUIZ_CONTENT,
+  API_RESPONSE_QUIZ_LEGACY,
+} from '../constants/api.js';
 import {
   getPersonId,
   apiCreateUnit,
@@ -47,6 +52,7 @@ import {
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
 import { usePackTasks } from '../composables/usePackTasks.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
 import QuizCard from '../components/QuizCard.vue';
 import RagTabsBar from '../components/RagTabsBar.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
@@ -67,6 +73,8 @@ const createRagLoading = ref(false);
 const createRagError = ref('');
 const gradingLoading = ref(false);
 const deleteRagLoading = ref(false);
+/** 與左側標題相同：GET /system-settings/course-name 的 course_name，失敗時維持 AIQuiz */
+const courseNameForPrompt = ref('AIQuiz');
 const activeTabId = ref(null);
 const showFormWhenNoData = ref(false);
 const newTabIds = ref([]);
@@ -429,22 +437,24 @@ function syncRagItemToState(rag, state) {
 
 watch(currentRagItem, (rag) => syncRagItemToState(rag, currentState.value), { immediate: true });
 
-/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供測驗測試區塊顯示；批改結果從 answer 的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供測驗測試區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
+  const latestSubmitted =
+    latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? null;
   const gradingResult = latestAnswer
-    ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestAnswer.student_answer != null ? '已批改' : ''))
+    ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestSubmitted != null && String(latestSubmitted).trim() !== '' ? '已批改' : ''))
     : '';
   const generateLevel = normalizeQuizLevelLabel(quiz.quiz_level);
   return {
     id: nextCardId(),
     quiz: quiz.quiz_content ?? '',
     hint: quiz.quiz_hint ?? '',
-    referenceAnswer: quiz.reference_answer ?? '',
+    referenceAnswer: quiz.quiz_answer_reference ?? quiz.quiz_reference_answer ?? '',
     sourceFilename: quiz.file_name ?? null,
     ragName: (ragName || quiz.rag_name || '').trim() || null,
-    answer: latestAnswer?.student_answer ?? '',
+    quiz_answer: latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? '',
     hintVisible: false,
     confirmed: !!latestAnswer,
     gradingResult,
@@ -507,11 +517,26 @@ async function refreshRagForExamSetting() {
   }
 }
 
+async function fetchCourseNameForPrompt() {
+  try {
+    const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.course_name && String(data.course_name).trim()) {
+        courseNameForPrompt.value = String(data.course_name).trim();
+      }
+    }
+  } catch {
+    // 保持預設 AIQuiz（與 LeftView 一致）
+  }
+}
+
 /** 畫面一打開就抓 GET /rag/rags，每一筆 RAG 一個 tab；並清空檔案選擇讓上傳欄位一開始是空的 */
 onMounted(() => {
   fetchRagList();
   refreshRagForExamSetting();
   clearZipFileInput();
+  fetchCourseNameForPrompt();
 });
 
 /** 設為測驗用（PUT system-settings rag-for-exam-*） */
@@ -836,7 +861,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     referenceAnswer: referenceAnswer ?? '',
     sourceFilename: sourceFilename ?? null,
     ragName: ragName ?? null,
-    answer: '',
+    quiz_answer: '',
     hintVisible: false,
     confirmed: false,
     gradingResult: '',
@@ -883,7 +908,8 @@ async function generateQuiz(slotIndex) {
     const quizContent = data[API_RESPONSE_QUIZ_CONTENT] ?? data[API_RESPONSE_QUIZ_LEGACY] ?? data.quiz_content ?? '';
     const hintText = data.quiz_hint ?? data.hint ?? '';
     const targetFilename = data.unit_filename ?? data.target_filename ?? selectedUnit?.filename ?? '';
-    const referenceAnswerText = data.reference_answer ?? data.answer ?? '';
+    const referenceAnswerText =
+      data.quiz_answer_reference ?? data.quiz_reference_answer ?? data.quiz_answer ?? data.answer ?? '';
     setCardAtSlot(slotIndex, quizContent, hintText, targetFilename, referenceAnswerText, ragName, data, filterDifficulty.value, (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION);
   } catch (err) {
     slotState.error = err.message || '產生題目失敗';
@@ -896,9 +922,9 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-/** 評分：POST /rag/grade-quiz；body: rag_id, rag_tab_id, rag_quiz_id, quiz_content, answer（皆 string）；不需 llm_api_key；回傳 202 + job_id；輪詢 GET /rag/quiz-grade-result/{job_id}，ready 時 result 含 answer_id。 */
+/** 評分：POST /rag/quiz-grade；body: rag_id、rag_tab_id、rag_quiz_id、quiz_content、quiz_answer、quiz_answer_reference（皆 string，選填可 ""）；回傳 202 + job_id；輪詢 GET /rag/quiz-grade-result/{job_id}；ready 時 result: { quiz_score, quiz_comments, rag_answer_id }。 */
 async function confirmAnswer(item) {
-  if (!item.answer.trim()) return;
+  if (!item.quiz_answer.trim()) return;
   const state = currentState.value;
   const sourceTabId = String(state.zipTabId ?? '').trim();
   const rag = currentRagItem.value;
@@ -1012,12 +1038,15 @@ async function confirmAnswer(item) {
             <template v-if="currentState.zipLoading">
               <span class="text-secondary small">上傳中...</span>
             </template>
-            <template v-else-if="currentState.zipFileName">
-              <span class="small text-body">{{ currentState.zipFileName }}</span>
-              <div class="mt-1 small text-muted">點擊可重新選擇檔案</div>
-            </template>
             <template v-else>
-              <span class="small text-secondary">拖曳 ZIP 檔到這裡，或點擊選擇檔案</span>
+              <template v-if="currentState.zipFileName">
+                <span class="small text-body">{{ currentState.zipFileName }}</span>
+                <div class="mt-1 small text-muted">點擊可重新選擇檔案</div>
+              </template>
+              <span v-else class="small text-secondary">拖曳 ZIP 檔到這裡，或點擊選擇檔案</span>
+              <div class="mt-2 small text-muted">
+                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+              </div>
             </template>
           </div>
           <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
@@ -1065,6 +1094,7 @@ async function confirmAnswer(item) {
           <div class="mb-3">
             <div class="small mb-1">出題prompt</div>
             <div class="small border rounded p-3 bg-body-tertiary">
+              你是一個「{{ courseNameForPrompt }}」課程的教授，請給學生設計測驗題目：<br>
               【出題規範】<br>
               請根據輸入的「參考內容」設計測驗題目。<br>
               **請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。**<br>
@@ -1074,7 +1104,7 @@ async function confirmAnswer(item) {
             請以 JSON 格式回傳：<br>
             { "quiz_content": "問題內容", <br>
               "quiz_hint": "答案提示內容", <br>
-              "reference_answer": "參考答案內容" }<br>
+              "quiz_answer_reference": "參考答案內容" }<br>
             </div>
 
 
@@ -1243,7 +1273,7 @@ async function confirmAnswer(item) {
             請以 JSON 格式回傳：<br>
             { "quiz_content": "問題內容", <br>
               "quiz_hint": "答案提示內容", <br>
-              "reference_answer": "參考答案內容" }<br>
+              "quiz_answer_reference": "參考答案內容" }<br>
             </div>
           </div>
           <div class="mt-3 d-flex justify-content-end">
@@ -1279,7 +1309,7 @@ async function confirmAnswer(item) {
                 :slot-index="slotIndex"
                 @toggle-hint="toggleHint"
                 @confirm-answer="confirmAnswer"
-                @update:answer="(val) => { currentState.cardList[slotIndex - 1].answer = val }"
+                @update:quiz_answer="(val) => { currentState.cardList[slotIndex - 1].quiz_answer = val }"
               />
             </template>
             <template v-else>

@@ -10,6 +10,7 @@
   import { ref, computed, onMounted } from 'vue';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
   import { canSeeNavLink } from '../router/permissions.js';
+  import { loggedFetch } from '../utils/loggedFetch.js';
 
   export default {
     name: 'LeftView',
@@ -37,7 +38,7 @@
 
       onMounted(async () => {
         try {
-          const res = await fetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
+          const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
           if (res.ok) {
             const data = await res.json();
             if (data.course_name && String(data.course_name).trim()) {

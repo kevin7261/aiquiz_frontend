@@ -8,6 +8,7 @@
 import { ref, onMounted } from 'vue';
 import { API_BASE } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 const users = ref([]);
 const count = ref(0);
@@ -18,7 +19,7 @@ async function fetchUsers() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await fetch(`${API_BASE}/user/users`);
+    const res = await loggedFetch(`${API_BASE}/user/users`);
     const text = await res.text();
     if (!res.ok) {
       let msg = `伺服器錯誤 (${res.status})`;

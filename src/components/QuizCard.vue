@@ -6,7 +6,7 @@
  * 未確定前可輸入答案並按「確定」送出評分。
  * 供 CreateUnit 頁、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, answer, confirmed, gradingResult, ragName, generateLevel, id 等。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, generateLevel, id 等。
  */
 defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -15,7 +15,7 @@ defineProps({
   slotIndex: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:answer']);
+const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer']);
 </script>
 
 <template>
@@ -54,24 +54,24 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:answer']);
         <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ card.referenceAnswer }}</div>
       </div>
       <div class="mb-3">
-        <label :for="`answer-${card.id}`" class="form-label small text-secondary fw-medium mb-1">回答</label>
+        <label :for="`quiz-answer-${card.id}`" class="form-label small text-secondary fw-medium mb-1">回答</label>
         <template v-if="!card.confirmed">
           <textarea
-            :id="`answer-${card.id}`"
-            :value="card.answer"
+            :id="`quiz-answer-${card.id}`"
+            :value="card.quiz_answer"
             class="form-control"
-            @input="emit('update:answer', $event.target.value)"
+            @input="emit('update:quiz_answer', $event.target.value)"
             rows="4"
             placeholder="請輸入您的回答..."
             maxlength="2000"
           />
-          <div class="form-text small">{{ card.answer.length }} / 2000</div>
+          <div class="form-text small">{{ card.quiz_answer.length }} / 2000</div>
           <div class="d-flex justify-content-end mt-2">
             <button type="button" class="btn btn-sm btn-primary" @click="emit('confirm-answer', card)">確定</button>
           </div>
         </template>
         <template v-else>
-          <div class="rounded bg-body-tertiary small mb-2 p-2">{{ card.answer }}</div>
+          <div class="rounded bg-body-tertiary small mb-2 p-2">{{ card.quiz_answer }}</div>
         </template>
       </div>
       <!-- 批改結果區（由 useQuizGrading 格式化後顯示） -->

@@ -7,6 +7,7 @@
 import { ref } from 'vue';
 import { API_BASE, API_RAG_LIST, isFrontendLocalHost } from '../constants/api.js';
 import { normalizeRagListResponse } from '../utils/rag.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 export function useRagList() {
   /** RAG 項目陣列（正規化後） */
@@ -23,7 +24,7 @@ export function useRagList() {
     try {
       const listParams = new URLSearchParams();
       listParams.set('local', String(isFrontendLocalHost()));
-      const res = await fetch(`${API_BASE}${API_RAG_LIST}?${listParams}`, { method: 'GET' });
+      const res = await loggedFetch(`${API_BASE}${API_RAG_LIST}?${listParams}`, { method: 'GET' });
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       ragList.value = normalizeRagListResponse(data);

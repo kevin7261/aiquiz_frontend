@@ -10,6 +10,7 @@ import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import { API_BASE, API_UPDATE_PROFILE, API_GET_LLM_API_KEY } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
+import { loggedFetch } from '../utils/loggedFetch.js';
 
 const authStore = useAuthStore();
 
@@ -42,7 +43,7 @@ watch(() => authStore.user, initFromUser, { immediate: true });
 async function fetchLlmApiKey() {
   if (!authStore.user || !canEditLlmApiKey.value) return;
   try {
-    const res = await fetch(`${API_BASE}${API_GET_LLM_API_KEY}`, { method: 'GET' });
+    const res = await loggedFetch(`${API_BASE}${API_GET_LLM_API_KEY}`, { method: 'GET' });
     if (res.ok) {
       const data = await res.json();
       llmApiKey.value = data?.llm_api_key ?? '';
@@ -78,7 +79,7 @@ async function saveProfile() {
   message.value = '';
   loading.value = true;
   try {
-    const res = await fetch(`${API_BASE}${API_UPDATE_PROFILE}`, {
+    const res = await loggedFetch(`${API_BASE}${API_UPDATE_PROFILE}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

@@ -2,15 +2,55 @@
  * 評分結果格式化工具
  *
  * 將評分 API 回傳的 JSON 轉成易讀的純文字，供題目卡片與分析頁顯示。
- * 支援後端回傳的完整 answer 物件（含 answer_metadata / answer_feedback_metadata）。
- * 與 CreateUnit、ExamPage、AnalysisPage 顯示格式一致。
+ * 批改 result 總分欄位為 quiz_score（滿分 5）；相容 quiz_grade、舊版 score。評語陣列為 quiz_comments；相容舊版 comments。其餘為舊制 rubric 等仍相容顯示。
  */
+
+/** @param {Record<string, unknown>} data */
+function getQuizCommentsArray(data) {
+  if (data == null || typeof data !== 'object') return null;
+  const arr = data.quiz_comments ?? data.comments;
+  return Array.isArray(arr) ? arr : null;
+}
+
+/** @param {Record<string, unknown>} data */
+function getOverallQuizScore(data) {
+  if (data == null || typeof data !== 'object') return null;
+  const v = data.quiz_score ?? data.quiz_grade ?? data.score;
+  if (v == null || String(v).trim() === '') return null;
+  return v;
+}
+
+/** @param {unknown} meta */
+function unwrapMetadata(meta) {
+  if (meta == null) return null;
+  if (typeof meta === 'object') return meta;
+  if (typeof meta === 'string') {
+    try {
+      return JSON.parse(meta);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * 分析表／摘要「分數」欄（後端欄位 quiz_grade，舊版 answer_grade）：純數字時顯示為「n / 5」；其餘原樣。
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function formatQuizGradeDisplay(value) {
+  if (value == null || String(value).trim() === '') return '—';
+  const s = String(value).trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return `${s} / 5`;
+  return s;
+}
 
 /**
  * 將評分 API 回傳的 JSON 字串格式化为易讀文字
  *
- * 會解析 score、level、rubric、strengths、weaknesses、missing_items、action_items 等欄位，
- * 組合成「總分 / 等級 / 評分項目 / 優點 / 待改進 / 遺漏項目 / 建議後續」區塊。
+ * 新制 RAG／試卷批改：總分 quiz_score（0–5 滿分）、quiz_comments（字串陣列）；RAG 輪詢 result 另含 rag_answer_id（不列入純文字批改區塊）。
+ * 舊制：另含 level、rubric、strengths、weaknesses 等（總分仍為／5）。
  *
  * @param {string} [text] - API 回傳的 JSON 字串或一般文字
  * @returns {string} 格式化後的文字，非 JSON 或解析失敗時回傳原 text
@@ -22,24 +62,39 @@ export function formatGradingResult(text) {
   try {
     const raw = JSON.parse(text);
     let data = raw;
-    if (raw.answer_metadata && typeof raw.answer_metadata === 'object') {
-      data = raw.answer_metadata;
-    } else if (raw.answer_feedback_metadata) {
-      const parsed =
-        typeof raw.answer_feedback_metadata === 'string'
-          ? (() => {
-              try {
-                return JSON.parse(raw.answer_feedback_metadata);
-              } catch {
-                return null;
-              }
-            })()
-          : raw.answer_feedback_metadata;
-      if (parsed) data = parsed;
+    const metaFromAnswer = unwrapMetadata(raw.answer_metadata);
+    if (metaFromAnswer) {
+      data = metaFromAnswer;
+    } else if (raw.answer_feedback_metadata != null) {
+      const fb = raw.answer_feedback_metadata;
+      if (typeof fb === 'object') {
+        data = fb;
+      } else {
+        const parsed = unwrapMetadata(fb);
+        if (parsed) data = parsed;
+      }
+    }
+
+    // 新制：總分 0–5 與評語陣列（quiz_comments；相容 comments）
+    const quizComments = getQuizCommentsArray(data);
+    if (quizComments) {
+      const lines = [];
+      const overall = getOverallQuizScore(data);
+      if (overall != null) {
+        lines.push(`總分：${overall} / 5`);
+      }
+      const nonEmptyComments = quizComments.filter((c) => c != null && String(c).trim() !== '');
+      if (nonEmptyComments.length > 0) {
+        if (lines.length) lines.push('');
+        lines.push('【評語】');
+        nonEmptyComments.forEach((c) => lines.push(`• ${String(c).trim()}`));
+      }
+      return lines.join('\n').trim() || text;
     }
 
     const lines = [];
-    if (data.score != null) lines.push(`總分：${data.score} / 10`);
+    const overallLegacy = getOverallQuizScore(data);
+    if (overallLegacy != null) lines.push(`總分：${overallLegacy} / 5`);
     if (data.level) lines.push(`等級：${data.level}`);
     if (lines.length) lines.push('');
 

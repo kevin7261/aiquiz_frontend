@@ -6,7 +6,7 @@
  */
 
 /** 建 RAG 時預設的系統提示（題目生成指令） */
-export const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過50字';
+export const DEFAULT_SYSTEM_INSTRUCTION = '題目字數不超過200字';
 /** 題目難度選項與 create-quiz API 的 quiz_level 字串值 */
 export const QUIZ_LEVEL_LABELS = ['基礎', '進階'];
 
@@ -36,6 +36,19 @@ export function normalizeQuizLevelLabel(level) {
   if (s === '1') return QUIZ_LEVEL_LABELS[1];
   if (QUIZ_LEVEL_LABELS.includes(s)) return s;
   return null;
+}
+
+/**
+ * public."Exam_Quiz" 列（或 POST /exam/create-quiz 回傳）：難度可能在 quiz_level 或 quiz_metadata.quiz_level
+ * @param {object | null | undefined} quiz
+ * @returns {string | null}
+ */
+export function examQuizLevelFromRow(quiz) {
+  if (!quiz || typeof quiz !== 'object') return null;
+  const meta = quiz.quiz_metadata;
+  const fromMeta =
+    meta != null && typeof meta === 'object' && meta.quiz_level != null ? meta.quiz_level : undefined;
+  return normalizeQuizLevelLabel(quiz.quiz_level ?? fromMeta);
 }
 
 /**
