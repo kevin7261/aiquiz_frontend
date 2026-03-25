@@ -4,7 +4,7 @@
  *
  * 顯示：後端 RAG 列表（ragItems）+ 尚未儲存的「新增」分頁（newTabItems）+ 「+」按鈕。
  * 點選分頁會 emit update:activeTabId；點「+」會 emit add-new-tab。
- * 已儲存的 ragItems 分頁右側有 ×，emit delete-rag（tab id）；試題用 RAG（_isExamRag）改顯示綠色圓點、無刪除；newTabItems 無刪除鈕。
+ * 已儲存的 ragItems 分頁右側有 ×，emit delete-rag（tab id）；測驗用 RAG（_isExamRag）改顯示綠色圓點、無刪除；newTabItems 無刪除鈕。
  * 若 RAG 列表與新分頁皆空，僅顯示「+ 新增」按鈕以建立第一個 RAG。
  * 下方可顯示 ragListError、createRagError 警告/錯誤訊息。
  */
@@ -69,9 +69,9 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag']);
                 v-if="item._isExamRag"
                 class="d-inline-flex align-items-center justify-content-center flex-shrink-0"
                 style="min-width: 1.25rem; line-height: 1;"
-                title="試題用 RAG"
+                title="測驗用 RAG"
                 role="img"
-                aria-label="試題用 RAG，無法由此刪除群組"
+                aria-label="測驗用 RAG，無法由此刪除群組"
               >
                 <span class="rounded-circle bg-success d-inline-block" style="width: 0.5rem; height: 0.5rem;" />
               </span>
