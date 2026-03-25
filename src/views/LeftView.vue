@@ -69,8 +69,8 @@
         >個人測驗分析</router-link
       >
       <router-link
-        v-if="canSeeNavLink(userType, 'create-rag')"
-        to="/main/create-rag"
+        v-if="canSeeNavLink(userType, 'create-unit')"
+        to="/main/create-unit"
         class="sidebar-link"
         active-class="active"
         >出題單元建立</router-link

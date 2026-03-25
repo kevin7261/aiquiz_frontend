@@ -1,12 +1,12 @@
 <script setup>
 /**
- * CreateRAG - 建立 RAG 頁面
+ * CreateUnit - 建立 RAG 頁面
  *
  * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 rag_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為試題用 RAG → 產生題目 → 作答與評分。
  *
  * API 對應：
- * - 列表：GET /rag/rags?local=（與 create-rag 的 local 一致）
- * - 建立 tab（按 +）：POST /rag/create-rag（rag_tab_id、person_id、rag_name 必填；local 由前端依網址是否為 localhost/127.0.0.1 帶入）
+ * - 列表：GET /rag/rags?local=（與 create-unit 的 local 一致）
+ * - 建立 tab（按 +）：POST /rag/create-unit（rag_tab_id、person_id、rag_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 試題用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為試題用RAG」
@@ -18,7 +18,7 @@ import { useAuthStore } from '../stores/authStore.js';
 import { API_RESPONSE_QUIZ_CONTENT, API_RESPONSE_QUIZ_LEGACY } from '../constants/api.js';
 import {
   getPersonId,
-  apiCreateRag,
+  apiCreateUnit,
   apiUploadZip,
   apiDeleteRag,
   apiGetRagForExamSetting,
@@ -227,7 +227,7 @@ watch(
   (v) => {
     // 畫面不顯示 rag_id／rag_tab_id，改由此處輸出供除錯
     // eslint-disable-next-line no-console -- 依需求於開發者工具查看
-    console.log('[CreateRAG] rag_id:', v.rag_id, 'rag_tab_id:', v.rag_tab_id);
+    console.log('[CreateUnit] rag_id:', v.rag_id, 'rag_tab_id:', v.rag_tab_id);
   },
   { immediate: true }
 );
@@ -603,7 +603,7 @@ function onDeleteRagTab(tabId) {
   if (rag) deleteRag(rag, null);
 }
 
-/** create-rag 回傳的 created_at 與 tab 標籤用 name（key = rag_id） */
+/** create-unit 回傳的 created_at 與 tab 標籤用 name（key = rag_id） */
 const ragCreatedAtMap = ref({});
 
 /** 點「新增」：建立 RAG，成功後重整列表並切到新 tab */
@@ -618,7 +618,7 @@ async function addNewTab() {
   const ragTabId = generateTabId(personId);
   const ragName = deriveRagNameFromTabId(ragTabId) || ragTabId;
   try {
-    const data = await apiCreateRag(personId, ragTabId, ragName);
+    const data = await apiCreateUnit(personId, ragTabId, ragName);
     if (data?.rag_id != null && data?.created_at != null) {
       ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(data.rag_id)]: data.created_at };
     }

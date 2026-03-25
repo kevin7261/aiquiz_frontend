@@ -1,7 +1,7 @@
 /**
  * RAG 相關純函數與常數
  *
- * 供 CreateRAG 頁、useRagTabState、usePackTasks、ragApi 等使用。
+ * 供 CreateUnit 頁、useRagTabState、usePackTasks、ragApi 等使用。
  * 不依賴 Vue 或 API，僅為資料轉換與 ID 產生邏輯。
  */
 

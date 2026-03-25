@@ -11,7 +11,7 @@ const API_BASE_PRODUCTION = 'https://aiquiz-backend-z4mo.onrender.com';
 const API_BASE_LOCAL = 'http://127.0.0.1:8000';
 
 /**
- * 前端是否在本機網址開啟（localhost / 127.0.0.1）。與 API_BASE 一致；供 create-rag body.local、GET /rag/rags?local=。
+ * 前端是否在本機網址開啟（localhost / 127.0.0.1）。與 API_BASE 一致；供 create-unit body.local、GET /rag/rags?local=。
  * （Node／測試環境無 window 時為 false。）
  */
 export function isFrontendLocalHost() {
@@ -39,11 +39,11 @@ export const API_REQUEST_QUIZ_CONTENT = 'quiz_content';
 export const API_GRADE_SUBMISSION = '/rag/grade-quiz';
 export const API_GRADE_RESULT = '/rag/quiz-grade-result';
 
-/** 建立 RAG（建立 tab 時按 +）：POST /rag/create-rag，body 必填 rag_tab_id、person_id、rag_name，選填 local（本機網址為 true）；回傳 rag_id、rag_tab_id、person_id、rag_name、local、created_at */
-export const API_CREATE_RAG = '/rag/create-rag';
+/** Create Unit：POST /rag/create-unit；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、rag_name，選填 local（預設 false；本機前端可傳 true）；system_prompt_instruction 請於 POST /rag/build-rag-zip 傳入；回傳 rag_id、rag_tab_id、person_id、rag_name、local、created_at */
+export const API_CREATE_UNIT = '/rag/create-unit';
 /** 列出 RAG：GET /rag/rags；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam）、quizzes（每題含 answers）、頂層 answers */
 export const API_RAG_LIST = '/rag/rags';
-/** 上傳 ZIP：POST /rag/upload-zip，需先 create-rag；Form: file、rag_tab_id、person_id（必填）；不需 llm_api_key；回傳 file_metadata */
+/** 上傳 ZIP：POST /rag/upload-zip，需先 create-unit；Form: file、rag_tab_id、person_id（必填）；不需 llm_api_key；回傳 file_metadata */
 export const API_UPLOAD_ZIP = '/rag/upload-zip';
 /** 刪除 RAG：POST /rag/delete/{rag_tab_id}；Header X-Person-Id */
 export const API_RAG_DELETE = '/rag/delete';
@@ -63,9 +63,9 @@ export const API_QUIZZES_BY_PERSON = '/person-analysis/quizzes';
 /** 課程測驗分析：GET /course-analysis/quizzes；回傳格式同 List Quizzes By Person（exams、count、weakness_report 固定 null） */
 export const API_COURSE_ANALYSIS_QUIZZES = '/course-analysis/quizzes';
 
-/** Exam API：GET /exam/exams List Exams（deleted=false；Exam.local 須與 query local 相符；未傳 local 時後端依連線判定；query: person_id 可選、local 建議與 create-rag 一致） */
+/** Exam API：GET /exam/exams List Exams（deleted=false；Exam.local 須與 query local 相符；未傳 local 時後端依連線判定；query: person_id 可選、local 建議與 create-unit 一致） */
 export const API_EXAM_TESTS = '/exam/exams';
-/** Exam：POST /exam/create-exam；body 可選 exam_tab_id、person_id、exam_name、local（預設 false；本機前端應傳 true 與 create-rag 一致）；回傳含 local、created_at 等 */
+/** Exam：POST /exam/create-exam；body 可選 exam_tab_id、person_id、exam_name、local（預設 false；本機前端應傳 true 與 create-unit 一致）；回傳含 local、created_at 等 */
 export const API_CREATE_EXAM = '/exam/create-exam';
 /** Exam：POST /exam/delete/{exam_tab_id} Delete Exam */
 export const API_EXAM_DELETE = '/exam/delete';

@@ -3,7 +3,7 @@
  *
  * 將評分 API 回傳的 JSON 轉成易讀的純文字，供題目卡片與分析頁顯示。
  * 支援後端回傳的完整 answer 物件（含 answer_metadata / answer_feedback_metadata）。
- * 與 CreateRAG、ExamPage、AnalysisPage 顯示格式一致。
+ * 與 CreateUnit、ExamPage、AnalysisPage 顯示格式一致。
  */
 
 /**

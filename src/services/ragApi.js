@@ -1,12 +1,12 @@
 /**
  * RAG 相關 API 呼叫模組
  *
- * 集中封裝 create-rag、upload-zip、build-rag-zip、create-quiz、設為試題用（system-settings）、delete 等
+ * 集中封裝 create-unit、upload-zip、build-rag-zip、create-quiz、設為試題用（system-settings）、delete 等
  * 使用 fetch，錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
  */
 import {
   API_BASE,
-  API_CREATE_RAG,
+  API_CREATE_UNIT,
   API_UPLOAD_ZIP,
   API_RAG_DELETE,
   API_BUILD_RAG_ZIP,
@@ -38,14 +38,14 @@ function parseJson(text) {
 }
 
 /**
- * 建立 RAG：POST /rag/create-rag
+ * Create Unit：POST /rag/create-unit（僅建立一筆 Rag；system_prompt_instruction 請於 build-rag-zip 傳入）
  * @param {string} personId
  * @param {string} ragTabId
  * @param {string} ragName
- * @returns {Promise<object>} 後端回傳的 RAG 資料（rag_id、rag_tab_id、local、created_at 等）
+ * @returns {Promise<object>} rag_id、rag_tab_id、person_id、rag_name、local、created_at
  */
-export async function apiCreateRag(personId, ragTabId, ragName) {
-  const res = await fetch(`${API_BASE}${API_CREATE_RAG}`, {
+export async function apiCreateUnit(personId, ragTabId, ragName) {
+  const res = await fetch(`${API_BASE}${API_CREATE_UNIT}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -61,7 +61,7 @@ export async function apiCreateRag(personId, ragTabId, ragName) {
 }
 
 /**
- * 上傳 ZIP：POST /rag/upload-zip（需先 create-rag）
+ * 上傳 ZIP：POST /rag/upload-zip（需先 create-unit）
  * @param {File} file - ZIP 檔案
  * @param {string} ragTabId
  * @param {string} personId

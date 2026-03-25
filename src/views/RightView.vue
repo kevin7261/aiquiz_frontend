@@ -9,13 +9,13 @@
   import AnalysisPage from '../pages/AnalysisPage.vue';
   import CourseAnalysisPage from '../pages/CourseAnalysisPage.vue';
   import ProfilePage from '../pages/ProfilePage.vue';
-  import CreateRAG from '../pages/CreateRAG.vue';
+  import CreateUnit from '../pages/CreateUnit.vue';
   import UserManagementPage from '../pages/UserManagementPage.vue';
   import SystemSettingsPage from '../pages/SystemSettingsPage.vue';
 
   export default {
     name: 'RightView',
-    components: { ExamPage, AnalysisPage, CourseAnalysisPage, ProfilePage, CreateRAG, UserManagementPage, SystemSettingsPage },
+    components: { ExamPage, AnalysisPage, CourseAnalysisPage, ProfilePage, CreateUnit, UserManagementPage, SystemSettingsPage },
     props: {
       currentView: { type: String, required: true },
       tabId: { type: String, required: true },
@@ -29,7 +29,7 @@
     <AnalysisPage v-else-if="currentView === 'analysis'" />
     <CourseAnalysisPage v-else-if="currentView === 'courseAnalysis'" />
     <ProfilePage v-else-if="currentView === 'profile'" />
-    <CreateRAG v-else-if="currentView === 'createRAG'" :tabId="tabId" />
+    <CreateUnit v-else-if="currentView === 'createRAG'" :tabId="tabId" />
     <UserManagementPage v-else-if="currentView === 'userManagement'" />
     <SystemSettingsPage v-else-if="currentView === 'systemSettings'" />
   </main>

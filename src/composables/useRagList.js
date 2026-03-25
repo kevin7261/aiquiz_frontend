@@ -1,8 +1,8 @@
 /**
  * RAG 列表 Composable
  *
- * 職責：呼叫 GET /rag/rags?local=（與 Rag.local / create-rag 一致）、維護 ragList / ragListLoading / ragListError，
- * 並以 normalizeRagListResponse 正規化後端回傳格式。供 CreateRAG 頁與 RagTabsBar 使用。
+ * 職責：呼叫 GET /rag/rags?local=（與 Rag.local / create-unit 一致）、維護 ragList / ragListLoading / ragListError，
+ * 並以 normalizeRagListResponse 正規化後端回傳格式。供 CreateUnit 頁與 RagTabsBar 使用。
  */
 import { ref } from 'vue';
 import { API_BASE, API_RAG_LIST, isFrontendLocalHost } from '../constants/api.js';

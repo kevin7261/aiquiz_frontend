@@ -26,7 +26,7 @@
     'analysis': 'analysis',
     'course-analysis': 'courseAnalysis',
     profile: 'profile',
-    'create-rag': 'createRAG',
+    'create-unit': 'createRAG',
     users: 'userManagement',
     settings: 'systemSettings',
   };

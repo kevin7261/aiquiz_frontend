@@ -4,7 +4,7 @@
  *
  * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、參考答案、回答區、批改結果。
  * 未確定前可輸入答案並按「確定」送出評分。
- * 供 CreateRAG 頁、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
+ * 供 CreateUnit 頁、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
  * card 物件需含：quiz, hint, referenceAnswer, answer, confirmed, gradingResult, ragName, generateLevel, id 等。
  */
@@ -66,7 +66,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:answer']);
             maxlength="2000"
           />
           <div class="form-text small">{{ card.answer.length }} / 2000</div>
-          <div class="d-flex justify-content-center mt-2">
+          <div class="d-flex justify-content-end mt-2">
             <button type="button" class="btn btn-sm btn-primary" @click="emit('confirm-answer', card)">確定</button>
           </div>
         </template>

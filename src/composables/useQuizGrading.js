@@ -3,7 +3,7 @@
  *
  * 職責：送出評分請求、輪詢 job_id 取得結果、將回傳 JSON 格式化为易讀文字。
  * 會直接修改題目卡片 item（confirmed、gradingResult、gradingResponseJson）。
- * 供 CreateRAG 頁、ExamPage 等共用；Exam 可透過 options 覆寫 API 路徑為 /exam/grade-quiz。
+ * 供 CreateUnit 頁、ExamPage 等共用；Exam 可透過 options 覆寫 API 路徑為 /exam/grade-quiz。
  */
 import { API_BASE, API_GRADE_SUBMISSION, API_GRADE_RESULT } from '../constants/api.js';
 import { formatGradingResult } from '../utils/grading.js';

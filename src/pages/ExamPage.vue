@@ -2,7 +2,7 @@
 /**
  * ExamPage - 測驗頁面
  *
- * 與 CreateRAG 版面類似（分頁、題目卡片、出題/評分），但無 RAG 建立/上傳/Pack；題目來源為「試題用 RAG」與「測驗」。
+ * 與 CreateUnit 版面類似（分頁、題目卡片、出題/評分），但無 RAG 建立/上傳/Pack；題目來源為「試題用 RAG」與「測驗」。
  *
  * 資料來源：
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試驗／題目關聯由 GET /exam/exams 等提供即可）
@@ -300,7 +300,7 @@ watch(generateQuizUnits, (units) => {
   }
 }, { immediate: true });
 
-/** 由 GET /exam/exams 回傳的 quiz（含 answers）組成一張題目卡片，格式同 CreateRAG buildCardFromRagQuiz */
+/** 由 GET /exam/exams 回傳的 quiz（含 answers）組成一張題目卡片，格式同 CreateUnit buildCardFromRagQuiz */
 function buildCardFromExamQuiz(quiz, ragName) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -331,7 +331,7 @@ function buildCardFromExamQuiz(quiz, ragName) {
   };
 }
 
-/** 當切換到某個 Exam tab 或試題用 RAG 載入時，從該筆的 quizzes、answers 填入題目卡片（格式同 GET /rag/rags，與 CreateRAG 一致）；firstRagName 從 forExamRag.outputs / rag_metadata.outputs / rag_list 推導，與 CreateRAG 一致 */
+/** 當切換到某個 Exam tab 或試題用 RAG 載入時，從該筆的 quizzes、answers 填入題目卡片（格式同 GET /rag/rags，與 CreateUnit 一致）；firstRagName 從 forExamRag.outputs / rag_metadata.outputs / rag_list 推導，與 CreateUnit 一致 */
 watch(
   () => [currentExamItem.value, forExamRag.value],
   ([exam]) => {
@@ -482,7 +482,7 @@ function getExamTabId(exam) {
   return String(exam.exam_tab_id ?? exam.test_tab_id ?? exam.id ?? '');
 }
 
-/** 按 + 新增測驗：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-rag 一致） */
+/** 按 + 新增測驗：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-unit 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -1020,7 +1020,7 @@ onMounted(() => {
                           maxlength="2000"
                         />
                         <div class="form-text small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
-                        <div class="d-flex justify-content-center mt-2">
+                        <div class="d-flex justify-content-end mt-2">
                           <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
                         </div>
                       </template>
