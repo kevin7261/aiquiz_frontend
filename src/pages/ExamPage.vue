@@ -940,9 +940,9 @@ onMounted(() => {
                         <div class="rounded bg-body-tertiary small mb-2 p-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
                       </template>
                     </div>
-                    <div class="border rounded bg-light p-3 mb-3">
-                      <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
-                      <div class="small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
+                    <div class="mb-3">
+                      <div class="form-label small text-secondary fw-medium mb-1">批改結果</div>
+                      <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
                     </div>
                   </div>
                 </div>

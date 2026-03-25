@@ -91,7 +91,7 @@
         </button>
         <ul class="dropdown-menu dropdown-menu-start shadow-sm w-100">
           <li v-if="canSeeNavLink(userType, 'create-unit')">
-            <router-link class="dropdown-item" to="/main/create-unit" active-class="active">出題單元建立</router-link>
+            <router-link class="dropdown-item" to="/main/create-unit" active-class="active">建立出題單元</router-link>
           </li>
           <li v-if="canSeeNavLink(userType, 'course-analysis')">
             <router-link class="dropdown-item" to="/main/course-analysis" active-class="active"

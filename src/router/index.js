@@ -23,7 +23,7 @@ const VIEW_TITLES = {
   'analysis': '測驗分析 - AIQuiz',
   'course-analysis': '學生測驗分析 - AIQuiz',
   profile: '設定 - AIQuiz',
-  'create-unit': '出題單元建立 - AIQuiz',
+  'create-unit': '建立出題單元 - AIQuiz',
   users: '使用者管理 - AIQuiz',
   settings: '系統設定 - AIQuiz',
 };

@@ -197,9 +197,9 @@ onMounted(() => {
                 <label class="form-label small text-secondary fw-medium mb-1">答案</label>
                 <div class="rounded bg-body-tertiary small mb-2 p-2">{{ getSingleAnswer(item).quiz_answer ?? getSingleAnswer(item).student_answer ?? '—' }}</div>
               </div>
-              <div class="border rounded bg-light p-3 mb-3">
-                <div class="form-label small fw-semibold text-secondary mb-1">批改結果</div>
-                <div class="small" style="white-space: pre-wrap;">{{ getGradingResultText(getSingleAnswer(item)) }}</div>
+              <div class="mb-3">
+                <div class="form-label small text-secondary fw-medium mb-1">批改結果</div>
+                <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ getGradingResultText(getSingleAnswer(item)) }}</div>
               </div>
             </template>
             <template v-else>

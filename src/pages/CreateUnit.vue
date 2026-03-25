@@ -665,7 +665,7 @@ async function addNewTab() {
     clearZipFileInput();
     if (ragList.value.length === 0) showFormWhenNoData.value = true;
   } catch (err) {
-    createRagError.value = err.message || '出題單元建立失敗';
+    createRagError.value = err.message || '建立出題單元失敗';
   } finally {
     createRagLoading.value = false;
   }
@@ -752,7 +752,7 @@ async function confirmUploadZip() {
   }
   const tabId = activeTabId.value;
   if (isNewTabId(tabId) || !tabId) {
-    state.zipError = '請先按 + 完成出題單元建立（此 tab 需先建立後端資料）';
+    state.zipError = '請先按 + 完成建立出題單元（此 tab 需先建立後端資料）';
     return;
   }
   const personId = getPersonId(authStore);
@@ -968,7 +968,7 @@ async function confirmAnswer(item) {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">{{ hasRagMetadata ? '出題單元' : '出題單元建立' }}</span>
+        <span class="navbar-brand mb-0">建立出題單元</span>
       </div>
     </div>
     <RagTabsBar
@@ -1011,7 +1011,7 @@ async function confirmAnswer(item) {
               class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold small"
               :class="createRagStepperPhase >= 2 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
             >2</span>
-            <span class="mt-2 small" :class="createRagStepperPhase >= 2 ? 'text-dark fw-medium' : 'text-muted'">出題單元建立</span>
+            <span class="mt-2 small" :class="createRagStepperPhase >= 2 ? 'text-dark fw-medium' : 'text-muted'">建立出題單元</span>
           </div>
           <div
             class="create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
@@ -1027,7 +1027,7 @@ async function confirmAnswer(item) {
           </div>
         </div>
       </div>
-      <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「出題單元建立」內 -->
+      <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「建立出題單元」內 -->
       <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start page-block-spacing border rounded p-3">
         <div class="">
           <input
@@ -1424,7 +1424,7 @@ async function confirmAnswer(item) {
   border-color: var(--bs-info) !important;
 }
 
-/* 出題單元建立頁：流程 stepper（1–2–3） */
+/* 建立出題單元頁：流程 stepper（1–2–3） */
 .create-rag-stepper-num {
   width: 2.25rem;
   height: 2.25rem;
