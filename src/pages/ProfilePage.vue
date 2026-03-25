@@ -2,8 +2,8 @@
 /**
  * ProfilePage - 個資修改頁面
  *
- * 以 PATCH /user/profile 更新 name、llm_api_key（以 person_id 識別，Header X-Person-Id）。
- * llm_api_key 僅 user_type 1／2 可見與變更；其餘類型不顯示、不寫入 payload。
+ * 以 PATCH /user/profile 更新 llm_api_key（以 person_id 識別，Header X-Person-Id）。
+ * 帳號、名稱僅供檢視，不可於此頁修改。llm_api_key 僅 user_type 1／2 可見與變更。
  * 可從 GET /system-settings/llm-api-key 取得系統 LLM Key 顯示（僅 1／2）。
  */
 import { ref, computed, watch } from 'vue';
@@ -13,13 +13,16 @@ import LoadingOverlay from '../components/LoadingOverlay.vue';
 
 const authStore = useAuthStore();
 
-const name = ref('');
 const llmApiKey = ref('');
 const loading = ref(false);
 const message = ref('');
 const messageType = ref(''); // 'success' | 'danger'
 
 const account = computed(() => authStore.user?.person_id ?? '—');
+const displayName = computed(() => {
+  const n = authStore.user?.name;
+  return n != null && String(n).trim() !== '' ? String(n) : '—';
+});
 
 /** 僅系統開發者／課程管理者可設定 LLM API Key */
 const canEditLlmApiKey = computed(() => {
@@ -28,10 +31,8 @@ const canEditLlmApiKey = computed(() => {
 });
 
 function initFromUser() {
-  const u = authStore.user;
-  name.value = u?.name ?? '';
   if (canEditLlmApiKey.value) {
-    llmApiKey.value = u?.llm_api_key ?? '';
+    llmApiKey.value = authStore.user?.llm_api_key ?? '';
   } else {
     llmApiKey.value = '';
   }
@@ -59,13 +60,14 @@ async function saveProfile() {
     messageType.value = 'danger';
     return;
   }
+  if (!canEditLlmApiKey.value) {
+    message.value = '無可變更的欄位';
+    messageType.value = 'danger';
+    return;
+  }
   const u = authStore.user;
   const payload = {};
-  if (name.value !== (u?.name ?? '')) payload.name = name.value;
-  if (
-    canEditLlmApiKey.value &&
-    (llmApiKey.value ?? '') !== (u?.llm_api_key ?? '')
-  ) {
+  if ((llmApiKey.value ?? '') !== (u?.llm_api_key ?? '')) {
     payload.llm_api_key = llmApiKey.value ?? ''; // 空字串表示清除
   }
   if (Object.keys(payload).length === 0) {
@@ -126,32 +128,45 @@ async function saveProfile() {
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-      <div class="text-start page-block-spacing">
-        <div class="mb-4">
-          <label class="form-label small text-secondary fw-medium mb-1">帳號</label>
-          <input :value="account" type="text" class="form-control form-control-sm" placeholder="帳號" readonly disabled>
-        </div>
-        <div class="mb-4">
-          <label class="form-label small text-secondary fw-medium mb-1">名稱</label>
-          <input v-model="name" type="text" class="form-control form-control-sm" placeholder="名稱">
-        </div>
-        <div v-if="canEditLlmApiKey" class="mb-4">
-          <label class="form-label small text-secondary fw-medium mb-1">LLM API Key</label>
-          <input
-            v-model="llmApiKey"
-            type="text"
-            class="form-control form-control-sm"
-            placeholder="選填，用於呼叫 LLM"
-            autocomplete="off"
-          >
-        </div>
-        <div v-if="message" :class="['alert py-2 mb-4', messageType === 'success' ? 'alert-success' : 'alert-danger']" role="alert">
-          {{ message }}
-        </div>
-        <button type="button" class="btn btn-primary btn-sm" :disabled="loading" @click="saveProfile">
-          儲存
-        </button>
-      </div>
+          <div class="text-start page-block-spacing">
+            <div class="mb-4">
+              <label class="form-label small text-secondary fw-medium mb-1">帳號</label>
+              <input :value="account" type="text" class="form-control form-control-sm" placeholder="帳號" readonly disabled>
+            </div>
+            <div class="mb-4">
+              <label class="form-label small text-secondary fw-medium mb-1">名稱</label>
+              <input :value="displayName" type="text" class="form-control form-control-sm" placeholder="名稱" readonly disabled>
+            </div>
+            <div v-if="canEditLlmApiKey" class="mb-4">
+              <label class="form-label small text-secondary fw-medium mb-1">LLM API Key</label>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="flex-grow-1" style="min-width: 0">
+                  <input
+                    v-model="llmApiKey"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="選填，用於呼叫 LLM"
+                    autocomplete="off"
+                  >
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm flex-shrink-0"
+                  :disabled="loading"
+                  @click="saveProfile"
+                >
+                  儲存
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="message"
+              :class="['alert py-2 mb-4', messageType === 'success' ? 'alert-success' : 'alert-danger']"
+              role="alert"
+            >
+              {{ message }}
+            </div>
+          </div>
         </div>
       </div>
     </div>

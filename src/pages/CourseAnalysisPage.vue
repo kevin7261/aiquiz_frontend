@@ -159,16 +159,7 @@ onMounted(() => {
       <template v-else>
         <!-- 作答紀錄摘要表：題號 / 單元 / 難度 / 分數 / 時間（每題取第一筆作答） -->
         <div class="text-start page-block-spacing">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 pb-2 border-bottom">
-            <span class="fs-5 fw-semibold">作答紀錄摘要</span>
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm"
-              @click="onDownloadExcel"
-            >
-              下載 Excel
-            </button>
-          </div>
+          <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">作答紀錄摘要</div>
           <div class="table-responsive">
             <table class="table table-bordered table-sm mb-0 small">
               <thead class="table-light">
@@ -192,6 +183,15 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div class="mt-3">
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              @click="onDownloadExcel"
+            >
+              下載 Excel
+            </button>
           </div>
         </div>
 

@@ -81,7 +81,7 @@ function checkRagHasList(rag) {
   return rag.rag_list != null && String(rag.rag_list).trim() !== '';
 }
 
-/** 至少一個出題單元，且每個出題單元至少一個單元（與「開始建立」按鈕啟用條件一致） */
+/** 至少一個出題單元，且每個出題單元至少一個單元（與出題群組區「確定」按鈕啟用條件一致） */
 function isPackTasksListReady(list) {
   if (!Array.isArray(list) || list.length < 1) return false;
   return list.every((g) => Array.isArray(g) && g.length >= 1);
@@ -751,7 +751,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** 開始建立（build-rag-zip） */
+/** 出題群組確定：build-rag-zip（按鈕文案「確定」） */
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipTabId ?? '').trim();
@@ -870,7 +870,7 @@ async function generateQuiz(slotIndex) {
     return;
   }
   if (!generateQuizUnits.value.length) {
-    slotState.error = '請先按「開始建立」取得 RAG 壓縮檔（outputs），或重新載入列表';
+    slotState.error = '請先按出題群組區「確定」取得 RAG 壓縮檔（outputs），或重新載入列表';
     return;
   }
   slotState.loading = true;
@@ -1229,7 +1229,7 @@ async function confirmAnswer(item) {
               :disabled="packGroupsEditBlocked || !isPackTasksListReady(currentState.packTasksList ?? [])"
               @click="confirmPack"
             >
-              開始建立
+              確定
             </button>
           </div>
           <div v-if="currentState.packError" class="alert alert-danger py-2 small mb-2">

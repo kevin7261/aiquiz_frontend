@@ -25,8 +25,6 @@ const BLOCKS = [
     getUrl: API_GET_SYSTEM_SETTING_COURSE_NAME,
     putUrl: API_PUT_SYSTEM_SETTING_COURSE_NAME,
     bodyKey: 'course_name',
-    title: '課程名稱',
-    description: '顯示於系統的課程名稱，可留空。',
     label: '課程名稱',
     placeholder: '選填',
     getSuccessMessage: () => '課程名稱已儲存',
@@ -36,9 +34,7 @@ const BLOCKS = [
     getUrl: API_GET_LLM_API_KEY,
     putUrl: API_PUT_SYSTEM_SETTING_LLM_API_KEY,
     bodyKey: 'llm_api_key',
-    title: 'LLM API Key',
-    description: '用於呼叫 LLM 的 API Key，留空並儲存可清除已儲存的 Key。',
-    label: 'API Key',
+    label: 'LLM API Key',
     placeholder: '選填，用於呼叫 LLM',
     getSuccessMessage: (value) => (value ? 'LLM API Key 已儲存' : 'LLM API Key 已清除'),
   },
@@ -145,8 +141,8 @@ async function save(block) {
 <template>
   <div class="d-flex flex-column bg-body-secondary h-100 position-relative">
     <LoadingOverlay
-      :is-visible="BLOCKS.some((b) => state[b.id].loading)"
-      loading-text="儲存中..."
+      :is-visible="fetchLoading || BLOCKS.some((b) => state[b.id].loading)"
+      loading-text="執行中..."
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
@@ -156,51 +152,41 @@ async function save(block) {
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-          <div
-            v-for="block in BLOCKS"
-            :key="block.id"
-            class="text-start page-block-spacing"
-          >
-            <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">{{ block.title }}</div>
-            <p class="small text-secondary mb-4">
-              {{ block.description }}
-            </p>
-            <div class="mb-4">
-              <label class="form-label small text-secondary fw-medium mb-1">{{ block.label }}</label>
-              <input
-                v-model="state[block.id].value"
-                type="text"
-                class="form-control form-control-sm"
-                :placeholder="block.placeholder"
-                :disabled="fetchLoading"
-                :autocomplete="block.id === 'llmApiKey' ? 'off' : undefined"
-              >
-              <div v-if="fetchLoading" class="form-text small">載入中...</div>
-            </div>
-            <div
-              v-if="state[block.id].message"
-              :class="['alert py-2 mb-4', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
-              role="alert"
-            >
-              {{ state[block.id].message }}
-            </div>
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              :disabled="state[block.id].loading || fetchLoading"
-              @click="save(block)"
-            >
-              儲存
-            </button>
-          </div>
           <div class="text-start page-block-spacing">
-            <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">
-              API 基底網址
-            </div>
-            <p class="small text-secondary mb-4">
-              目前前端實際使用的後端位址（本機開啟時連本機後端，其餘連正式環境）。
-            </p>
-            <div class="mb-0">
+            <template v-for="block in BLOCKS" :key="block.id">
+              <div class="mb-4">
+                <label class="form-label small text-secondary fw-medium mb-1">{{ block.label }}</label>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <div class="flex-grow-1" style="min-width: 0">
+                    <input
+                      v-model="state[block.id].value"
+                      type="text"
+                      class="form-control form-control-sm"
+                      :placeholder="block.placeholder"
+                      :disabled="fetchLoading"
+                      :autocomplete="block.id === 'llmApiKey' ? 'off' : undefined"
+                    >
+                    <div v-if="fetchLoading" class="form-text small">載入中...</div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm flex-shrink-0"
+                    :disabled="state[block.id].loading || fetchLoading"
+                    @click="save(block)"
+                  >
+                    儲存
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="state[block.id].message"
+                :class="['alert py-2 mb-4', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
+                role="alert"
+              >
+                {{ state[block.id].message }}
+              </div>
+            </template>
+            <div class="mb-4">
               <label class="form-label small text-secondary fw-medium mb-1">API_BASE</label>
               <div
                 class="form-control form-control-sm bg-body-secondary font-monospace text-break py-2"

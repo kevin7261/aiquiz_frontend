@@ -2,7 +2,7 @@
 /**
  * UserManagementPage - 使用者管理頁面
  *
- * 呼叫 GET /user/users 取得使用者列表（users、count），以表格顯示 person_id、name、user_type、建立/更新時間等。
+ * 呼叫 GET /user/users 取得使用者列表（users、count），以表格顯示 user_id、person_id、name、user_type。
  * 僅讀取與顯示，不提供新增/編輯/刪除（若後端有 API 可再擴充）。
  */
 import { ref, onMounted } from 'vue';
@@ -42,22 +42,6 @@ async function fetchUsers() {
   }
 }
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW');
-  } catch {
-    return iso;
-  }
-}
-
-function displayMetadata(meta) {
-  if (meta == null) return '—';
-  if (typeof meta === 'object') return JSON.stringify(meta);
-  return String(meta);
-}
-
 onMounted(() => {
   fetchUsers();
 });
@@ -90,10 +74,6 @@ onMounted(() => {
                 <th class="small fw-medium">person_id</th>
                 <th class="small fw-medium">name</th>
                 <th class="small fw-medium">user_type</th>
-                <th class="small fw-medium">llm_api_key</th>
-                <th class="small fw-medium">user_metadata</th>
-                <th class="small fw-medium">updated_at</th>
-                <th class="small fw-medium">created_at</th>
               </tr>
             </thead>
             <tbody>
@@ -102,20 +82,13 @@ onMounted(() => {
                 <td class="small">{{ u.person_id ?? '—' }}</td>
                 <td class="small">{{ u.name ?? '—' }}</td>
                 <td class="small">{{ u.user_type ?? '—' }}</td>
-                <td class="small text-break">{{ (u.llm_api_key ?? '').trim() || '—' }}</td>
-                <td class="text-break small">{{ displayMetadata(u.user_metadata) }}</td>
-                <td class="small">{{ formatDate(u.updated_at) }}</td>
-                <td class="small">{{ formatDate(u.created_at) }}</td>
               </tr>
               <tr v-if="!loading && users.length === 0">
-                <td colspan="8" class="text-muted text-center small">尚無使用者</td>
+                <td colspan="4" class="text-muted text-center small">尚無使用者</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm mt-2" :disabled="loading" @click="fetchUsers">
-          重新載入
-        </button>
       </div>
         </div>
       </div>

@@ -482,7 +482,7 @@ function getExamTabId(exam) {
   return String(exam.exam_tab_id ?? exam.test_tab_id ?? exam.id ?? '');
 }
 
-/** 按 + 新增測驗：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-unit 一致） */
+/** 按 + 新增測驗：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-rag 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
