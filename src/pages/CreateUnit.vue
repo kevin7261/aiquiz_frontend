@@ -66,6 +66,15 @@ function nextCardId() {
   return `card-${++cardIdSeq}`;
 }
 
+/** POST /rag/upload-zip 允許的副檔名（與後端可解析格式一致） */
+const UPLOAD_ALLOWED_EXTENSIONS = ['.zip', '.pdf', '.doc', '.docx', '.ppt', '.pptx'];
+const UPLOAD_ACCEPT_ATTR = UPLOAD_ALLOWED_EXTENSIONS.join(',');
+function fileHasAllowedUploadExtension(file) {
+  if (!file?.name) return false;
+  const lower = file.name.toLowerCase();
+  return UPLOAD_ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 const authStore = useAuthStore();
 
 const { ragList, ragListLoading, ragListError, fetchRagList } = useRagList();
@@ -689,9 +698,9 @@ function setZipFileFromFile(state, tabId, file) {
     state.zipError = '';
     return;
   }
-  if (!file.name.toLowerCase().endsWith('.zip')) {
+  if (!fileHasAllowedUploadExtension(file)) {
     resetZipState(state, tabId);
-    state.zipError = '請選擇 .zip 檔案';
+    state.zipError = '請選擇允許的檔案：.zip、.pdf、.doc、.docx、.ppt、.pptx';
     return;
   }
   resetZipState(state, tabId);
@@ -707,7 +716,7 @@ function onZipChange(e) {
   setZipFileFromFile(state, tabId, file);
 }
 
-/** 拖曳置放 ZIP：僅接受 .zip */
+/** 拖曳置放教材檔：僅接受 UPLOAD_ALLOWED_EXTENSIONS */
 const isZipDragOver = ref(false);
 function onZipDragOver(e) {
   e.preventDefault();
@@ -738,7 +747,7 @@ function openZipFileDialog() {
 async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
-    state.zipError = '請先選擇 ZIP 檔案';
+    state.zipError = '請先選擇要上傳的檔案';
     return;
   }
   const tabId = activeTabId.value;
@@ -1024,7 +1033,7 @@ async function confirmAnswer(item) {
           <input
             ref="zipFileInputRef"
             type="file"
-            accept=".zip"
+            :accept="UPLOAD_ACCEPT_ATTR"
             class="d-none"
             @change="onZipChange"
           >
@@ -1045,9 +1054,9 @@ async function confirmAnswer(item) {
                 <span class="small text-body">{{ currentState.zipFileName }}</span>
                 <div class="mt-1 small text-muted">點擊可重新選擇檔案</div>
               </template>
-              <span v-else class="small text-secondary">拖曳 ZIP 檔到這裡，或點擊選擇檔案</span>
+              <span v-else class="small text-secondary">拖曳檔案到這裡，或點擊選擇檔案</span>
               <div class="mt-2 small text-muted">
-                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+                可解析的檔案副檔名：.zip、.pdf、.doc、.docx、.ppt、.pptx
               </div>
             </template>
           </div>

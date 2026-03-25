@@ -63,8 +63,8 @@ export async function apiCreateUnit(personId, ragTabId, ragName) {
 }
 
 /**
- * 上傳 ZIP：POST /rag/upload-zip（需先 create-unit）
- * @param {File} file - ZIP 檔案
+ * 上傳教材檔：POST /rag/upload-zip（需先 create-unit）
+ * @param {File} file - .zip、.pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式
  * @param {string} ragTabId
  * @param {string} personId
  * @returns {Promise<object>} 後端回傳的 file_metadata
