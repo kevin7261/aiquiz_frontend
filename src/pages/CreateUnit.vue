@@ -1064,7 +1064,20 @@ async function confirmAnswer(item) {
           </div>
           <div class="mb-3">
             <div class="small mb-1">出題prompt</div>
-            <div class="small lh-base text-break" style="white-space: pre-wrap;">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</div>
+            <div class="small border rounded p-3 bg-body-tertiary">
+              【出題規範】<br>
+              請根據輸入的「參考內容」設計測驗題目。<br>
+              **請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。**<br>
+              題目難度：{quiz_level}。<br>
+              <span class="lh-base text-break text-danger">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</span><br>
+            【回傳格式】<br>
+            請以 JSON 格式回傳：<br>
+            { "quiz_content": "問題內容", <br>
+              "quiz_hint": "答案提示內容", <br>
+              "reference_answer": "參考答案內容" }<br>
+            </div>
+
+
           </div>
           <div
             v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
@@ -1217,7 +1230,8 @@ async function confirmAnswer(item) {
             <div class="small border rounded p-3 bg-body-tertiary">
               【出題規範】<br>
               請根據輸入的「參考內容」設計測驗題目。<br>
-              **請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。**<br>
+              請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。<br>
+              題目難度：{quiz_level}。<br>
               <textarea
                 v-model="currentState.systemInstruction"
                 class="form-control form-control-sm font-monospace small my-3"
@@ -1225,7 +1239,6 @@ async function confirmAnswer(item) {
                 :placeholder="'留空則使用預設：' + DEFAULT_SYSTEM_INSTRUCTION"
                 style="max-width: 100%;"
               />
-
             【回傳格式】<br>
             請以 JSON 格式回傳：<br>
             { "quiz_content": "問題內容", <br>
