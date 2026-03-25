@@ -73,7 +73,7 @@
         to="/main/create-rag"
         class="sidebar-link"
         active-class="active"
-        >出題群組建立</router-link
+        >出題單元建立</router-link
       >
       <router-link
         v-if="canSeeNavLink(userType, 'course-analysis')"

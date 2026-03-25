@@ -290,7 +290,7 @@ watch(examList, (list) => {
   }
 }, { immediate: true });
 
-/** 單元下拉預設不選；清單變動時重新對齊選取（與出題群組頁一致） */
+/** 單元下拉預設不選；清單變動時重新對齊選取（與出題單元頁一致） */
 watch(generateQuizUnits, (units) => {
   const state = currentState.value;
   reconcileQuizUnitSelectSlot(state, units);
@@ -1020,7 +1020,7 @@ onMounted(() => {
                           maxlength="2000"
                         />
                         <div class="form-text small">{{ currentState.cardList[slotIndex - 1].answer.length }} / 2000</div>
-                        <div class="d-flex gap-2 mt-2">
+                        <div class="d-flex justify-content-end mt-2">
                           <button type="button" class="btn btn-sm btn-primary" @click="confirmAnswer(currentState.cardList[slotIndex - 1])">確定</button>
                         </div>
                       </template>

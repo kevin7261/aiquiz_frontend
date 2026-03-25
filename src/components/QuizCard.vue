@@ -66,7 +66,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:answer']);
             maxlength="2000"
           />
           <div class="form-text small">{{ card.answer.length }} / 2000</div>
-          <div class="d-flex gap-2 mt-2">
+          <div class="d-flex justify-content-end mt-2">
             <button type="button" class="btn btn-sm btn-primary" @click="emit('confirm-answer', card)">確定</button>
           </div>
         </template>

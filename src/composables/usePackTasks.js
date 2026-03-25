@@ -145,7 +145,7 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     state.packTasksList = [...existing, ...newGroups];
   }
 
-  /** 在現有群組之後新增一個出題群組，內含全部單元（rag_list：a+b+c），不覆寫既有群組 */
+  /** 在現有出題單元之後新增一個出題單元，內含全部單元（rag_list：a+b+c），不覆寫既有出題單元 */
   function setAllSecondFoldersAsSingleGroup() {
     const names = secondFoldersFull.value;
     if (!names.length) return;

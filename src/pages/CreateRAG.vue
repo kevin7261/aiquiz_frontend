@@ -81,7 +81,7 @@ function checkRagHasList(rag) {
   return rag.rag_list != null && String(rag.rag_list).trim() !== '';
 }
 
-/** 至少一個出題群組，且每群至少一個單元（與「開始建立」按鈕啟用條件一致） */
+/** 至少一個出題單元，且每個出題單元至少一個單元（與「開始建立」按鈕啟用條件一致） */
 function isPackTasksListReady(list) {
   if (!Array.isArray(list) || list.length < 1) return false;
   return list.every((g) => Array.isArray(g) && g.length >= 1);
@@ -90,7 +90,7 @@ function isPackTasksListReady(list) {
 const hasRagMetadata = computed(() => checkRagHasMetadata(currentRagItem.value));
 const hasRagListOrMetadata = computed(() => checkRagHasMetadata(currentRagItem.value) || checkRagHasList(currentRagItem.value));
 
-/** 後端已有 rag_metadata 時，出題群組（rag_list）拆成條列：每個 li 為一群，群內資料夾以 + 連接 */
+/** 後端已有 rag_metadata 時，出題單元（rag_list）拆成條列：每個 li 為一群，群內資料夾以 + 連接 */
 const ragListReadonlyGroups = computed(() => {
   const list = currentState.value.packTasksList;
   if (Array.isArray(list) && list.length > 0) {
@@ -104,12 +104,12 @@ const ragListReadonlyGroups = computed(() => {
   return [];
 });
 
-/** 唯讀出題群組：橫向純文字，群組間以 · 分隔、群內以 + */
+/** 唯讀出題單元：橫向純文字，群組間以 · 分隔、群內以 + */
 const ragListReadonlyInlineText = computed(() =>
   ragListReadonlyGroups.value.map((g) => (Array.isArray(g) ? g.join(' + ') : '')).filter(Boolean).join(' · ')
 );
 
-/** 尚無法編輯出題群組（未上傳 ZIP 等）；與拖放、區塊鎖定一致，不包含「群組是否已填滿」 */
+/** 尚無法編輯出題單元（未上傳 ZIP 等）；與拖放、區塊鎖定一致，不包含「群組是否已填滿」 */
 const packGroupsEditBlocked = computed(() => {
   if (hasRagMetadata.value) return true;
   if (hasRagListOrMetadata.value) return false;
@@ -269,7 +269,7 @@ const fileMetadataToShow = computed(() => {
 const hasUploadedFileMetadata = computed(() => fileMetadataToShow.value != null);
 
 /**
- * 建立流程 stepper：1 僅上傳、2 含建立群組、3 含題目測試
+ * 建立流程 stepper：1 僅上傳、2 含建立出題單元、3 含題目測試
  * - 無 file_metadata／無 rag_metadata → 1
  * - 有 file_metadata／無 rag_metadata → 1–2
  * - 有 file_metadata／有 rag_metadata → 1–2–3
@@ -628,7 +628,7 @@ async function addNewTab() {
     clearZipFileInput();
     if (ragList.value.length === 0) showFormWhenNoData.value = true;
   } catch (err) {
-    createRagError.value = err.message || '出題群組建立失敗';
+    createRagError.value = err.message || '出題單元建立失敗';
   } finally {
     createRagLoading.value = false;
   }
@@ -715,7 +715,7 @@ async function confirmUploadZip() {
   }
   const tabId = activeTabId.value;
   if (isNewTabId(tabId) || !tabId) {
-    state.zipError = '請先按 + 完成出題群組建立（此 tab 需先建立後端資料）';
+    state.zipError = '請先按 + 完成出題單元建立（此 tab 需先建立後端資料）';
     return;
   }
   const personId = getPersonId(authStore);
@@ -766,7 +766,7 @@ async function confirmPack() {
     return;
   }
   if (!isPackTasksListReady(state.packTasksList ?? [])) {
-    state.packError = '請至少建立一個出題群組，且每個群組至少包含一個單元';
+    state.packError = '請至少建立一個出題單元，且每個出題單元至少包含一個單元';
     return;
   }
   if (!ragList) {
@@ -931,7 +931,7 @@ async function confirmAnswer(item) {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">{{ hasRagMetadata ? '出題群組' : '出題群組建立' }}</span>
+        <span class="navbar-brand mb-0">{{ hasRagMetadata ? '出題單元' : '出題單元建立' }}</span>
       </div>
     </div>
     <RagTabsBar
@@ -974,7 +974,7 @@ async function confirmAnswer(item) {
               class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold small"
               :class="createRagStepperPhase >= 2 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
             >2</span>
-            <span class="mt-2 small" :class="createRagStepperPhase >= 2 ? 'text-dark fw-medium' : 'text-muted'">出題群組建立</span>
+            <span class="mt-2 small" :class="createRagStepperPhase >= 2 ? 'text-dark fw-medium' : 'text-muted'">出題單元建立</span>
           </div>
           <div
             class="create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
@@ -990,9 +990,9 @@ async function confirmAnswer(item) {
           </div>
         </div>
       </div>
-      <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「出題群組建立」內 -->
+      <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「出題單元建立」內 -->
       <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start page-block-spacing border rounded p-3">
-        <div class="mb-3">
+        <div class="">
           <input
             ref="zipFileInputRef"
             type="file"
@@ -1020,6 +1020,9 @@ async function confirmAnswer(item) {
               <span class="small text-secondary">拖曳 ZIP 檔到這裡，或點擊選擇檔案</span>
             </template>
           </div>
+          <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
+            {{ currentState.zipError }}
+          </div>
           <div class="d-flex justify-content-end mt-2">
             <button
               type="button"
@@ -1031,11 +1034,8 @@ async function confirmAnswer(item) {
             </button>
           </div>
         </div>
-        <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 small">
-          {{ currentState.zipError }}
-        </div>
       </div>
-      <!-- 建立 RAG：要有 file_metadata 才顯示；已有 rag_metadata 時僅純文字顯示群組／chunk／規範 -->
+      <!-- 建立 RAG：要有 file_metadata 才顯示；已有 rag_metadata 時僅純文字顯示出題單元／chunk／規範 -->
       <div
         v-if="fileMetadataToShow != null"
         class="text-start page-block-spacing border rounded p-3"
@@ -1048,7 +1048,7 @@ async function confirmAnswer(item) {
 
         <template v-if="hasRagMetadata">
           <div class="mb-3">
-            <div class="small text-secondary fw-medium mb-1">出題群組</div>
+            <div class="small text-secondary fw-medium mb-1">出題單元</div>
             <div v-if="ragListReadonlyGroups.length" class="small text-break">{{ ragListReadonlyInlineText }}</div>
             <div v-else class="small text-muted">—</div>
           </div>
@@ -1085,14 +1085,14 @@ async function confirmAnswer(item) {
         </template>
 
         <template v-else>
-          <!-- 課程：可拖曳至出題群組 -->
+          <!-- 課程：可拖曳至出題單元 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
-            <label class="form-label small text-secondary fw-medium mb-1">單元</label>
+            <label class="form-label small text-secondary fw-medium mb-1">資料夾</label>
             <div class="d-flex flex-wrap gap-2 p-2 rounded border bg-body">
               <div
                 v-for="(name, i) in secondFoldersFull"
                 :key="'sf-' + i"
-                class="badge bg-info text-dark px-2 py-1 user-select-none"
+                class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 user-select-none"
                 style="cursor: grab;"
                 draggable="true"
                 role="button"
@@ -1105,9 +1105,9 @@ async function confirmAnswer(item) {
             </div>
           </div>
 
-          <!-- 出題群組：可放置課程標籤 -->
+          <!-- 出題單元：可放置課程標籤 -->
           <div class="mb-2">
-            <label class="form-label small text-secondary fw-medium mb-0">出題群組</label>
+            <label class="form-label small text-secondary fw-medium mb-0">出題單元</label>
             <div class="d-flex flex-wrap align-items-start gap-2">
               <template v-for="(group, gi) in ragListDisplayGroups" :key="'rg-' + gi">
                 <div
@@ -1144,7 +1144,7 @@ async function confirmAnswer(item) {
                     type="button"
                     class="btn btn-link btn-sm p-0 ms-1 text-muted text-decoration-none flex-shrink-0"
                     style="min-width: 1.5rem;"
-                    aria-label="刪除此出題群組"
+                    aria-label="刪除此出題單元"
                     @click.stop="removeRagListGroup(gi)"
                   >
                     ×
@@ -1164,7 +1164,7 @@ async function confirmAnswer(item) {
                 @keydown.enter.prevent="addRagListGroup"
                 @keydown.space.prevent="addRagListGroup"
               >
-                + 新增出題群組
+                + 新增出題單元
               </div>
             </div>
             <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
@@ -1174,16 +1174,16 @@ async function confirmAnswer(item) {
                 :disabled="!secondFoldersFull.length"
                 @click="addAllSecondFoldersAsGroups"
               >
-                每個單元建立出題群組
+                每個單元建立出題單元
               </button>
               <button
                 type="button"
                 class="btn btn-sm btn-outline-secondary"
                 :disabled="!secondFoldersFull.length"
-                title="在現有群組之後新增一群組，內含全部單元（rag_list 以 + 連接）"
+                title="在現有出題單元之後新增一個出題單元，內含全部單元（rag_list 以 + 連接）"
                 @click="setAllSecondFoldersAsSingleGroup"
               >
-                每個單元建立一個群組
+                每個單元建立一個出題單元
               </button>
             </div>
           </div>
@@ -1358,7 +1358,7 @@ async function confirmAnswer(item) {
   border-color: var(--bs-info) !important;
 }
 
-/* 出題群組建立頁：流程 stepper（1–2–3） */
+/* 出題單元建立頁：流程 stepper（1–2–3） */
 .create-rag-stepper-num {
   width: 2.25rem;
   height: 2.25rem;

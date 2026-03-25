@@ -80,7 +80,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag']);
                 type="button"
                 class="btn btn-link btn-sm p-0 text-muted text-decoration-none"
                 style="min-width: 1.25rem; line-height: 1;"
-                aria-label="刪除此出題群組"
+                aria-label="刪除此出題單元"
                 :disabled="deleteRagLoading"
                 @click.stop="emit('delete-rag', item._tabId)"
               >
