@@ -79,7 +79,7 @@ const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer']
       <div class="mb-3">
         <label class="form-label small text-secondary fw-medium mb-1">批改prompt</label>
         <div class="small border rounded p-3 bg-body-tertiary">
-          你是一位「{{ courseName }}」課程的教授，請批改這道題目。<br>
+          你是一位「{{ courseName }}」課程的教授，請批改這道題目：<br>
           【評分規範】<br>
           根據「測驗題目」與「課程內容」，評估「學生答案」的內容是否正確。<br>
           測驗題目：{quiz_content}<br>
