@@ -448,7 +448,7 @@ function syncRagItemToState(rag, state) {
 
 watch(currentRagItem, (rag) => syncRagItemToState(rag, currentState.value), { immediate: true });
 
-/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供測驗測試區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/rags 的 quiz（含 answers）組成一張題目卡片，供出題測試區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -1023,7 +1023,7 @@ async function confirmAnswer(item) {
               class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold small"
               :class="createRagStepperPhase >= 3 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
             >3</span>
-            <span class="mt-2 small" :class="createRagStepperPhase >= 3 ? 'text-dark fw-medium' : 'text-muted'">測驗測試</span>
+            <span class="mt-2 small" :class="createRagStepperPhase >= 3 ? 'text-dark fw-medium' : 'text-muted'">出題測試</span>
           </div>
         </div>
       </div>
@@ -1302,13 +1302,13 @@ async function confirmAnswer(item) {
           </div>
         </template>
       </div>
-      <!-- 測驗測試：有 rag_metadata（本機 Pack 或後端已帶入）即顯示 -->
+      <!-- 出題測試：有 rag_metadata（本機 Pack 或後端已帶入）即顯示 -->
       <div
         v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
         class="text-start page-block-spacing"
         :class="{ 'opacity-75': ragGenerateDisabled }"
       >
-        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">測驗測試</div>
+        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">出題測試</div>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="mb-4">
