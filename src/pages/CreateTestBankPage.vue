@@ -341,7 +341,7 @@ const ragItems = computed(() =>
 const newTabItems = computed(() =>
   newTabIds.value.map((tid) => ({
     id: tid,
-    label: '新增測試題庫',
+    label: '未命名測試題庫',
   }))
 );
 
@@ -654,7 +654,7 @@ async function addNewTab() {
   createRagError.value = '';
   createRagLoading.value = true;
   const ragTabId = generateTabId(personId);
-  const tabName = '新增測試題庫';
+  const tabName = '未命名測試題庫';
   try {
     const data = await apiCreateUnit(personId, ragTabId, tabName);
     if (data?.rag_id != null && data?.created_at != null) {
