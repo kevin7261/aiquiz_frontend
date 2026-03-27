@@ -79,6 +79,8 @@ export const API_TEST_GENERATE_QUIZ = API_EXAM_CREATE_QUIZ;
 export const API_EXAM_QUIZ_GRADE = '/exam/grade-quiz';
 /** Exam：GET /exam/grade-quiz-result/{job_id}（Get Grade Result）；ready 時 result 含 quiz_score、quiz_comments 等，對齊 RAG */
 export const API_EXAM_QUIZ_GRADE_RESULT = '/exam/grade-quiz-result';
+/** Exam：POST /exam/rate-quiz；body: exam_quiz_id、quiz_rate（僅 -1、0、1）；更新 Exam_Quiz.quiz_rate；成功回傳 exam_quiz_id、quiz_rate、updated_at 與訊息 */
+export const API_EXAM_RATE_QUIZ = '/exam/rate-quiz';
 
 /**
  * 系統設定 system-settings

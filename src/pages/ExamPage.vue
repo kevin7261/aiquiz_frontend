@@ -8,9 +8,9 @@
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試卷／題目關聯由 GET /exam/exams 等提供即可）
  * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／rag_list 時仍可用 rag_tab_id 合成單元）
  * - GET /exam/exams?local=&person_id=：local 與 GET /rag/rags 相同；回傳每筆含 quizzes、answers（或 exam_quizzes／exam_answers）時，以 syncExamItemToTabState 灌入卡片（同 CreateTestBankPage 由列表同步題目／作答／批改）
- * 出題：POST /exam/create-quiz（exam_id 或 exam_tab_id 二擇一；對齊 RAG 的 POST /rag/create-quiz）；評分：POST /exam/grade-quiz、GET /exam/grade-quiz-result/{job_id}（與 RAG 輪詢流程相同，見 useQuizGrading）；刪除：POST /exam/delete/{exam_tab_id}
+ * 出題：POST /exam/create-quiz（exam_id 或 exam_tab_id 二擇一；對齊 RAG 的 POST /rag/create-quiz）；評分：POST /exam/grade-quiz、GET /exam/grade-quiz-result/{job_id}（與 RAG 輪詢流程相同，見 useQuizGrading）；題目讚／差：POST /exam/rate-quiz（quiz_rate：1、-1、0）；刪除：POST /exam/delete/{exam_tab_id}
  *
- * 試題資料表 public."Exam_Quiz"（與 GET/POST 題目 payload 對齊）：exam_quiz_id、exam_id、exam_tab_id、person_id、rag_id、unit_name、file_name、quiz_content、quiz_hint、quiz_answer_reference、quiz_metadata、updated_at、created_at。畫面「單元」優先 unit_name；難度優先 quiz_level，否則 quiz_metadata.quiz_level。
+ * 試題資料表 public."Exam_Quiz"（與 GET/POST 題目 payload 對齊）：exam_quiz_id、exam_id、exam_tab_id、person_id、rag_id、unit_name、file_name、quiz_content、quiz_hint、quiz_answer_reference、quiz_rate（-1／0／1）、quiz_metadata、updated_at、created_at。畫面「單元」優先 unit_name；難度優先 quiz_level，否則 quiz_metadata.quiz_level。
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -25,6 +25,7 @@ import {
   API_EXAM_CREATE_QUIZ,
   API_EXAM_QUIZ_GRADE,
   API_EXAM_QUIZ_GRADE_RESULT,
+  API_EXAM_RATE_QUIZ,
   isFrontendLocalHost,
 } from '../constants/api.js';
 import { parseFetchError } from '../utils/apiError.js';
@@ -82,6 +83,13 @@ function deriveNameFromTabId(tabId) {
 let cardIdSeq = 0;
 function nextCardId() {
   return `card-${++cardIdSeq}`;
+}
+
+/** 與後端 Exam_Quiz.quiz_rate 一致：僅 -1、0、1 */
+function normalizeExamQuizRate(v) {
+  const n = Number(v);
+  if (n === 1 || n === -1 || n === 0) return n;
+  return 0;
 }
 
 /** GET /rag/for-exam 回傳的試題用 RAG（for_exam=true，0 或 1 筆；格式同 file_metadata、quiz_metadata） */
@@ -347,6 +355,9 @@ function buildCardFromExamQuiz(quiz, ragName) {
     ragName: (ragName || quiz.unit_name || quiz.rag_name || '').trim() || null,
     quiz_answer: latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? latestAnswer?.answer_text ?? latestAnswer?.content ?? '',
     hintVisible: false,
+    quiz_rate: normalizeExamQuizRate(quiz.quiz_rate),
+    rateQuizLoading: false,
+    rateError: '',
     confirmed: !!latestAnswer,
     gradingResult,
     gradingResponseJson: latestAnswer ?? null,
@@ -661,6 +672,9 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     ragName: ragName ?? null,
     quiz_answer: '',
     hintVisible: false,
+    quiz_rate: 0,
+    rateQuizLoading: false,
+    rateError: '',
     confirmed: false,
     gradingResult: '',
     gradingResponseJson: null,
@@ -738,6 +752,8 @@ async function generateQuiz(slotIndex) {
       (forExamState.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION,
       quizId
     );
+    const newCard = currentState.value.cardList[slotIndex - 1];
+    if (newCard) newCard.quiz_rate = normalizeExamQuizRate(data.quiz_rate);
   } catch (err) {
     slotState.error = err.message || '產生題目失敗';
   } finally {
@@ -747,6 +763,36 @@ async function generateQuiz(slotIndex) {
 
 function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
+}
+
+/** 題目讚(1)／差(-1)；再點同一顆送 quiz_rate=0 取消。POST /exam/rate-quiz */
+async function rateExamQuiz(item, direction) {
+  if (!item || typeof item !== 'object') return;
+  const examQuizId = item.quiz_id ?? item.exam_quiz_id;
+  const idNum = Number(examQuizId);
+  if (!Number.isFinite(idNum) || idNum < 1) {
+    item.rateError = '無法評分：缺少題目編號（exam_quiz_id）。';
+    return;
+  }
+  const target = direction === 'up' ? 1 : -1;
+  const nextRate = item.quiz_rate === target ? 0 : target;
+  item.rateQuizLoading = true;
+  item.rateError = '';
+  try {
+    const res = await loggedFetch(`${API_BASE}${API_EXAM_RATE_QUIZ}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exam_quiz_id: idNum, quiz_rate: nextRate }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(parseFetchError(res, text));
+    const data = text ? JSON.parse(text) : {};
+    item.quiz_rate = normalizeExamQuizRate(data.quiz_rate ?? nextRate);
+  } catch (err) {
+    item.rateError = err.message || '評分失敗';
+  } finally {
+    item.rateQuizLoading = false;
+  }
 }
 
 /** 評分：與 CreateTestBankPage 相同流程（submitGrade），路徑為 POST /exam/grade-quiz、GET /exam/grade-quiz-result/{job_id} */
@@ -909,9 +955,38 @@ onMounted(() => {
                       </div>
                     </div>
                     <div class="mb-3">
-                      <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="toggleHint(currentState.cardList[slotIndex - 1])">
-                        {{ currentState.cardList[slotIndex - 1].hintVisible ? '隱藏提示' : '顯示提示' }}
-                      </button>
+                      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="toggleHint(currentState.cardList[slotIndex - 1])">
+                          {{ currentState.cardList[slotIndex - 1].hintVisible ? '隱藏提示' : '顯示提示' }}
+                        </button>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="題目回饋">
+                          <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            :class="{ active: currentState.cardList[slotIndex - 1].quiz_rate === 1 }"
+                            title="讚"
+                            :disabled="currentState.cardList[slotIndex - 1].rateQuizLoading"
+                            @click="rateExamQuiz(currentState.cardList[slotIndex - 1], 'up')"
+                          >
+                            <i class="fa-solid fa-thumbs-up" aria-hidden="true"></i>
+                            <span class="visually-hidden">讚</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            :class="{ active: currentState.cardList[slotIndex - 1].quiz_rate === -1 }"
+                            title="差"
+                            :disabled="currentState.cardList[slotIndex - 1].rateQuizLoading"
+                            @click="rateExamQuiz(currentState.cardList[slotIndex - 1], 'down')"
+                          >
+                            <i class="fa-solid fa-thumbs-down" aria-hidden="true"></i>
+                            <span class="visually-hidden">差</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div v-if="currentState.cardList[slotIndex - 1].rateError" class="small text-danger text-end mt-1">
+                        {{ currentState.cardList[slotIndex - 1].rateError }}
+                      </div>
                       <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary small mt-2 p-2 text-secondary">
                         {{ currentState.cardList[slotIndex - 1].hint }}
                       </div>
