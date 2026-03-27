@@ -39,7 +39,7 @@ export const API_REQUEST_QUIZ_CONTENT = 'quiz_content';
 export const API_RAG_QUIZ_GRADE = '/rag/grade-quiz';
 export const API_RAG_QUIZ_GRADE_RESULT = '/rag/grade-quiz-result';
 
-/** Create Unit：POST /rag/create-unit；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、rag_name，選填 local（預設 false；本機前端可傳 true）；system_prompt_instruction 請於 POST /rag/build-rag-zip 傳入；回傳 rag_id、rag_tab_id、person_id、rag_name、local、created_at */
+/** Create Unit：POST /rag/create-unit；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、tab_name，選填 local（預設 false；本機前端可傳 true）；system_prompt_instruction 請於 POST /rag/build-rag-zip 傳入；回傳 rag_id、rag_tab_id、person_id、tab_name、local、created_at */
 export const API_CREATE_UNIT = '/rag/create-unit';
 /** 列出 RAG：GET /rag/rags；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam）、quizzes（每題含 answers）、頂層 answers */
 export const API_RAG_LIST = '/rag/rags';
@@ -47,7 +47,7 @@ export const API_RAG_LIST = '/rag/rags';
 export const API_UPLOAD_ZIP = '/rag/upload-zip';
 /** 刪除 RAG：POST /rag/delete/{rag_tab_id}；Header X-Person-Id */
 export const API_RAG_DELETE = '/rag/delete';
-/** 建 RAG ZIP：POST /rag/build-rag-zip；body: rag_tab_id, person_id, rag_list, chunk_size, chunk_overlap, system_prompt_instruction；不需 llm_api_key */
+/** 建 RAG ZIP：POST /rag/build-rag-zip；依已上傳 ZIP（rag_tab_id，路徑 {person_id}/{rag_tab_id}/upload 與 upload-zip 一致）與 unit_list 抽出資料夾重壓並存後端；body 必填 rag_tab_id、person_id、unit_list（逗號分隔多個輸出檔，加號為同檔內多資料夾）、system_prompt_instruction、chunk_size、chunk_overlap；LLM Key 依 person_id 自 User；回傳寫入 Rag.rag_metadata 並更新 chunk_size、chunk_overlap；不需 llm_api_key */
 export const API_BUILD_RAG_ZIP = '/rag/build-rag-zip';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
 export const API_RAG_APPLIED = '/rag/applied';
@@ -65,7 +65,7 @@ export const API_COURSE_ANALYSIS_QUIZZES = '/course-analysis/quizzes';
 
 /** Exam API：GET /exam/exams List Exams（deleted=false；Exam.local 須與 query local 相符；未傳 local 時後端依連線判定；query: person_id 可選、local 建議與 create-unit 一致） */
 export const API_EXAM_TESTS = '/exam/exams';
-/** Exam：POST /exam/create-exam；body 可選 exam_tab_id、person_id、exam_name、local（預設 false；本機前端應傳 true 與 create-unit 一致）；回傳含 local、created_at 等 */
+/** Exam：POST /exam/create-exam；body 可選 exam_tab_id（未傳則後端產生）、person_id、tab_name、local（預設 false；本機前端應傳 true 與 create-unit 一致）；回傳 exam_id、exam_tab_id、person_id、tab_name、local、created_at */
 export const API_CREATE_EXAM = '/exam/create-exam';
 /** Exam：POST /exam/delete/{exam_tab_id} Delete Exam */
 export const API_EXAM_DELETE = '/exam/delete';

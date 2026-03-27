@@ -2,13 +2,13 @@
 /**
  * CreateTestBankPage - 建立測試題庫頁面
  *
- * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 rag_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為試卷用 → 產生題目 → 作答與評分。
+ * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 unit_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為試卷用 → 產生題目 → 作答與評分。
  *
  * API 對應：
  * - 列表：GET /rag/rags?local=（與 create-unit 的 local 一致）
- * - 建立 tab（按 +）：POST /rag/create-unit（rag_tab_id、person_id、rag_name 必填；local 選填，預設 false；本機前端傳 true）
+ * - 建立 tab（按 +）：POST /rag/create-unit（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/upload-zip（Form: file、rag_tab_id、person_id）
- * - 建 RAG：POST /rag/build-rag-zip（rag_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
+ * - 建 RAG：POST /rag/build-rag-zip（unit_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 試卷用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為試卷用」
  * - 出題：POST /rag/create-quiz（rag_id 必填；rag_tab_id、unit_name 選填可 ""，空 unit_name 後端用 outputs 第一筆）；評分：POST /rag/grade-quiz、GET /rag/grade-quiz-result/{job_id}，ready 時 result: { quiz_score, quiz_comments, rag_answer_id }
  * 上述 API 不需 llm_api_key。
@@ -39,6 +39,7 @@ import {
   generateTabId,
   deriveRagNameFromTabId,
   deriveRagName,
+  getRagUnitListString,
   parsePackTasksList,
   parseRagMetadataObject,
   DEFAULT_SYSTEM_INSTRUCTION,
@@ -97,7 +98,7 @@ function checkRagHasMetadata(rag) {
 
 function checkRagHasList(rag) {
   if (!rag || typeof rag !== 'object') return false;
-  return rag.rag_list != null && String(rag.rag_list).trim() !== '';
+  return getRagUnitListString(rag) !== '';
 }
 
 /** 至少一個出題單元，且每個出題單元至少一個單元（與出題群組區「確定」按鈕啟用條件一致） */
@@ -109,7 +110,7 @@ function isPackTasksListReady(list) {
 const hasRagMetadata = computed(() => checkRagHasMetadata(currentRagItem.value));
 const hasRagListOrMetadata = computed(() => checkRagHasMetadata(currentRagItem.value) || checkRagHasList(currentRagItem.value));
 
-/** 後端已有 rag_metadata 時，出題單元（rag_list）拆成條列：每個 li 為一群，群內資料夾以 + 連接 */
+/** 後端已有 rag_metadata 時，出題單元（unit_list）拆成條列：每個 li 為一群，群內資料夾以 + 連接 */
 const ragListReadonlyGroups = computed(() => {
   const list = currentState.value.packTasksList;
   if (Array.isArray(list) && list.length > 0) {
@@ -117,9 +118,8 @@ const ragListReadonlyGroups = computed(() => {
     if (groups.length > 0) return groups;
   }
   const rag = currentRagItem.value;
-  if (rag && rag.rag_list != null && String(rag.rag_list).trim() !== '') {
-    return parsePackTasksList(String(rag.rag_list).trim());
-  }
+  const unitStr = getRagUnitListString(rag);
+  if (unitStr) return parsePackTasksList(unitStr);
   return [];
 });
 
@@ -181,7 +181,7 @@ const generateQuizUnits = computed(() => {
       };
     });
   }
-  // fallback：Pack 尚未執行，從 /rags 的 rag_list 推導
+  // fallback：Pack 尚未執行，從 /rags 的 unit_list（或 rag_list）推導
   return generateQuizUnitsFromRag.value;
 });
 
@@ -341,11 +341,11 @@ const ragItems = computed(() =>
 const newTabItems = computed(() =>
   newTabIds.value.map((tid) => ({
     id: tid,
-    label: deriveRagNameFromTabId(getTabState(tid).tabId) || 'RAG',
+    label: '新增測試題庫',
   }))
 );
 
-/** 從 /rag/rags 的 outputs（頂層或 rag_metadata 內）或 rag_list 推導 generateQuizUnits（與 ExamPage／build-rag-zip 一致） */
+/** 從 /rag/rags 的 outputs（頂層或 rag_metadata 內）或 unit_list 推導 generateQuizUnits（與 ExamPage／build-rag-zip 一致） */
 const generateQuizUnitsFromRag = computed(() => {
   const rag = currentRagItem.value;
   if (!rag || typeof rag !== 'object') return [];
@@ -384,7 +384,7 @@ const generateQuizUnitsFromRag = computed(() => {
       };
     });
   }
-  const ragListStr = rag.rag_list ?? '';
+  const ragListStr = getRagUnitListString(rag);
   if (!ragListStr) return [];
   return String(ragListStr)
     .split(',')
@@ -404,8 +404,9 @@ const generateQuizUnitsFromRag = computed(() => {
 /** 從 Rag 項目同步到 tab state（packTasks、ragMetadata、chunk、quizzes 等） */
 function syncRagItemToState(rag, state) {
   if (!rag || typeof rag !== 'object') return;
-  if (rag.rag_list != null && String(rag.rag_list).trim() !== '') {
-    state.packTasks = String(rag.rag_list).trim();
+  const unitListStr = getRagUnitListString(rag);
+  if (unitListStr) {
+    state.packTasks = unitListStr;
     state.packTasksList = parsePackTasksList(state.packTasks);
   }
   if (rag.rag_metadata != null) {
@@ -436,7 +437,7 @@ function syncRagItemToState(rag, state) {
     });
     const metaParsed = parseRagMetadataObject(rag);
     const out0 = Array.isArray(rag.outputs) && rag.outputs.length > 0 ? rag.outputs[0] : metaParsed?.outputs?.[0];
-    const firstRagName = (parsePackTasksList(rag.rag_list)[0]?.[0] ?? out0?.rag_name ?? quizzes[0]?.rag_name ?? '').trim();
+    const firstRagName = (parsePackTasksList(getRagUnitListString(rag))[0]?.[0] ?? out0?.rag_name ?? quizzes[0]?.rag_name ?? '').trim();
     state.showQuizGeneratorBlock = true;
     state.quizSlotsCount = quizzesWithAnswers.length;
     state.cardList = quizzesWithAnswers.map((q) => buildCardFromRagQuiz(q, q.rag_name ?? firstRagName));
@@ -653,9 +654,9 @@ async function addNewTab() {
   createRagError.value = '';
   createRagLoading.value = true;
   const ragTabId = generateTabId(personId);
-  const ragName = deriveRagNameFromTabId(ragTabId) || ragTabId;
+  const tabName = '新增測試題庫';
   try {
-    const data = await apiCreateUnit(personId, ragTabId, ragName);
+    const data = await apiCreateUnit(personId, ragTabId, tabName);
     if (data?.rag_id != null && data?.created_at != null) {
       ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(data.rag_id)]: data.created_at };
     }
@@ -671,17 +672,19 @@ async function addNewTab() {
   }
 }
 
-/** 取得 RAG 顯示名稱（用於 tab 標籤）；以 rag_name 為主，預設為 rag_tab_id 底線後的時間 */
+/** 取得 RAG 顯示名稱（用於 tab 標籤）；以 tab_name／rag_name 為主，預設為 rag_tab_id 底線後的時間 */
 function getRagTabLabel(rag) {
   if (rag == null) return 'RAG';
   if (typeof rag === 'string') return ragCreatedAtMap.value[rag] ?? String(rag);
   if (typeof rag !== 'object') return String(rag);
   const id = rag.rag_id ?? rag.rag_tab_id ?? rag.id;
   const fromMap = id != null ? ragCreatedAtMap.value[String(id)] : undefined;
-  const ragName = (rag.rag_name != null && String(rag.rag_name).trim() !== '')
-    ? String(rag.rag_name).trim()
-    : deriveRagNameFromTabId(rag.rag_tab_id ?? rag.id ?? '');
-  return (ragName && ragName !== '') ? ragName : (fromMap ?? rag.file_metadata?.filename ?? rag.course_name ?? rag.filename ?? rag.created_at ?? deriveRagNameFromTabId(rag.rag_tab_id ?? '') ?? 'RAG');
+  const label = (rag.tab_name != null && String(rag.tab_name).trim() !== '')
+    ? String(rag.tab_name).trim()
+    : (rag.rag_name != null && String(rag.rag_name).trim() !== '')
+      ? String(rag.rag_name).trim()
+      : deriveRagNameFromTabId(rag.rag_tab_id ?? rag.id ?? '');
+  return (label && label !== '') ? label : (fromMap ?? rag.file_metadata?.filename ?? rag.course_name ?? rag.filename ?? rag.created_at ?? deriveRagNameFromTabId(rag.rag_tab_id ?? '') ?? 'RAG');
 }
 
 function resetZipState(state, tabId) {
@@ -792,7 +795,7 @@ async function confirmUploadZip() {
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipTabId ?? '').trim();
-  const ragList = state.packTasks?.trim();
+  const unitList = state.packTasks?.trim();
   const personId = getPersonId(authStore);
   if (!fileId) {
     state.packError = '請先上傳 ZIP 取得 rag_tab_id';
@@ -806,8 +809,8 @@ async function confirmPack() {
     state.packError = '請至少建立一個出題單元，且每個出題單元至少包含一個單元';
     return;
   }
-  if (!ragList) {
-    state.packError = '請輸入 rag_list（例：220222+220301 或 220222,220301+220302）';
+  if (!unitList) {
+    state.packError = '請輸入單元清單 unit_list（例：220222+220301 或 220222,220301+220302）';
     return;
   }
   state.packLoading = true;
@@ -817,7 +820,7 @@ async function confirmPack() {
     state.packResponseJson = await apiBuildRagZip({
       rag_tab_id: fileId,
       person_id: personId,
-      rag_list: ragList,
+      unit_list: unitList,
       chunk_size: ensureNumber(chunkSize.value, 1000),
       chunk_overlap: ensureNumber(chunkOverlap.value, 200),
       system_prompt_instruction: (state.systemInstruction ?? '').trim() || '',
@@ -1234,7 +1237,7 @@ async function confirmAnswer(item) {
                 type="button"
                 class="btn btn-sm btn-outline-secondary"
                 :disabled="!secondFoldersFull.length"
-                title="在現有測試題庫之後新增一個測試題庫，內含全部單元（rag_list 以 + 連接）"
+                title="在現有測試題庫之後新增一個測試題庫，內含全部單元（unit_list 以 + 連接）"
                 @click="setAllSecondFoldersAsSingleGroup"
               >
                 每個單元建立一個測試題庫

@@ -1,5 +1,5 @@
 /**
- * Pack 虛擬資料夾（rag_list）Composable
+ * Pack 虛擬資料夾（build-rag-zip 的 unit_list）Composable
  *
  * 職責：
  * - 從 currentState 與 fileMetadataToShow 衍生 secondFoldersFull、ragListDisplayGroups
@@ -145,7 +145,7 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     state.packTasksList = [...existing, ...newGroups];
   }
 
-  /** 在現有出題單元之後新增一個出題單元，內含全部單元（rag_list：a+b+c），不覆寫既有出題單元 */
+  /** 在現有出題單元之後新增一個出題單元，內含全部單元（unit_list：a+b+c），不覆寫既有出題單元 */
   function setAllSecondFoldersAsSingleGroup() {
     const names = secondFoldersFull.value;
     if (!names.length) return;

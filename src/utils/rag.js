@@ -92,10 +92,11 @@ export function deriveRagNameFromTabId(ragTabId) {
 /**
  * 從 API 回傳的單一 RAG 物件推得 rag_name
  * 後端可能用 rag_tab_id = {rag_name}_rag 或 filename；此函數統一取出顯示名稱
- * @param {object} [o] - 含 rag_name / rag_tab_id / filename 等欄位的物件
+ * @param {object} [o] - 含 tab_name / rag_name / rag_tab_id / filename 等欄位的物件
  * @returns {string}
  */
 export function deriveRagName(o) {
+  if (o && typeof o.tab_name === 'string' && o.tab_name) return o.tab_name;
   if (o && typeof o.rag_name === 'string' && o.rag_name) return o.rag_name;
   const id = o?.rag_tab_id ?? '';
   const s = String(id);
@@ -114,6 +115,8 @@ export function unitSelectValue(opt) {
   if (!opt || typeof opt !== 'object') return '';
   const un = String(opt.unit_name ?? '').trim();
   if (un) return un;
+  const tn = String(opt.tab_name ?? '').trim();
+  if (tn) return tn;
   const tid = String(opt.rag_tab_id ?? '').trim();
   if (tid) return tid;
   return String(opt.rag_name ?? '').trim();
@@ -174,7 +177,19 @@ export function parseRagMetadataObject(rag) {
 }
 
 /**
- * 將 rag_list 字串解析為虛擬資料夾群組（供建 RAG 時分組上傳）
+ * Rag 表上的單元清單字串（build-rag-zip 的 unit_list；列表 API 可能為 unit_list，相容 rag_list）
+ * @param {object} [rag]
+ * @returns {string} trim 後字串，無則 ''
+ */
+export function getRagUnitListString(rag) {
+  if (!rag || typeof rag !== 'object') return '';
+  const u = rag.unit_list ?? rag.rag_list;
+  if (u == null) return '';
+  return String(u).trim();
+}
+
+/**
+ * 將 unit_list 字串解析為虛擬資料夾群組（供建 RAG 時分組）
  * 格式：'a+b,c' → [['a','b'],['c']]，逗號分隔群組，加號分隔同群組內的資料夾
  * @param {string} [str]
  * @returns {string[][]}
@@ -186,7 +201,7 @@ export function parsePackTasksList(str) {
 }
 
 /**
- * 將虛擬資料夾群組序列化為後端 rag_list 字串
+ * 將虛擬資料夾群組序列化為後端 unit_list 字串
  * @param {string[][]} list - 二維陣列，每群組為一組資料夾名稱
  * @returns {string}
  */

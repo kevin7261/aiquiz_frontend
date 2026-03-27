@@ -6,7 +6,7 @@
  *
  * 資料來源：
  * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（試卷／題目關聯由 GET /exam/exams 等提供即可）
- * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／rag_list 時仍可用 rag_tab_id 合成單元）
+ * - GET /rag/for-exam：試題用 RAG 完整 payload（outputs 等欄位可為 rag_name 或 unit_name；無 outputs／unit_list 時仍可用 rag_tab_id 合成單元）
  * - GET /exam/exams?local=&person_id=：local 與 GET /rag/rags 相同；回傳每筆含 quizzes、answers（或 exam_quizzes／exam_answers）時，以 syncExamItemToTabState 灌入卡片（同 CreateTestBankPage 由列表同步題目／作答／批改）
  * 出題：POST /exam/create-quiz（exam_id 或 exam_tab_id 二擇一；對齊 RAG 的 POST /rag/create-quiz）；評分：POST /exam/grade-quiz、GET /exam/grade-quiz-result/{job_id}（與 RAG 輪詢流程相同，見 useQuizGrading）；題目讚／差：POST /exam/rate-quiz（quiz_rate：1、-1、0）；刪除：POST /exam/delete/{exam_tab_id}
  *
@@ -31,6 +31,7 @@ import {
 import { parseFetchError } from '../utils/apiError.js';
 import {
   parseRagMetadataObject,
+  getRagUnitListString,
   unitSelectValue,
   reconcileQuizUnitSelectSlot,
   findQuizUnitBySlotSelection,
@@ -187,7 +188,7 @@ const generateQuizUnits = computed(() => {
   if (Array.isArray(nestedOutputs) && nestedOutputs.length > 0) {
     return nestedOutputs.map(mapOutput);
   }
-  const ragListStr = rag.rag_list ?? '';
+  const ragListStr = getRagUnitListString(rag);
   if (ragListStr) {
     return String(ragListStr)
       .split(',')
@@ -203,7 +204,7 @@ const generateQuizUnits = computed(() => {
         };
       });
   }
-  // 僅有 rag_tab_id、尚無 outputs／rag_list（後端精簡回傳）時仍要能選單元並出題
+  // 僅有 rag_tab_id、尚無 outputs／unit_list（後端精簡回傳）時仍要能選單元並出題
   if (sourceTabId) {
     const nm = String(rag.rag_name ?? rag.unit_name ?? '').replace(/\+/g, '_').trim() || sourceTabId;
     return [{
@@ -232,7 +233,7 @@ const forExamRagIdAndTabId = computed(() => {
   return { rag_id: rid != null ? String(rid) : '—', rag_tab_id: tid ? String(tid) : '—' };
 });
 
-/** 當前試卷顯示用（exam_tab_id、exam_name，來自 GET /exam/exams） */
+/** 當前試卷顯示用（exam_tab_id、名稱；列表可能為 tab_name 或舊欄位 exam_name） */
 const currentExamDisplay = computed(() => {
   const exam = currentExamItem.value;
   const id = activeTabId.value;
@@ -465,15 +466,18 @@ async function fetchExamTests() {
     const data = await res.json();
     const list = normalizeExamListResponse(data);
     // 保留完整欄位與 quizzes、answers（供 watch(currentExamItem) 預填題目卡片）
-    examList.value = list.map((row) => ({
-      ...row,
-      exam_id: row.exam_id ?? row.test_id,
-      exam_tab_id: row.exam_tab_id ?? row.test_tab_id,
-      exam_name: row.exam_name ?? row.test_name,
-      test_id: row.exam_id ?? row.test_id,
-      test_tab_id: row.exam_tab_id ?? row.test_tab_id,
-      test_name: row.exam_name ?? row.test_name,
-    }));
+    examList.value = list.map((row) => {
+      const label = row.tab_name ?? row.exam_name ?? row.test_name;
+      return {
+        ...row,
+        exam_id: row.exam_id ?? row.test_id,
+        exam_tab_id: row.exam_tab_id ?? row.test_tab_id,
+        exam_name: label,
+        test_id: row.exam_id ?? row.test_id,
+        test_tab_id: row.exam_tab_id ?? row.test_tab_id,
+        test_name: label,
+      };
+    });
   } catch (err) {
     examListError.value = err.message || '無法載入試卷列表';
     examList.value = [];
@@ -512,12 +516,13 @@ async function fetchForExamRag() {
   }
 }
 
-/** 試卷 tab 顯示名稱：支援 exam_name/exam_tab_id（新 API）與 test_name/test_tab_id */
+/** 試卷 tab 顯示名稱：優先 tab_name，其次 exam_name／test_name／exam_tab_id */
 function getExamTabLabel(exam) {
   if (exam == null) return '試卷';
   if (typeof exam === 'string') return exam;
   const tabId = exam.exam_tab_id ?? exam.test_tab_id ?? exam.id ?? '';
-  const name = (exam.exam_name ?? exam.test_name) != null && String(exam.exam_name ?? exam.test_name).trim() !== '' ? String(exam.exam_name ?? exam.test_name).trim() : '';
+  const raw = exam.tab_name ?? exam.exam_name ?? exam.test_name;
+  const name = raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
   const fromTabId = deriveNameFromTabId(tabId);
   const created = exam.created_at ?? '';
   return name || fromTabId || tabId || created || '試卷';
@@ -529,7 +534,7 @@ function getExamTabId(exam) {
   return String(exam.exam_tab_id ?? exam.test_tab_id ?? exam.id ?? '');
 }
 
-/** 按 + 新增試卷：POST /exam/create-exam，body 含 exam_tab_id、exam_name、local（與 create-rag 一致） */
+/** 按 + 新增試卷：POST /exam/create-exam，body 含 exam_tab_id、person_id、tab_name、local（與 create-unit 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -539,7 +544,7 @@ async function addNewTab() {
   createExamError.value = '';
   createExamLoading.value = true;
   const examTabId = generateTabId(personId);
-  const examName = deriveNameFromTabId(examTabId) || examTabId;
+  const tabName = '新增試卷';
   const local = isFrontendLocalHost();
   try {
     const res = await loggedFetch(`${API_BASE}${API_CREATE_EXAM}`, {
@@ -548,7 +553,7 @@ async function addNewTab() {
       body: JSON.stringify({
         exam_tab_id: examTabId,
         person_id: personId,
-        exam_name: examName,
+        tab_name: tabName,
         local,
       }),
     });
@@ -559,13 +564,15 @@ async function addNewTab() {
     }
     const data = await res.json();
     const tabIdVal = data?.exam_tab_id != null ? String(data.exam_tab_id) : (data?.test_tab_id != null ? String(data.test_tab_id) : examTabId);
+    const resolvedName = data.tab_name ?? data.exam_name ?? data.test_name ?? tabName;
     const item = {
       exam_id: data.exam_id ?? data.test_id,
       exam_tab_id: tabIdVal,
-      exam_name: data.exam_name ?? data.test_name ?? examName,
+      tab_name: resolvedName,
+      exam_name: resolvedName,
       test_id: data.exam_id ?? data.test_id,
       test_tab_id: tabIdVal,
-      test_name: data.exam_name ?? data.test_name ?? examName,
+      test_name: resolvedName,
       person_id: data.person_id,
       local: data.local ?? local,
       created_at: data.created_at,

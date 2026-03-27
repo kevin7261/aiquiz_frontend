@@ -98,7 +98,7 @@ async function fetchQuizAnswers() {
     const exams = normalizeAnalysisQuizzesListResponse(data);
     items.value = exams.flatMap((exam) => {
       const quizzes = mergeQuizzesWithTopLevelAnswers(exam);
-      const examLabel = exam.exam_name ?? exam.exam_tab_id ?? '';
+      const examLabel = exam.tab_name ?? exam.exam_name ?? exam.exam_tab_id ?? '';
       return quizzes.map((q) => ({ ...q, exam_name: examLabel }));
     });
     count.value = data?.count ?? items.value.length;

@@ -43,17 +43,17 @@ function parseJson(text) {
  * Create Unit：POST /rag/create-unit（僅建立一筆 Rag；system_prompt_instruction 請於 build-rag-zip 傳入）
  * @param {string} personId
  * @param {string} ragTabId
- * @param {string} ragName
- * @returns {Promise<object>} rag_id、rag_tab_id、person_id、rag_name、local、created_at
+ * @param {string} tabName
+ * @returns {Promise<object>} rag_id、rag_tab_id、person_id、tab_name、local、created_at
  */
-export async function apiCreateUnit(personId, ragTabId, ragName) {
+export async function apiCreateUnit(personId, ragTabId, tabName) {
   const res = await loggedFetch(`${API_BASE}${API_CREATE_UNIT}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       rag_tab_id: ragTabId,
       person_id: personId,
-      rag_name: ragName,
+      tab_name: tabName,
       local: isFrontendLocalHost(),
     }),
   });
@@ -158,7 +158,7 @@ export async function apiSetRagForExam(ragId) {
 
 /**
  * 建 RAG ZIP：POST /rag/build-rag-zip
- * @param {object} body - 含 rag_tab_id, person_id, rag_list, chunk_size, chunk_overlap, system_prompt_instruction 等
+ * @param {object} body - 含 rag_tab_id, person_id, unit_list, chunk_size, chunk_overlap, system_prompt_instruction 等
  * @returns {Promise<object | string>} 後端回傳的 JSON 或原始文字
  */
 export async function apiBuildRagZip(body) {
