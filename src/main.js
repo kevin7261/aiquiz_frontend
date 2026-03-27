@@ -34,7 +34,7 @@ app.use(router);
 /**
  * 全域路由守衛：主區塊與 /exam 需登入；依 user_type 限制可進入的路由（學生不可直連無權限 path）
  * - 需登入：/exam、/main、/main/*
- * - user_type 3：僅 /exam、/main/student-weakness-analysis、/main/profile；其餘導向 /exam
+ * - user_type 3：僅 /exam、/main/student-weakness-analysis（作答弱點分析）、/main/profile；其餘導向 /exam
  * - 未定義路徑：已登入 → /exam；未登入 → /login
  */
 router.beforeEach((to, _from, next) => {

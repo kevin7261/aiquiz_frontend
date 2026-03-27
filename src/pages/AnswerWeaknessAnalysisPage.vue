@@ -1,6 +1,6 @@
 <script setup>
 /**
- * StudentWeaknessAnalysisPage - 學生弱點分析頁面
+ * AnswerWeaknessAnalysisPage - 作答弱點分析頁面
  *
  * 讀取 GET /person-analysis/quizzes/{person_id}；列表與 GET /exam/exams、GET /rag/rags 每筆一致（頂層 answers 與每題 quizzes 對齊合併）。
  * 另含 count、weakness_report；可顯示作答摘要、弱點報告、匯出 Excel。
@@ -85,7 +85,7 @@ async function fetchQuizAnswers() {
   error.value = '';
   const personId = authStore.user?.person_id;
   if (!personId) {
-    error.value = '請先登入以查看學生弱點分析';
+    error.value = '請先登入以查看作答弱點分析';
     loading.value = false;
     return;
   }
@@ -104,7 +104,7 @@ async function fetchQuizAnswers() {
     count.value = data?.count ?? items.value.length;
     weaknessReport.value = (data?.weakness_report != null && String(data.weakness_report).trim() !== '') ? String(data.weakness_report).trim() : '';
   } catch (err) {
-    error.value = err.message || '無法載入學生弱點分析';
+    error.value = err.message || '無法載入作答弱點分析';
     items.value = [];
     count.value = 0;
     weaknessReport.value = '';
@@ -125,7 +125,7 @@ function getSummaryRows() {
 
 async function onDownloadExcel() {
   const headers = ['題號', '單元', '難度', '分數', '時間'];
-  await downloadSummaryExcel(headers, getSummaryRows(), '學生弱點分析-作答紀錄摘要.xlsx');
+  await downloadSummaryExcel(headers, getSummaryRows(), '作答弱點分析-作答紀錄摘要.xlsx');
 }
 
 onMounted(() => {
@@ -141,7 +141,7 @@ onMounted(() => {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">學生弱點分析</span>
+        <span class="navbar-brand mb-0">作答弱點分析</span>
       </div>
     </div>
     <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">

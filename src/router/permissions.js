@@ -2,7 +2,7 @@
  * 依 user_type 限制可進入的路由（與側邊欄顯示）
  *
  * 1=系統開發者、2=課程管理者：全部頁面
- * 3=學生：僅試卷（/exam）、學生弱點分析（/main/student-weakness-analysis）、設定（/main/profile）
+ * 3=學生：僅試卷（/exam）、作答弱點分析（/main/student-weakness-analysis）、設定（/main/profile）
  */
 
 export const RESTRICTED_USER_TYPE = 3;

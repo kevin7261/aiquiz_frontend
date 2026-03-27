@@ -3,7 +3,7 @@
    * HomeView - 登入後的主畫面
    *
    * 職責：
-   * - 左側選單：試卷、學生弱點分析；其餘項目與登出在使用者名下拉選單
+   * - 左側選單：試卷、作答弱點分析；其餘項目與登出在使用者名下拉選單
    * - 依 route.path / route.params.view 決定 currentView，只渲染對應的一個頁面組件
    * - /exam 對應 work（ExamPage），/main/:view 對應 student-weakness-analysis / create-test-bank 等
    * - onMounted 時在 dataStore 註冊一個工作分頁（MAIN_WORK_TAB_ID）供 Exam 使用

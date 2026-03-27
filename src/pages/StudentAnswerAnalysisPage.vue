@@ -3,7 +3,7 @@
  * StudentAnswerAnalysisPage - 學生作答分析頁面
  *
  * 讀取 GET /course-analysis/quizzes；列表格式與 GET /exam/exams、GET /rag/rags 每筆一致（頂層 answers 與 quizzes 合併）；weakness_report 固定 null。
- * 版面與學生弱點分析一致：摘要、批改結果、匯出 Excel。
+ * 版面與作答弱點分析一致：摘要、批改結果、匯出 Excel。
  */
 import { ref, onMounted } from 'vue';
 import { API_BASE, API_COURSE_ANALYSIS_QUIZZES } from '../constants/api.js';
@@ -152,7 +152,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 題目與答案詳情（樣式與學生弱點分析一致） -->
+        <!-- 題目與答案詳情（樣式與作答弱點分析一致） -->
         <div
           v-for="(item, idx) in items"
           :key="item.exam_quiz_id ?? idx"

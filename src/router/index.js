@@ -28,7 +28,7 @@ const VALID_VIEWS = [
 /** 各 view 對應的瀏覽器頁籤標題 */
 const VIEW_TITLES = {
   work: '試卷 - AIQuiz',
-  'student-weakness-analysis': '學生弱點分析 - AIQuiz',
+  'student-weakness-analysis': '作答弱點分析 - AIQuiz',
   'student-answer-analysis': '學生作答分析 - AIQuiz',
   profile: '設定 - AIQuiz',
   'create-test-bank': '建立測試題庫 - AIQuiz',
