@@ -961,7 +961,7 @@ onMounted(() => {
                   :disabled="deleteExamLoading || examRenameSaving"
                   @click.stop="deleteExam(getExamTabId(exam))"
                 >
-                  <i class="fa-solid fa-trash-can" aria-hidden="true" />
+                  <i class="fa-solid fa-xmark" aria-hidden="true" />
                 </button>
               </div>
             </li>

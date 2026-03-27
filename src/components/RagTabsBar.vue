@@ -4,7 +4,7 @@
  *
  * 顯示：後端 RAG 列表（ragItems）+ 尚未儲存的「新增」分頁（newTabItems）+ 「+」按鈕。
  * 點選分頁會 emit update:activeTabId；點「+」會 emit add-new-tab。
- * 已儲存的 ragItems：僅當前選中分頁顯示筆（rename-tab）與刪除（delete-rag，垃圾桶圖示）；試卷用 RAG（_isExamRag）僅綠點、無刪除；newTabItems 無筆／刪除。
+ * 已儲存的 ragItems：僅當前選中分頁顯示筆（rename-tab）與刪除（delete-rag，× 圖示）；試卷用 RAG（_isExamRag）僅綠點、無刪除；newTabItems 無筆／刪除。
  * 若 RAG 列表與新分頁皆空，僅顯示「+ 新增」按鈕以建立第一個 RAG。
  * 下方可顯示 ragListError、createRagError 警告/錯誤訊息。
  */
@@ -99,7 +99,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
                 :disabled="deleteRagLoading || renameTabLoading"
                 @click.stop="emit('delete-rag', item._tabId)"
               >
-                <i class="fa-solid fa-trash-can" aria-hidden="true" />
+                <i class="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
           </li>
