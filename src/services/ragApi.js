@@ -85,14 +85,12 @@ export async function apiUploadZip(file, ragTabId, personId) {
 }
 
 /**
- * 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}
+ * 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}（後端依連線／session 識別 person，不需 X-Person-Id）
  * @param {string} ragTabId
- * @param {string} personId - 以 X-Person-Id header 傳送
  */
-export async function apiDeleteRag(ragTabId, personId) {
+export async function apiDeleteRag(ragTabId) {
   const res = await loggedFetch(`${API_BASE}${API_RAG_DELETE}/${encodeURIComponent(String(ragTabId))}`, {
     method: 'POST',
-    headers: { 'X-Person-Id': String(personId) },
   });
   if (!res.ok) {
     const text = await res.text();

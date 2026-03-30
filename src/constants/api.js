@@ -45,7 +45,7 @@ export const API_CREATE_UNIT = '/rag/tab/create';
 export const API_RAG_LIST = '/rag/tabs';
 /** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .zip、.pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata */
 export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
-/** 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}；Header X-Person-Id */
+/** 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}；不需 X-Person-Id */
 export const API_RAG_DELETE = '/rag/tab/delete';
 /** 更新 RAG 分頁顯示名稱：PUT /rag/tab/tab-name；body JSON：rag_id、tab_name；以 rag_id 比對，僅更新 deleted=false；回傳 rag_id、rag_tab_id、person_id、tab_name、updated_at */
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
@@ -71,7 +71,7 @@ export const API_EXAM_TESTS = '/exam/tabs';
 export const API_CREATE_EXAM = '/exam/tab/create';
 /** 更新測驗分頁顯示名稱：PUT /exam/tab/tab-name；body JSON：exam_id、tab_name；以 exam_id 比對，僅更新 deleted=false；回傳 exam_id、exam_tab_id、person_id、tab_name、updated_at */
 export const API_EXAM_UNIT_NAME = '/exam/tab/tab-name';
-/** Exam：POST /exam/tab/delete/{exam_tab_id} Delete Exam */
+/** Exam：POST /exam/tab/delete/{exam_tab_id} Delete Exam；不需 X-Person-Id */
 export const API_EXAM_DELETE = '/exam/tab/delete';
 /** Exam：POST /exam/tab/quiz/create（Exam Create Quiz）；body 對齊 RAG 的 POST /rag/tab/quiz/create：exam_id 或 exam_tab_id（二擇一；可 ""／0 搭配另一欄）、quiz_level（「基礎」或「進階」）、unit_name（選填可 ""）；LLM Key 由系統設定；試題 RAG 依連線讀 rag_localhost／rag_deploy。回傳對應 Exam_Quiz 等欄位 */
 export const API_EXAM_CREATE_QUIZ = '/exam/tab/quiz/create';

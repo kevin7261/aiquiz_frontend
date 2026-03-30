@@ -636,7 +636,7 @@ async function deleteRag(rag, e) {
   if (!confirm(`確定要刪除「${getRagTabLabel(rag)}」嗎？`)) return;
   deleteRagLoading.value = true;
   try {
-    await apiDeleteRag(fileId, personId);
+    await apiDeleteRag(fileId);
     await fetchRagList();
     if (activeTabId.value === (rag?.rag_tab_id ?? rag?.id ?? String(fileId))) {
       if (ragList.value.length > 0) {

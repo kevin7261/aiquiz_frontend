@@ -638,7 +638,7 @@ async function addNewTab() {
   }
 }
 
-/** 刪除測驗：POST /exam/tab/delete/{exam_tab_id}，成功後從列表移除並切到其他 tab */
+/** 刪除測驗：POST /exam/tab/delete/{exam_tab_id}（不需 X-Person-Id），成功後從列表移除並切到其他 tab */
 const deleteExamLoading = ref(false);
 const gradingLoading = ref(false);
 
@@ -671,7 +671,6 @@ async function deleteExam(examTabId) {
   try {
     const res = await loggedFetch(`${API_BASE}${API_EXAM_DELETE}/${encodeURIComponent(examTabId)}`, {
       method: 'POST',
-      headers: getCurrentPersonId() ? { 'X-Person-Id': getCurrentPersonId() } : {},
     });
     if (!res.ok) {
       const text = await res.text();
