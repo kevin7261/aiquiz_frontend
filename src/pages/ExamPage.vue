@@ -300,11 +300,14 @@ watch(forExamRag, (rag) => {
   }
 }, { immediate: true });
 
-/** 當登入者（person_id 或 user_id）可用時再載入 GET /exam/tabs；與 RAG 頁一致，且覆蓋重新打開頁面時 Pinia 還原較晚的情況 */
+/**
+ * 載入 GET /exam/tabs：immediate 涵蓋首次進入（含尚無 person_id 時仍要列表）；
+ * person_id／user_id 變動時再抓一次以帶正確 X-Person-Id。勿在 onMounted 再呼叫 fetchExamTests，否則與 immediate 重複一次。
+ */
 watch(
   () => getCurrentPersonId(),
-  (id) => {
-    if (id) fetchExamTests();
+  () => {
+    fetchExamTests();
   },
   { immediate: true }
 );
@@ -913,10 +916,9 @@ async function confirmAnswer(item) {
   }
 }
 
-/** 與建立 RAG 頁一致：畫面一打開就抓 GET /exam/tabs；watch(person_id) 在還原後再抓一次以帶 person_id */
+/** 試題用 RAG 僅於掛載時抓；測驗列表由 watch(person_id) immediate 負責，避免與 onMounted 雙重 GET /exam/tabs */
 onMounted(() => {
   fetchForExamRag();
-  fetchExamTests();
 });
 </script>
 

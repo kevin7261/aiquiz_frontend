@@ -564,9 +564,8 @@ async function fetchCourseNameForPrompt() {
   }
 }
 
-/** 畫面一打開就抓 GET /rag/tabs，每一筆 RAG 一個 tab；並清空檔案選擇讓上傳欄位一開始是空的 */
+/** GET /rag/tabs 由 useRagList 內 watch(immediate) 載入；此處僅試題用設定、檔案欄位、課程名稱 */
 onMounted(() => {
-  fetchRagList();
   refreshRagForExamSetting();
   clearZipFileInput();
   fetchCourseNameForPrompt();
