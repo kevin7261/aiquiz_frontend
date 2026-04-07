@@ -371,7 +371,6 @@ function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
     quiz_answer: latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? latestAnswer?.answer_text ?? latestAnswer?.content ?? '',
     hintVisible: false,
     quiz_rate: normalizeExamQuizRate(quiz.quiz_rate),
-    rateQuizLoading: false,
     rateError: '',
     confirmed: !!latestAnswer,
     gradingResult,
@@ -733,7 +732,6 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     quiz_answer: '',
     hintVisible: false,
     quiz_rate: 0,
-    rateQuizLoading: false,
     rateError: '',
     confirmed: false,
     gradingResult: '',
@@ -828,7 +826,7 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-/** 題目讚(1)／差(-1)；再點同一顆送 quiz_rate=0 取消。POST /exam/tab/quiz/rate */
+/** 題目讚(1)／差(-1)；再點同一顆送 quiz_rate=0 取消。POST /exam/tab/quiz/rate；UI 先更新，僅在請求失敗時還原 */
 async function rateExamQuiz(item, direction) {
   if (!item || typeof item !== 'object') return;
   const examQuizId = item.quiz_id ?? item.exam_quiz_id;
@@ -838,8 +836,9 @@ async function rateExamQuiz(item, direction) {
     return;
   }
   const target = direction === 'up' ? 1 : -1;
-  const nextRate = item.quiz_rate === target ? 0 : target;
-  item.rateQuizLoading = true;
+  const previousRate = normalizeExamQuizRate(item.quiz_rate);
+  const nextRate = previousRate === target ? 0 : target;
+  item.quiz_rate = nextRate;
   item.rateError = '';
   try {
     const res = await loggedFetch(`${API_BASE}${API_EXAM_RATE_QUIZ}`, {
@@ -852,9 +851,8 @@ async function rateExamQuiz(item, direction) {
     const data = text ? JSON.parse(text) : {};
     item.quiz_rate = normalizeExamQuizRate(data.quiz_rate ?? nextRate);
   } catch (err) {
+    item.quiz_rate = previousRate;
     item.rateError = err.message || '評分失敗';
-  } finally {
-    item.rateQuizLoading = false;
   }
 }
 
@@ -1074,7 +1072,6 @@ onMounted(() => {
                             class="btn btn-outline-secondary"
                             :class="{ active: currentState.cardList[slotIndex - 1].quiz_rate === 1 }"
                             title="讚"
-                            :disabled="currentState.cardList[slotIndex - 1].rateQuizLoading"
                             @click="rateExamQuiz(currentState.cardList[slotIndex - 1], 'up')"
                           >
                             <i class="fa-solid fa-thumbs-up" aria-hidden="true"></i>
@@ -1085,7 +1082,6 @@ onMounted(() => {
                             class="btn btn-outline-secondary"
                             :class="{ active: currentState.cardList[slotIndex - 1].quiz_rate === -1 }"
                             title="差"
-                            :disabled="currentState.cardList[slotIndex - 1].rateQuizLoading"
                             @click="rateExamQuiz(currentState.cardList[slotIndex - 1], 'down')"
                           >
                             <i class="fa-solid fa-thumbs-down" aria-hidden="true"></i>
