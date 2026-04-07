@@ -8,7 +8,7 @@ import { computed } from 'vue';
  * 未確定前可輸入答案並按「確定」送出評分。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id 等。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -110,7 +110,7 @@ const answerInputDisabled = computed(() => {
           【重要限制】<br>
           請使用繁體中文 (Traditional Chinese) 撰寫評語 (quiz_comments)。<br>
           【評分標準】<br>
-          0-5分，一定是整數 (quiz_grade)。<br>
+          0-5分，一定是整數 (quiz_score)。<br>
           0: 完全錯誤或未作答。<br>
           1: 只有少量內容正確。<br>
           2: 大幅缺漏，只有部分內容正確。<br>
@@ -119,7 +119,7 @@ const answerInputDisabled = computed(() => {
           5: 完全正確且完整。<br>
           【回傳格式】<br>
           請以指定格式回傳（含分數與評語欄位）：<br>
-          { "quiz_grade": int,<br>
+          { "quiz_score": int,<br>
           "quiz_comments": str[] }<br>
         </div>
       </div>

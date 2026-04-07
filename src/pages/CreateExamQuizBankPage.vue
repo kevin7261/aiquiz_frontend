@@ -51,6 +51,8 @@ import {
   quizLevelStringForApi,
   reconcileQuizUnitSelectSlot,
   findQuizUnitBySlotSelection,
+  examOrRagQuizRowKey,
+  examOrRagAnswerRowKey,
 } from '../utils/rag.js';
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
@@ -472,14 +474,14 @@ function syncRagItemToState(rag, state) {
   const ragAnswers = rag.answers ?? [];
   if (quizzes.length > 0) {
     const answersByQuizId = ragAnswers.reduce((acc, a) => {
-      const id = a.quiz_id != null && String(a.quiz_id).trim() !== '' ? String(a.quiz_id) : '';
+      const id = examOrRagAnswerRowKey(a);
       if (!id) return acc;
       if (!acc[id]) acc[id] = [];
       acc[id].push(a);
       return acc;
     }, {});
     const quizzesWithAnswers = quizzes.map((q, i) => {
-      const qKey = q.quiz_id != null && String(q.quiz_id).trim() !== '' ? String(q.quiz_id) : '';
+      const qKey = examOrRagQuizRowKey(q);
       const byId = q.answers ?? (qKey ? answersByQuizId[qKey] : undefined);
       const answers = (Array.isArray(byId) && byId.length > 0) ? byId : (ragAnswers[i] != null ? [ragAnswers[i]] : []);
       return { ...q, answers };
@@ -527,7 +529,7 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
     generateQuizResponseJson: null,
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: null,
-    quiz_id: quiz.quiz_id ?? null,
+    rag_quiz_id: quiz.rag_quiz_id ?? quiz.quiz_id ?? null,
     answer_id: latestAnswer?.answer_id ?? null,
   };
 }
@@ -958,7 +960,7 @@ function openNextQuizSlot() {
 }
 
 /** 將第 slotIndex 題設為指定卡片（每題獨立，不連動） */
-function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAnswer, ragName, generateQuizResponseJson, generateLevel, systemInstructionUsed, ragId) {
+function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAnswer, ragName, generateQuizResponseJson, generateLevel, systemInstructionUsed, ragId, ragQuizId) {
   const state = currentState.value;
   while (state.cardList.length < slotIndex) {
     state.cardList.push(null);
@@ -980,6 +982,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     generateQuizResponseJson: generateQuizResponseJson ?? null,
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: systemInstructionUsed ?? null,
+    rag_quiz_id: ragQuizId ?? null,
   };
   state.cardList[slotIndex - 1] = card;
 }
@@ -1021,6 +1024,9 @@ async function generateQuiz(slotIndex) {
     const targetFilename = data.unit_filename ?? data.target_filename ?? selectedUnit?.filename ?? '';
     const referenceAnswerText =
       data.quiz_answer_reference ?? data.quiz_reference_answer ?? data.quiz_answer ?? data.answer ?? '';
+    const rawRagQuizId =
+      data.rag_quiz_id != null ? Number(data.rag_quiz_id) : (data.quiz_id != null ? Number(data.quiz_id) : null);
+    const ragQuizId = Number.isFinite(rawRagQuizId) ? rawRagQuizId : null;
     setCardAtSlot(
       slotIndex,
       quizContent,
@@ -1031,7 +1037,8 @@ async function generateQuiz(slotIndex) {
       data,
       filterDifficulty.value,
       (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION,
-      ragId
+      ragId,
+      ragQuizId
     );
   } catch (err) {
     slotState.error = err.message || '產生題目失敗';

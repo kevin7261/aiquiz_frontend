@@ -260,13 +260,13 @@ export function normalizeAnalysisQuizzesListResponse(data) {
 }
 
 /**
- * 與 ExamPage examQuizRowKey：合併 answers 時以字串當 key
+ * 合併 answers 時以字串當 key（與後端欄位一致：exam_quiz_id、rag_quiz_id；後備 quiz_id）
  * @param {object | null | undefined} q
  * @returns {string}
  */
 export function examOrRagQuizRowKey(q) {
   if (!q || typeof q !== 'object') return '';
-  const v = q.exam_quiz_id ?? q.quiz_id;
+  const v = q.exam_quiz_id ?? q.rag_quiz_id ?? q.quiz_id;
   return v != null && String(v).trim() !== '' ? String(v) : '';
 }
 
@@ -276,7 +276,7 @@ export function examOrRagQuizRowKey(q) {
  */
 export function examOrRagAnswerRowKey(a) {
   if (!a || typeof a !== 'object') return '';
-  const v = a.exam_quiz_id ?? a.quiz_id;
+  const v = a.exam_quiz_id ?? a.rag_quiz_id ?? a.quiz_id;
   return v != null && String(v).trim() !== '' ? String(v) : '';
 }
 

@@ -36,7 +36,17 @@ function unwrapMetadata(meta) {
 }
 
 /**
- * 分析表／摘要「分數」欄（後端欄位 quiz_grade，舊版 answer_grade）：純數字時顯示為「n / 5」；其餘原樣。
+ * 作答列分數原始值（與 API：quiz_score 為主；列表可能仍為 quiz_grade、answer_grade）
+ * @param {Record<string, unknown> | null | undefined} answer
+ * @returns {unknown}
+ */
+export function getAnswerScoreValue(answer) {
+  if (answer == null || typeof answer !== 'object') return undefined;
+  return answer.quiz_score ?? answer.quiz_grade ?? answer.answer_grade;
+}
+
+/**
+ * 分析表／摘要「分數」欄：純數字時顯示為「n / 5」；其餘原樣。
  * @param {unknown} value
  * @returns {string}
  */

@@ -15,7 +15,7 @@ import {
   normalizeAnalysisQuizzesListResponse,
   mergeQuizzesWithTopLevelAnswers,
 } from '../utils/rag.js';
-import { formatGradingResult, formatQuizGradeDisplay } from '../utils/grading.js';
+import { formatGradingResult, formatQuizGradeDisplay, getAnswerScoreValue } from '../utils/grading.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 
 const items = ref([]);
@@ -76,7 +76,7 @@ function getSummaryRows() {
     item.person_id ?? '—',
     item.rag_name ?? item.exam_name ?? '—',
     getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level),
-    formatQuizGradeDisplay(getSingleAnswer(item)?.quiz_grade ?? getSingleAnswer(item)?.answer_grade),
+    formatQuizGradeDisplay(getAnswerScoreValue(getSingleAnswer(item))),
     getSingleAnswer(item)?.created_at ?? '—'
   ]);
 }
@@ -130,12 +130,12 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(item, idx) in items" :key="item.exam_quiz_id ?? idx">
+                <tr v-for="(item, idx) in items" :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx">
                   <td>{{ idx + 1 }}</td>
                   <td>{{ item.person_id ?? '—' }}</td>
                   <td>{{ item.rag_name ?? item.exam_name ?? '—' }}</td>
                   <td>{{ getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level) }}</td>
-                  <td>{{ formatQuizGradeDisplay(getSingleAnswer(item)?.quiz_grade ?? getSingleAnswer(item)?.answer_grade) }}</td>
+                  <td>{{ formatQuizGradeDisplay(getAnswerScoreValue(getSingleAnswer(item))) }}</td>
                   <td>{{ getSingleAnswer(item)?.created_at ?? '—' }}</td>
                 </tr>
               </tbody>
@@ -155,7 +155,7 @@ onMounted(() => {
         <!-- 題目與答案詳情（樣式與作答弱點分析一致） -->
         <div
           v-for="(item, idx) in items"
-          :key="item.exam_quiz_id ?? idx"
+          :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx"
           class="card mb-4"
         >
           <div class="card-header py-2">

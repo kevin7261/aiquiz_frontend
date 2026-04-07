@@ -34,7 +34,12 @@ export async function submitGrade(item, context, options = {}) {
     ? {
         exam_id: String(examId ?? ''),
         exam_tab_id: examTabId != null ? String(examTabId) : '',
-        exam_quiz_id: item.quiz_id != null ? String(item.quiz_id) : '',
+        exam_quiz_id:
+          item.exam_quiz_id != null && String(item.exam_quiz_id).trim() !== ''
+            ? String(item.exam_quiz_id)
+            : item.quiz_id != null
+              ? String(item.quiz_id)
+              : '',
         quiz_content: item.quiz ?? '',
         quiz_answer: item.quiz_answer.trim(),
         quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
@@ -42,7 +47,12 @@ export async function submitGrade(item, context, options = {}) {
     : {
         rag_id: String(ragId),
         rag_tab_id: sourceTabId,
-        rag_quiz_id: item.quiz_id != null ? String(item.quiz_id) : '',
+        rag_quiz_id:
+          item.rag_quiz_id != null && String(item.rag_quiz_id).trim() !== ''
+            ? String(item.rag_quiz_id)
+            : item.quiz_id != null
+              ? String(item.quiz_id)
+              : '',
         quiz_content: item.quiz ?? '',
         quiz_answer: item.quiz_answer.trim(),
         quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',

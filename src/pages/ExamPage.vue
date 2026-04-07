@@ -29,11 +29,9 @@ import {
   isFrontendLocalHost,
 } from '../constants/api.js';
 import { parseFetchError } from '../utils/apiError.js';
-import { formatFileSize } from '../utils/formatFileSize.js';
 import {
   parseRagMetadataObject,
   getRagUnitListString,
-  deriveRagName,
   reconcileQuizUnitSelectSlot,
   findQuizUnitBySlotSelection,
   QUIZ_LEVEL_LABELS,
@@ -41,6 +39,8 @@ import {
   quizLevelStringForApi,
   examQuizLevelFromRow,
   normalizeExamListResponse,
+  examOrRagQuizRowKey,
+  examOrRagAnswerRowKey,
 } from '../utils/rag.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
@@ -243,47 +243,6 @@ const forExamRagIdAndTabId = computed(() => {
   return { rag_id: rid != null ? String(rid) : '—', rag_tab_id: tid ? String(tid) : '—' };
 });
 
-/** 試題用教材上傳檔：file_metadata 與 Rag 表 file_size（MB；GET /rag/tab/for-exam） */
-const forExamUploadInfoLine = computed(() => {
-  const rag = forExamRag.value;
-  if (!rag || typeof rag !== 'object') return '';
-  const meta = rag.file_metadata;
-  const name =
-    meta && typeof meta === 'object'
-      ? meta.filename ?? meta.rag_filename ?? meta.original_filename
-      : null;
-  const nameStr = name != null && String(name).trim() !== '' ? String(name).trim() : '';
-  const sizeRaw =
-    meta && typeof meta === 'object' && meta.file_size != null ? meta.file_size : rag.file_size;
-  const sizeStr = formatFileSize(sizeRaw, 'MB');
-  if (!nameStr && !sizeStr) return '';
-  const parts = [];
-  if (nameStr) parts.push(`檔名：${nameStr}`);
-  if (sizeStr) parts.push(`大小：${sizeStr}`);
-  return parts.join(' · ');
-});
-
-/** 建置輸出檔大小（outputs 每項 file_size 為 MB） */
-const forExamOutputsSizeLine = computed(() => {
-  const rag = forExamRag.value;
-  if (!rag || typeof rag !== 'object') return '';
-  const metaObj = parseRagMetadataObject(rag);
-  const outputs =
-    Array.isArray(rag.outputs) && rag.outputs.length > 0
-      ? rag.outputs
-      : Array.isArray(metaObj?.outputs) && metaObj.outputs.length > 0
-        ? metaObj.outputs
-        : null;
-  if (!outputs) return '';
-  const parts = outputs.map((o) => {
-    const sz = formatFileSize(o.file_size, 'MB');
-    if (!sz) return null;
-    const label = deriveRagName(o) || String(o.unit_name || o.rag_name || '').trim() || '—';
-    return `${label} ${sz}`;
-  }).filter(Boolean);
-  return parts.length ? `建置輸出：${parts.join(' · ')}` : '';
-});
-
 /** 當前測驗顯示用（exam_tab_id、名稱；列表可能為 tab_name 或舊欄位 exam_name） */
 const currentExamDisplay = computed(() => {
   const exam = currentExamItem.value;
@@ -374,19 +333,6 @@ watch(generateQuizUnits, (units) => {
   }
 }, { immediate: true });
 
-/** 與 RAG 的 quiz_id 對齊：合併 answers 時一律用字串當 key，避免 3 與 "3" 對不到 */
-function examQuizRowKey(q) {
-  if (!q || typeof q !== 'object') return '';
-  const v = q.exam_quiz_id ?? q.quiz_id;
-  return v != null && String(v).trim() !== '' ? String(v) : '';
-}
-
-function examAnswerRowKey(a) {
-  if (!a || typeof a !== 'object') return '';
-  const v = a.exam_quiz_id ?? a.quiz_id;
-  return v != null && String(v).trim() !== '' ? String(v) : '';
-}
-
 /** 由 GET /exam/tabs 回傳的 quiz（Exam_Quiz 列 + answers）組成一張題目卡片（欄位後備與 CreateExamQuizBankPage buildCardFromRagQuiz 對齊） */
 function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
@@ -423,7 +369,7 @@ function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
     generateQuizResponseJson: null,
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: null,
-    quiz_id: quizId,
+    exam_quiz_id: quizId,
     answer_id: answerId,
   };
 }
@@ -452,14 +398,14 @@ function syncExamItemToTabState(exam) {
   ).trim();
   if (quizzes.length > 0) {
     const answersByQuizId = examAnswers.reduce((acc, a) => {
-      const id = examAnswerRowKey(a);
+      const id = examOrRagAnswerRowKey(a);
       if (!id) return acc;
       if (!acc[id]) acc[id] = [];
       acc[id].push(a);
       return acc;
     }, {});
     const quizzesWithAnswers = quizzes.map((q, i) => {
-      const qKey = examQuizRowKey(q);
+      const qKey = examOrRagQuizRowKey(q);
       const byId = q.answers ?? (qKey ? answersByQuizId[qKey] : undefined);
       const answers = (Array.isArray(byId) && byId.length > 0) ? byId : (examAnswers[i] != null ? [examAnswers[i]] : []);
       return { ...q, answers };
@@ -784,7 +730,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     generateQuizResponseJson: generateQuizResponseJson ?? null,
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: systemInstructionUsed ?? null,
-    quiz_id: quizId ?? null,
+    exam_quiz_id: quizId ?? null,
   };
 }
 
@@ -874,7 +820,7 @@ function toggleHint(item) {
 /** 題目讚(1)／差(-1)；再點同一顆送 quiz_rate=0 取消。POST /exam/tab/quiz/rate；UI 先更新，僅在請求失敗時還原 */
 async function rateExamQuiz(item, direction) {
   if (!item || typeof item !== 'object') return;
-  const examQuizId = item.quiz_id ?? item.exam_quiz_id;
+  const examQuizId = item.exam_quiz_id ?? item.quiz_id;
   const idNum = Number(examQuizId);
   if (!Number.isFinite(idNum) || idNum < 1) {
     item.rateError = '無法評分：缺少題目編號（exam_quiz_id）。';
@@ -1079,18 +1025,6 @@ onMounted(() => {
           v-if="activeTabId"
           class="text-start page-block-spacing"
         >
-          <div
-            v-if="forExamUploadInfoLine || forExamOutputsSizeLine"
-            class="small text-muted mb-3 border rounded px-3 py-2 bg-body-tertiary"
-          >
-            <div v-if="forExamUploadInfoLine">{{ forExamUploadInfoLine }}</div>
-            <div
-              v-if="forExamOutputsSizeLine"
-              :class="{ 'mt-1': forExamUploadInfoLine }"
-            >
-              {{ forExamOutputsSizeLine }}
-            </div>
-          </div>
           <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
           <div class="mb-4">
             <template v-for="(slotIndex) in currentState.quizSlotsCount" :key="slotIndex">
