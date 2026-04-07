@@ -3,7 +3,6 @@
  * LogListPage - 系統 Log 列表（GET /log/logs）
  *
  * 僅 user_type=1 可進入（路由與選單由 permissions 限制）。
- * 後端讀取整張 Log 表，依 log_id 降冪；query 的 person_id 僅供請求紀錄，由 loggedFetch 依登入者自動帶入（與其他 API 相同）。
  */
 import { ref, computed, onMounted } from 'vue';
 import { API_BASE, API_LIST_LOGS } from '../constants/api.js';
@@ -80,11 +79,6 @@ onMounted(() => {
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-4">
       <div class="row justify-content-center">
         <div class="col-12 col-xl-11">
-          <p class="small text-secondary mb-3">
-            列表為整張 Log 表（依 log_id 新舊排序）。請求時會帶上 person_id 供伺服器紀錄，不影響查詢結果。
-          </p>
-          <p class="small text-secondary mb-3">共 {{ rows.length }} 筆（欄位依後端回傳為準）</p>
-
           <div class="table-responsive">
             <table class="table table-bordered table-hover table-sm">
               <thead class="table-light">

@@ -104,5 +104,5 @@ export const API_GET_LLM_API_KEY = '/system-settings/llm-api-key';
 /** PUT：寫入或更新系統預設 LLM API Key（表 key=llm_api_key）；body 僅傳 { llm_api_key }，空字串表示清除。 */
 export const API_PUT_SYSTEM_SETTING_LLM_API_KEY = '/system-settings/llm-api-key';
 
-/** 系統 Log：GET /log/logs；讀取整張 Log 表，依 log_id 降冪。query person_id 僅供請求紀錄，不影響查詢結果（與其他 API 相同可由 loggedFetch 帶入）。 */
+/** GET：系統 Log 列表。 */
 export const API_LIST_LOGS = '/log/logs';
