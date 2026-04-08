@@ -29,19 +29,19 @@
 <template>
   <div
     v-if="isVisible"
-    class="d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100 my-loading-overlay-backdrop"
+    class="loading-overlay d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100"
   >
-    <div class="text-center my-bgcolor-white rounded shadow my-loading-overlay-panel p-4">
-      <div class="spinner-border text-primary my-loading-spinner mb-3" role="status">
+    <div class="text-center my-bgcolor-white rounded shadow loading-overlay-panel p-4">
+      <div class="spinner-border text-primary loading-overlay-spinner mb-3" role="status">
         <span class="visually-hidden">{{ loadingText }}</span>
       </div>
-      <div class="my-title-lg-black">{{ loadingText }}</div>
+      <div class="fs-5 fw-semibold text-dark">{{ loadingText }}</div>
       <div class="mt-3" v-if="showProgress && progress >= 0">
-        <div class="progress my-loading-progress">
+        <div class="progress loading-overlay-progress">
           <div
-            class="d-flex align-items-center justify-content-center progress-bar bg-primary my-loading-progress-bar"
+            class="d-flex align-items-center justify-content-center progress-bar bg-primary loading-overlay-progress-bar"
             role="progressbar"
-            :style="{ '--my-loading-progress-pct': progress + '%' }"
+            :style="{ '--loading-overlay-progress-pct': progress + '%' }"
             :aria-valuenow="progress"
             aria-valuemin="0"
             aria-valuemax="100"
@@ -51,8 +51,36 @@
         </div>
       </div>
       <div v-if="subText" class="mt-2">
-        <small class="my-content-xs-gray">{{ subText }}</small>
+        <span class="my-font-size-xs my-color-gray-light">{{ subText }}</span>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.loading-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
+}
+
+.loading-overlay-panel {
+  min-width: 300px;
+  max-width: 400px;
+}
+
+.loading-overlay-spinner {
+  width: 2rem;
+  height: 2rem;
+}
+
+.loading-overlay-progress {
+  height: 8px;
+}
+
+.loading-overlay-progress-bar {
+  width: var(--loading-overlay-progress-pct, 0);
+  transition: width 0.3s ease;
+  font-size: var(--my-font-size-xs);
+  color: var(--my-color-white);
+}
+</style>

@@ -5,7 +5,7 @@
  * - / → 重導向至 /login
  * - /login → 登入頁（LoginView）
  * - /exam → 測驗/工作區（HomeView，內部 currentView 為 work）
- * - /:view → 主區塊各功能（student-weakness-analysis、profile、create-test-bank、manage-users 等），由 HomeView 依 view 渲染
+ * - /:view → 主區塊各功能（student-weakness-analysis、profile、create-test-bank、design、manage-users 等），由 HomeView 依 view 渲染
  * - /main、/main/:view → 舊網址相容，重導向至 /exam 或 /:view
  *
  * 主區塊與 /exam 需登入、依 user_type 限制路由（/logs 僅 user_type=1），見 main.js 的 router.beforeEach 與 permissions.js。
@@ -21,6 +21,8 @@ const VALID_VIEWS = [
   'student-answer-analysis',
   'profile',
   'create-test-bank',
+  'create-test-bank_design',
+  'design',
   'manage-users',
   'settings',
   'logs',
@@ -33,6 +35,8 @@ const VIEW_TITLES = {
   'student-answer-analysis': '學生作答分析 - AIQuiz',
   profile: '設定 - AIQuiz',
   'create-test-bank': '建立測驗題庫 - AIQuiz',
+  'create-test-bank_design': '建立測驗題庫（介面稿） - AIQuiz',
+  design: 'UI 元件（Bootstrap） - AIQuiz',
   'manage-users': '使用者管理 - AIQuiz',
   settings: '系統設定 - AIQuiz',
   logs: '系統 Log - AIQuiz',

@@ -131,15 +131,15 @@ async function saveProfile() {
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
           <div class="text-start page-block-spacing">
             <div class="mb-4">
-              <label class="form-label small text-secondary fw-medium mb-1">帳號</label>
+              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">帳號</label>
               <input :value="account" type="text" class="form-control form-control-sm" placeholder="帳號" readonly disabled>
             </div>
             <div class="mb-4">
-              <label class="form-label small text-secondary fw-medium mb-1">名稱</label>
+              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">名稱</label>
               <input :value="displayName" type="text" class="form-control form-control-sm" placeholder="名稱" readonly disabled>
             </div>
             <div v-if="canEditLlmApiKey" class="mb-4">
-              <label class="form-label small text-secondary fw-medium mb-1">建立測驗題庫用的 AI 服務 API 金鑰</label>
+              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">建立測驗題庫用的 AI 服務 API 金鑰</label>
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="flex-grow-1" style="min-width: 0">
                   <input

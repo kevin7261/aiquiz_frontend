@@ -156,7 +156,7 @@ async function save(block) {
           <div class="text-start page-block-spacing">
             <template v-for="block in BLOCKS" :key="block.id">
               <div class="mb-4">
-                <label class="form-label small text-secondary fw-medium mb-1">{{ block.label }}</label>
+                <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">{{ block.label }}</label>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <div class="flex-grow-1" style="min-width: 0">
                     <input
@@ -167,7 +167,7 @@ async function save(block) {
                       :disabled="fetchLoading"
                       :autocomplete="block.id === 'llmApiKey' ? 'off' : undefined"
                     >
-                    <div v-if="fetchLoading" class="form-text small">載入中...</div>
+                    <div v-if="fetchLoading" class="form-text my-font-size-sm">載入中...</div>
                   </div>
                   <button
                     type="button"
@@ -188,7 +188,7 @@ async function save(block) {
               </div>
             </template>
             <div class="mb-4">
-              <label class="form-label small text-secondary fw-medium mb-1">服務位址（僅供查閱）</label>
+              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">服務位址（僅供查閱）</label>
               <div
                 class="form-control form-control-sm bg-body-secondary font-monospace text-break py-2"
                 role="status"

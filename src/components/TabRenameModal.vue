@@ -70,7 +70,7 @@ function onSave() {
             />
           </div>
           <div class="modal-body pt-2">
-            <label class="form-label small text-secondary mb-1" for="tab-rename-input">名稱</label>
+            <label class="form-label my-font-size-sm text-secondary mb-1" for="tab-rename-input">名稱</label>
             <input
               id="tab-rename-input"
               v-model="localName"
@@ -81,7 +81,7 @@ function onSave() {
               :disabled="saving"
               @keydown.enter.prevent="onSave"
             />
-            <div v-if="error" class="text-danger small mt-2">{{ error }}</div>
+            <div v-if="error" class="text-danger my-font-size-sm mt-2">{{ error }}</div>
           </div>
           <div class="modal-footer border-top-0 pt-0">
             <button type="button" class="btn btn-outline-secondary" :disabled="saving" @click="close">

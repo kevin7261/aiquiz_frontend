@@ -86,7 +86,7 @@ onMounted(() => {
         <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="loading" @click="fetchLogs">重新載入</button>
       </div>
     </div>
-    <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-0 mt-2" role="alert">{{ error }}</div>
+    <div v-if="error" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-0 mt-2" role="alert">{{ error }}</div>
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-4">
       <div class="row justify-content-center">
         <div class="col-12 col-xl-11">
@@ -94,15 +94,15 @@ onMounted(() => {
             <table class="table table-bordered table-hover table-sm">
               <thead class="table-light">
                 <tr>
-                  <th v-for="col in columns" :key="col" class="small fw-medium">{{ columnHeaderLabel(col) }}</th>
+                  <th v-for="col in columns" :key="col" class="my-font-size-sm fw-medium">{{ columnHeaderLabel(col) }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(row, idx) in rows" :key="row.log_id ?? idx">
-                  <td v-for="col in columns" :key="col" class="small text-break">{{ cellDisplay(row[col]) }}</td>
+                  <td v-for="col in columns" :key="col" class="my-font-size-sm text-break">{{ cellDisplay(row[col]) }}</td>
                 </tr>
                 <tr v-if="!loading && rows.length === 0">
-                  <td :colspan="Math.max(columns.length, 1)" class="text-muted text-center small">尚無資料</td>
+                  <td :colspan="Math.max(columns.length, 1)" class="text-muted text-center my-font-size-sm">尚無資料</td>
                 </tr>
               </tbody>
             </table>

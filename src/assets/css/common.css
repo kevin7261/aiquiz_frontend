@@ -1,5 +1,15 @@
+/**
+ * 全域與共用 class：
+ * 全站：html/body/#app、連結無底線、捲軸
+ * my-*：對應 --my-*；字級僅 var(--my-font-size-*)；字重無變數，僅 400／600 且只經 .my-type-*／.my-text-* 等固定規則
+ * 字階 .my-type-{xl|…|xs}-{400|600}；字階＋字色 .my-text-*-{400|600}-*；底／字色 .my-bgcolor-*、.my-color-*；按鈕 .my-btn-pill／.my-btn-{sm|lg}＋語意色 class＋.my-border-color-*＋.my-btn-hover-*／.my-btn-border；表格 .my-table；Bootstrap 下拉 .my-dropdown-*
+ * 原生 select：.my-form-select-wrap 包 .my-form-select ＋ <i class="fa-solid fa-chevron-down my-form-select-caret">（箭頭勿用 data URI）
+ * 權杖下拉：.my-dropdown-menu；.my-dropdown-caret 隱藏 ::after，箭頭 FA .my-dropdown-toggle-caret
+ * .page-block-spacing：多個業務頁主要區塊（非權杖對照）
+ * 屬性順序：同一規則內其它屬性在前，最後先 padding 再 margin（HTML class 亦同：p-* 後接 m-*）
+ */
 @import "./variables.css";
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100..900&family=Roboto:wght@100;300;400;500;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600&family=Roboto:wght@400;600&display=swap");
 
 *,
 *::before,
@@ -10,16 +20,17 @@
 html,
 body {
   height: 100%;
-  margin: 0;
-  padding: 0;
   overflow: hidden;
+  padding: 0;
+  margin: 0;
 }
 
 body {
   font-family: var(--my-font-family-primary);
   font-size: var(--my-font-size-md);
-  color: var(--my-color-gray-900);
-  background-color: var(--my-color-white);
+  font-weight: 400;
+  color: var(--my-color-black);
+  background-color: #ffffff;
 }
 
 a,
@@ -49,6 +60,19 @@ button:focus,
   flex-direction: column;
 }
 
+/* Bootstrap reboot 預設 code 為 $code-color（粉紅）；深色權杖下改繼承父層，才會吃到 .my-color-*／.my-text-* */
+[data-bs-theme="dark"] code {
+  color: inherit;
+}
+
+/* —— 字體／字級（對應 --my-font-family-primary、--my-font-size-*） —— */
+.my-font-family-primary {
+  font-family: var(--my-font-family-primary);
+}
+
+.my-font-size-2xs {
+  font-size: var(--my-font-size-2xs);
+}
 .my-font-size-xs {
   font-size: var(--my-font-size-xs);
 }
@@ -64,583 +88,432 @@ button:focus,
 .my-font-size-xl {
   font-size: var(--my-font-size-xl);
 }
-.my-font-size-2xl {
-  font-size: var(--my-font-size-2xl);
+
+/* —— 字階：五級 × 字重 400／600＝10；class 第三段為字重數字（勿用 regular／semibold 等別名） —— */
+.my-type-xl-400 {
+  font-size: var(--my-font-size-xl);
+  font-weight: 400;
+}
+.my-type-xl-600 {
+  font-size: var(--my-font-size-xl);
+  font-weight: 600;
+}
+.my-type-lg-400 {
+  font-size: var(--my-font-size-lg);
+  font-weight: 400;
+}
+.my-type-lg-600 {
+  font-size: var(--my-font-size-lg);
+  font-weight: 600;
+}
+.my-type-md-400 {
+  font-size: var(--my-font-size-md);
+  font-weight: 400;
+}
+.my-type-md-600 {
+  font-size: var(--my-font-size-md);
+  font-weight: 600;
+}
+.my-type-sm-400 {
+  font-size: var(--my-font-size-sm);
+  font-weight: 400;
+}
+.my-type-sm-600 {
+  font-size: var(--my-font-size-sm);
+  font-weight: 600;
+}
+.my-type-xs-400 {
+  font-size: var(--my-font-size-xs);
+  font-weight: 400;
+}
+.my-type-xs-600 {
+  font-size: var(--my-font-size-xs);
+  font-weight: 600;
 }
 
-.my-color-white {
+/* —— 字階＋字色：字重段同 .my-type-*（僅 400｜600） —— */
+.my-text-xl-400-white {
+  font-size: var(--my-font-size-xl);
+  font-weight: 400;
   color: var(--my-color-white);
 }
-.my-color-gray-50 {
-  color: var(--my-color-gray-50);
+.my-text-xl-400-gray-light {
+  font-size: var(--my-font-size-xl);
+  font-weight: 400;
+  color: var(--my-color-gray-light);
 }
-.my-color-gray-100 {
-  color: var(--my-color-gray-100);
+.my-text-xl-600-white {
+  font-size: var(--my-font-size-xl);
+  font-weight: 600;
+  color: var(--my-color-white);
 }
-.my-color-gray-200 {
-  color: var(--my-color-gray-200);
+.my-text-lg-400-white {
+  font-size: var(--my-font-size-lg);
+  font-weight: 400;
+  color: var(--my-color-white);
 }
-.my-color-gray-300 {
-  color: var(--my-color-gray-300);
+.my-text-lg-600-white {
+  font-size: var(--my-font-size-lg);
+  font-weight: 600;
+  color: var(--my-color-white);
 }
-.my-color-gray-400 {
-  color: var(--my-color-gray-400);
+.my-text-md-400-gray-light {
+  font-size: var(--my-font-size-md);
+  font-weight: 400;
+  color: var(--my-color-gray-light);
 }
-.my-color-gray-500 {
-  color: var(--my-color-gray-500);
+.my-text-md-600-white {
+  font-size: var(--my-font-size-md);
+  font-weight: 600;
+  color: var(--my-color-white);
 }
-.my-color-gray-600 {
-  color: var(--my-color-gray-600);
+.my-text-md-600-gray-light {
+  font-size: var(--my-font-size-md);
+  font-weight: 600;
+  color: var(--my-color-gray-light);
 }
-.my-color-gray-700 {
-  color: var(--my-color-gray-700);
+.my-text-sm-400-white {
+  font-size: var(--my-font-size-sm);
+  font-weight: 400;
+  color: var(--my-color-white);
 }
-.my-color-gray-800 {
-  color: var(--my-color-gray-800);
+.my-text-sm-600-white {
+  font-size: var(--my-font-size-sm);
+  font-weight: 600;
+  color: var(--my-color-white);
 }
-.my-color-gray-900 {
-  color: var(--my-color-gray-900);
+.my-text-xs-400-gray-light {
+  font-size: var(--my-font-size-xs);
+  font-weight: 400;
+  color: var(--my-color-gray-light);
 }
+.my-text-xs-600-gray-light {
+  font-size: var(--my-font-size-xs);
+  font-weight: 600;
+  color: var(--my-color-gray-light);
+}
+
+/* —— 字色（對應 --my-color-*） —— */
 .my-color-black {
   color: var(--my-color-black);
 }
-
+.my-color-gray-dark {
+  color: var(--my-color-gray-dark);
+}
+.my-color-gray-light {
+  color: var(--my-color-gray-light);
+}
+.my-color-white {
+  color: var(--my-color-white);
+}
 .my-color-red {
   color: var(--my-color-red);
-}
-.my-color-pink {
-  color: var(--my-color-pink);
-}
-.my-color-deeporange {
-  color: var(--my-color-deeporange);
-}
-.my-color-orange {
-  color: var(--my-color-orange);
-}
-.my-color-amber {
-  color: var(--my-color-amber);
 }
 .my-color-yellow {
   color: var(--my-color-yellow);
 }
-.my-color-lime {
-  color: var(--my-color-lime);
-}
-.my-color-lightgreen {
-  color: var(--my-color-lightgreen);
-}
 .my-color-green {
   color: var(--my-color-green);
-}
-.my-color-teal {
-  color: var(--my-color-teal);
-}
-.my-color-cyan {
-  color: var(--my-color-cyan);
-}
-.my-color-lightblue {
-  color: var(--my-color-lightblue);
 }
 .my-color-blue {
   color: var(--my-color-blue);
 }
-.my-color-bluegrey {
-  color: var(--my-color-bluegrey);
-}
-.my-color-indigo {
-  color: var(--my-color-indigo);
-}
-.my-color-deeppurple {
-  color: var(--my-color-deeppurple);
-}
-.my-color-purple {
-  color: var(--my-color-purple);
-}
-.my-color-brown {
-  color: var(--my-color-brown);
-}
 
-.my-bgcolor-white {
-  background-color: var(--my-color-white);
-}
-.my-bgcolor-gray-50 {
-  background-color: var(--my-color-gray-50);
-}
-.my-bgcolor-gray-100 {
-  background-color: var(--my-color-gray-100);
-}
-.my-bgcolor-gray-200 {
-  background-color: var(--my-color-gray-200);
-}
-.my-bgcolor-gray-300 {
-  background-color: var(--my-color-gray-300);
-}
-.my-bgcolor-gray-400 {
-  background-color: var(--my-color-gray-400);
-}
-.my-bgcolor-gray-500 {
-  background-color: var(--my-color-gray-500);
-}
-.my-bgcolor-gray-600 {
-  background-color: var(--my-color-gray-600);
-}
-.my-bgcolor-gray-700 {
-  background-color: var(--my-color-gray-700);
-}
-.my-bgcolor-gray-800 {
-  background-color: var(--my-color-gray-800);
-}
-.my-bgcolor-gray-900 {
-  background-color: var(--my-color-gray-900);
-}
+/* —— 背景色（值同 --my-color-*） —— */
 .my-bgcolor-black {
   background-color: var(--my-color-black);
 }
-
+.my-bgcolor-gray-dark {
+  background-color: var(--my-color-gray-dark);
+}
+.my-bgcolor-gray-light {
+  background-color: var(--my-color-gray-light);
+}
+.my-bgcolor-white {
+  background-color: var(--my-color-white);
+}
 .my-bgcolor-red {
   background-color: var(--my-color-red);
 }
-.my-bgcolor-pink {
-  background-color: var(--my-color-pink);
-}
-.my-bgcolor-deeporange {
-  background-color: var(--my-color-deeporange);
-}
-.my-bgcolor-orange {
-  background-color: var(--my-color-orange);
-}
-.my-bgcolor-amber {
-  background-color: var(--my-color-amber);
-}
 .my-bgcolor-yellow {
   background-color: var(--my-color-yellow);
-}
-.my-bgcolor-lime {
-  background-color: var(--my-color-lime);
-}
-.my-bgcolor-lightgreen {
-  background-color: var(--my-color-lightgreen);
+  color: var(--my-color-black);
 }
 .my-bgcolor-green {
   background-color: var(--my-color-green);
 }
-.my-bgcolor-teal {
-  background-color: var(--my-color-teal);
-}
-.my-bgcolor-cyan {
-  background-color: var(--my-color-cyan);
-}
-.my-bgcolor-lightblue {
-  background-color: var(--my-color-lightblue);
-}
 .my-bgcolor-blue {
   background-color: var(--my-color-blue);
 }
-.my-bgcolor-bluegrey {
-  background-color: var(--my-color-bluegrey);
+
+.my-border-color-red {
+  border-color: var(--my-color-red);
 }
-.my-bgcolor-indigo {
-  background-color: var(--my-color-indigo);
+.my-border-color-yellow {
+  border-color: var(--my-color-yellow);
 }
-.my-bgcolor-deeppurple {
-  background-color: var(--my-color-deeppurple);
+.my-border-color-green {
+  border-color: var(--my-color-green);
 }
-.my-bgcolor-purple {
-  background-color: var(--my-color-purple);
-}
-.my-bgcolor-brown {
-  background-color: var(--my-color-brown);
+.my-border-color-blue {
+  border-color: var(--my-color-blue);
 }
 
-.my-bgcolor-white-hover {
-  background-color: var(--my-color-white);
-}
-.my-bgcolor-white-hover:active,
-.my-bgcolor-white-hover:hover {
-  background-color: var(--my-color-gray-200);
-}
-
-.my-table-tr-hover:hover {
-  background-color: var(--my-color-gray-100);
-}
-
-.my-table-tr-hover:hover > td {
-  background-color: transparent;
-}
-
-.my-title-xl-black {
-  font-size: var(--my-font-size-xl);
-  color: var(--my-color-black);
-}
-
-.my-title-xl-gray {
-  font-size: var(--my-font-size-xl);
-  color: var(--my-color-gray-600);
-}
-
-.my-title-lg-black {
-  font-size: var(--my-font-size-lg);
-  color: var(--my-color-black);
-}
-
-.my-title-lg-gray {
-  font-size: var(--my-font-size-lg);
-  color: var(--my-color-gray-600);
-}
-
-.my-title-md-gray {
-  font-size: var(--my-font-size-md);
-  color: var(--my-color-gray-600);
-}
-
-.my-title-sm-white {
-  font-size: var(--my-font-size-sm);
-  color: var(--my-color-white);
-}
-
-.my-title-sm-black {
-  font-size: var(--my-font-size-sm);
-  color: var(--my-color-black);
-}
-
-.my-title-sm-gray {
-  font-size: var(--my-font-size-sm);
-  color: var(--my-color-gray-600);
-}
-
-.my-title-xs-white {
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-white);
-}
-
-.my-title-xs-black {
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-black);
-}
-
-.my-title-xs-gray {
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-gray-600);
-}
-
-.my-content-sm-black {
-  font-size: var(--my-font-size-sm);
-  color: var(--my-color-black);
-}
-
-.my-content-xs-black {
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-black);
-}
-
-.my-content-xs-gray {
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-gray-600);
-}
-
-.my-btn-transparent {
-  color: var(--my-color-black);
-}
-
-.my-btn-transparent:hover,
-.my-btn-transparent:active {
-  color: var(--my-color-black);
-  background-color: var(--my-color-white);
-}
-
-.my-btn-white {
-  color: var(--my-color-black);
-  background-color: var(--my-color-white);
-}
-
-.my-btn-white:hover,
-.my-btn-white:active {
-  background-color: var(--my-color-gray-100);
-}
-
-.my-btn-red {
-  color: var(--my-color-white);
-  background-color: var(--my-color-red);
-}
-
-.my-btn-red:hover,
-.my-btn-red:active {
-  color: var(--my-color-white);
+.my-btn-hover-red:hover,
+.my-btn-hover-red:active {
   background-color: var(--my-color-red-hover);
-}
-
-.my-btn-red:disabled {
-  color: var(--my-color-gray-600);
-  background-color: var(--my-color-gray-200);
-}
-
-.my-btn-green {
+  border-color: var(--my-color-red-hover);
   color: var(--my-color-white);
-  background-color: var(--my-color-green);
 }
-
-.my-btn-green:hover,
-.my-btn-green:active {
-  color: var(--my-color-white);
+.my-btn-hover-yellow:hover,
+.my-btn-hover-yellow:active {
+  background-color: var(--my-color-yellow-hover);
+  border-color: var(--my-color-yellow-hover);
+  color: var(--my-color-black);
+}
+.my-btn-hover-green:hover,
+.my-btn-hover-green:active {
   background-color: var(--my-color-green-hover);
-}
-
-.my-btn-green:disabled {
-  color: var(--my-color-gray-600);
-  background-color: var(--my-color-gray-200);
-}
-
-.my-btn-blue {
+  border-color: var(--my-color-green-hover);
   color: var(--my-color-white);
-  background-color: var(--my-color-blue);
 }
-
-.my-btn-blue:hover,
-.my-btn-blue:active {
-  color: var(--my-color-white);
+.my-btn-hover-blue:hover,
+.my-btn-hover-blue:active {
   background-color: var(--my-color-blue-hover);
-}
-
-.my-btn-blue:disabled {
-  color: var(--my-color-gray-600);
-  background-color: var(--my-color-gray-200);
-}
-
-.my-btn-orange {
+  border-color: var(--my-color-blue-hover);
   color: var(--my-color-white);
-  background-color: var(--my-color-orange);
 }
 
-.my-btn-orange:hover,
-.my-btn-orange:active {
-  color: var(--my-color-white);
-  background-color: var(--my-color-orange-hover);
+/* —— 邊框／陰影（權杖：--my-border-*、--my-shadow-card） —— */
+.my-border-bottom-faint {
+  border-bottom: 1px solid var(--my-border-faint);
+}
+.my-border-bottom-muted {
+  border-bottom: 1px solid var(--my-border-muted);
+}
+.my-border-subtle {
+  border: 1px solid var(--my-border-subtle);
+}
+.my-shadow-card {
+  box-shadow: var(--my-shadow-card);
 }
 
-.my-btn-orange:disabled {
-  color: var(--my-color-gray-600);
-  background-color: var(--my-color-gray-200);
+/* —— 權杖下拉選單：toggle 併用 .btn + .my-btn-pill／.my-btn-{sm|lg}＋語意色／.my-btn-border；項目內距／字級同 .my-btn-sm —— */
+.my-dropdown-caret.dropdown-toggle::after {
+  display: none;
 }
 
-.my-right-panel {
-  background-color: var(--my-color-white);
+.my-dropdown-toggle-caret {
+  font-size: var(--my-font-size-sm);
+  line-height: 1;
+  transition: transform 0.15s ease-in-out;
 }
 
-.my-left-panel {
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+.my-dropdown-caret.dropdown-toggle.show .my-dropdown-toggle-caret {
+  transform: rotate(180deg);
+}
+
+.my-dropdown-menu.dropdown-menu {
+  background-color: var(--my-dropdown-menu-bg);
+  border: 1px solid var(--my-border-subtle);
+}
+
+.my-dropdown-menu .dropdown-item {
+  padding: 0.375rem 1rem;
+  font-size: var(--my-font-size-sm);
+  line-height: 1.5;
+  color: var(--my-dropdown-item-color);
+}
+
+.my-dropdown-menu .dropdown-item:hover,
+.my-dropdown-menu .dropdown-item:focus {
+  color: var(--my-dropdown-item-color);
+  background-color: var(--my-dropdown-item-hover-bg);
+}
+
+.my-dropdown-menu .my-dropdown-item-danger {
+  color: var(--my-color-red);
+}
+
+.my-dropdown-menu .my-dropdown-item-danger:hover,
+.my-dropdown-menu .my-dropdown-item-danger:focus {
+  color: var(--my-color-red);
+  background-color: var(--my-dropdown-item-hover-bg);
+}
+
+.my-dropdown-menu .dropdown-divider {
+  border-top-color: var(--my-border-subtle);
+  opacity: 1;
+}
+
+/* —— 表格：色由權杖混色；儲存格內距在此（併 Bootstrap .table，勿再疊 .table-sm 以免過緊） —— */
+.my-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: inherit;
+}
+
+/* 覆寫 Bootstrap .table 儲存格 padding（需與 .table 同時出現才生效） */
+.table.my-table > :not(caption) > * > * {
+  padding: 0.5625rem 1rem;
+}
+
+.my-table th,
+.my-table td {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--my-border-subtle);
+  text-align: start;
+}
+
+.my-table thead th {
+  font-weight: 600;
+  font-size: var(--my-font-size-sm);
+  background-color: color-mix(in srgb, var(--my-color-gray-light) 22%, var(--my-select-bg));
+  border-bottom: 1px solid var(--my-border-subtle);
+}
+
+[data-bs-theme="dark"] .my-table thead th {
+  background-color: color-mix(in srgb, var(--my-color-white) 8%, var(--my-color-gray-dark));
+}
+
+.my-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.my-table caption {
+  color: var(--my-color-gray-light);
+  text-align: start;
+}
+
+/* —— 原生下拉 select：權杖 --my-select-*；箭頭用 Font Awesome，勿用內嵌 SVG —— */
+.my-form-select-wrap {
   position: relative;
-  z-index: 1500;
+  display: block;
+  width: 100%;
+  max-width: min(22rem, 100%);
 }
 
-.my-left-panel::after {
-  content: "";
+.my-form-select {
+  display: block;
+  width: 100%;
+  padding: var(--my-select-padding-y) var(--my-select-padding-inline-end) var(--my-select-padding-y)
+    var(--my-select-padding-inline-start);
+  font-family: inherit;
+  font-size: var(--my-font-size-md);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--my-select-color);
+  background-color: var(--my-select-bg);
+  border: 1px solid var(--my-select-border-color);
+  border-radius: var(--my-select-border-radius);
+  appearance: none;
+  cursor: pointer;
+}
+
+.my-form-select-wrap .my-form-select-caret {
   position: absolute;
-  top: 0;
-  right: -8px;
-  width: 8px;
-  height: 100%;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+  top: 50%;
+  inset-inline-end: var(--my-select-caret-inset-end);
+  transform: translateY(-50%);
   pointer-events: none;
-  z-index: 1501;
+  color: var(--my-select-caret-color);
+  font-size: var(--my-select-caret-size);
+  line-height: 1;
 }
 
-.my-middle-panel {
-  box-shadow: inset 4px 0 8px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 1;
+.my-form-select-wrap:has(.my-form-select:disabled) .my-form-select-caret {
+  opacity: 0.5;
 }
 
+.my-form-select:focus {
+  border-color: var(--my-color-blue);
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem var(--my-select-focus-ring);
+}
+
+.my-form-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* —— 按鈕殼（與 Bootstrap .btn 併用）：語意填色用 HTML .my-bgcolor-*／.my-color-*／.my-border-color-*＋.my-btn-hover-*；描邊用 .my-btn-border —— */
+.my-btn-pill {
+  border-radius: 50rem;
+  box-sizing: border-box;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.my-btn-sm {
+  padding: 0.375rem 1rem;
+  font-size: var(--my-font-size-sm);
+  line-height: 1.5;
+}
+
+.my-btn-lg {
+  padding: 0.5625rem 1.5rem;
+  font-size: var(--my-font-size-lg);
+  line-height: 1.5;
+}
+
+.my-btn-border {
+  color: var(--my-color-black);
+  background-color: transparent;
+  border-color: var(--my-border-muted);
+}
+
+.my-btn-border:hover,
+.my-btn-border:active {
+  color: var(--my-color-black);
+  background-color: color-mix(in srgb, var(--my-color-black) 8%, transparent);
+  border-color: var(--my-border-subtle);
+}
+
+[data-bs-theme="dark"] .my-btn-border {
+  color: var(--my-color-white);
+  border-color: var(--my-border-muted);
+}
+
+[data-bs-theme="dark"] .my-btn-border:hover,
+[data-bs-theme="dark"] .my-btn-border:active {
+  color: var(--my-color-white);
+  background-color: color-mix(in srgb, var(--my-color-white) 12%, transparent);
+  border-color: var(--my-border-subtle);
+}
+
+/* —— 捲軸（全站可捲動區）：軌道透明；槽 6pt、滑塊 4pt（WebKit）；Firefox 僅 thin —— */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--my-scrollbar-size);
+  height: var(--my-scrollbar-size);
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--my-color-gray-100);
-  border-radius: 4px;
+  background: var(--my-scrollbar-track);
+  border-radius: calc(var(--my-scrollbar-size) / 2);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--my-color-gray-400);
-  border-radius: 4px;
+  background-color: var(--my-scrollbar-thumb);
+  background-clip: padding-box;
+  border: var(--my-scrollbar-thumb-inset) solid transparent;
+  border-radius: calc(var(--my-scrollbar-size) / 2 - var(--my-scrollbar-thumb-inset));
   transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--my-color-gray-600);
+  background-color: var(--my-scrollbar-thumb-hover);
+  background-clip: padding-box;
+  border: var(--my-scrollbar-thumb-inset) solid transparent;
 }
 
 ::-webkit-scrollbar-corner {
-  background: white;
+  background: var(--my-scrollbar-track);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--my-color-gray-400) var(--my-color-gray-100);
-}
-
-.my-resizer {
-  background-color: var(--my-color-gray-100);
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.my-resizer:hover {
-  background-color: var(--my-color-blue);
-}
-
-.my-resizer-vertical {
-  min-width: 4px;
-  max-width: 4px;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.my-resizer-horizontal {
-  min-height: 4px;
-  max-height: 4px;
-  cursor: row-resize;
-  touch-action: none;
-}
-
-.my-resizer-vertical:hover,
-.my-resizer-vertical.my-dragging {
-  min-width: 6px;
-  max-width: 6px;
-}
-
-.my-resizer-horizontal:hover,
-.my-resizer-horizontal.my-dragging {
-  min-height: 6px;
-  max-height: 6px;
-}
-
-.my-resizer.my-dragging {
-  background-color: var(--my-color-blue) !important;
-}
-
-.my-resizer-left {
-  background-color: var(--my-color-gray-100);
-}
-
-.my-resizer-left:hover {
-  background-color: var(--my-color-blue);
-}
-
-.my-resizer-right {
-  background-color: var(--my-color-gray-200);
-  border-left: 1px solid var(--my-color-gray-300);
-}
-
-.my-resizer-right:hover {
-  background-color: var(--my-color-blue);
-}
-
-.my-resizer-middle {
-  background-color: var(--my-color-gray-200);
-  position: relative;
-  border-top: 1px solid var(--my-color-gray-300);
-}
-
-.my-resizer-middle:hover {
-  background-color: var(--my-color-blue);
-}
-
-.my-no-select {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-body.my-no-select {
-  cursor: inherit !important;
-}
-
-body.my-no-select * {
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
-}
-
-.my-blur {
-  backdrop-filter: blur(4px) saturate(160%);
-  -webkit-backdrop-filter: blur(4px) saturate(160%);
-  background-color: rgba(255, 255, 255, 0.4);
-}
-
-.my-cursor-pointer {
-  cursor: pointer;
-}
-
-.my-tab-head {
-  cursor: pointer;
-}
-
-.my-tab-close-btn {
-  line-height: 1;
-}
-
-.my-tab-item {
-  cursor: grab;
-}
-
-.my-tab-item:active {
-  cursor: grabbing;
-}
-
-.my-tab-item-dragging {
-  opacity: 0.6;
-}
-
-.my-tab-item-drop-target {
-  box-shadow: inset 0 0 0 2px var(--my-color-blue, #0d6efd);
-}
-
-.my-loading-overlay-backdrop {
-  background-color: rgba(0, 0, 0, 0.7);
-  z-index: 9999;
-}
-
-.my-loading-overlay-panel {
-  min-width: 300px;
-  max-width: 400px;
-}
-
-.my-loading-spinner {
-  width: 2rem;
-  height: 2rem;
-}
-
-.my-loading-progress {
-  height: 8px;
-}
-
-.my-loading-progress-bar {
-  width: var(--my-loading-progress-pct, 0);
-  transition: width 0.3s ease;
-  font-size: var(--my-font-size-xs);
-  color: var(--my-color-white);
-}
-
-.my-login-card {
-  width: 100%;
-  max-width: 360px;
-}
-
-.my-progress-tall {
-  height: 20px;
-}
-
-.my-progress-w-85 {
-  width: 85%;
-}
-.my-progress-w-92 {
-  width: 92%;
-}
-.my-progress-w-78 {
-  width: 78%;
+  /* Firefox：thumb track */
+  scrollbar-color: var(--my-scrollbar-thumb) var(--my-scrollbar-track);
 }
 
 /**

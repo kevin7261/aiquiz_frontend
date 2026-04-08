@@ -27,6 +27,8 @@ defineProps({
   deleteRagLoading: { type: Boolean, default: false },
   /** 重新命名請求進行中（禁用筆與 ×） */
   renameTabLoading: { type: Boolean, default: false },
+  /** 為 true 時不因載入狀態禁用「+ 新增」與分頁操作按鈕（介面稿頁用） */
+  relaxButtonDisables: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 'rename-tab']);
@@ -37,7 +39,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
     <div class="d-flex align-items-center justify-content-center px-4 w-100 border-bottom border-secondary-subtle">
       <!-- 載入中僅顯示文字 -->
       <template v-if="ragListLoading">
-        <span class="small text-secondary">載入中...</span>
+        <span class="my-font-size-sm text-secondary">載入中...</span>
       </template>
       <!-- 無任何分頁時只顯示「+ 新增」建立按鈕（上下留白，避免貼齊底線） -->
       <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
@@ -45,7 +47,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
           <button
             type="button"
             class="btn btn-sm btn-outline-primary"
-            :disabled="createRagLoading"
+            :disabled="relaxButtonDisables ? false : createRagLoading"
             @click="emit('add-new-tab')"
           >
             {{ createRagLoading ? '建立中...' : '+ 新增' }}
@@ -75,7 +77,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
                 class="btn btn-link btn-sm p-0 text-muted text-decoration-none tab-nav-action-btn"
                 title="重新命名分頁"
                 aria-label="重新命名分頁"
-                :disabled="deleteRagLoading || renameTabLoading"
+                :disabled="relaxButtonDisables ? false : deleteRagLoading || renameTabLoading"
                 @click.stop="emit('rename-tab', item._tabId)"
               >
                 <i class="fa-solid fa-pen" aria-hidden="true" />
@@ -96,7 +98,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
                 class="btn btn-link btn-sm p-0 text-muted text-decoration-none tab-nav-action-btn"
                 title="刪除此出題單元"
                 aria-label="刪除此出題單元"
-                :disabled="deleteRagLoading || renameTabLoading"
+                :disabled="relaxButtonDisables ? false : deleteRagLoading || renameTabLoading"
                 @click.stop="emit('delete-rag', item._tabId)"
               >
                 <i class="fa-solid fa-xmark" aria-hidden="true" />
@@ -118,7 +120,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
             <button
               type="button"
               class="btn btn-sm btn-outline-primary mb-2"
-              :disabled="createRagLoading"
+              :disabled="relaxButtonDisables ? false : createRagLoading"
               @click="emit('add-new-tab')"
             >
               {{ createRagLoading ? '建立中...' : '+ 新增' }}
@@ -128,17 +130,40 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
       </template>
     </div>
     <!-- 列表載入錯誤（例如網路問題） -->
-    <div v-if="ragListError" class="alert alert-warning py-2 small mx-4 mb-3">
+    <div v-if="ragListError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
       {{ ragListError }}
     </div>
     <!-- 建立 RAG 失敗（例如後端驗證錯誤） -->
-    <div v-if="createRagError" class="alert alert-danger py-2 small mx-4 mb-3">
+    <div v-if="createRagError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
       {{ createRagError }}
     </div>
   </div>
 </template>
 
 <style scoped>
+/* 分頁：取消 active 塊狀底色；選中僅底線為主色（不覆寫字色、字重、間距與版面位置） */
+.nav-tabs {
+  border-bottom: none !important;
+}
+
+/* 不要出現在分頁文字上方的橫線（Bootstrap nav-tabs 預設上邊框／圓角） */
+.nav-tabs .nav-link {
+  border-top: none !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-link.active:hover,
+.nav-tabs .nav-link.active:focus,
+.nav-tabs .nav-link.active:focus-visible {
+  background-color: transparent !important;
+  border-top-color: transparent !important;
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-bottom-color: var(--bs-primary) !important;
+}
+
 /* 頁籤筆／刪除：同外框與圖示字級（略小），避免與 .btn-sm 字級衝突故設在 .fa-solid） */
 .tab-nav-action-btn {
   display: inline-flex;
@@ -151,7 +176,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
   line-height: 1;
 }
 .tab-nav-action-btn :deep(.fa-solid) {
-  font-size: 0.6875rem;
+  font-size: var(--my-font-size-2xs);
   line-height: 1;
   width: 1em;
   height: 1em;

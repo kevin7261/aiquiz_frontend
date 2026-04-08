@@ -94,6 +94,14 @@
           <li v-if="canSeeNavLink(userType, 'create-test-bank')">
             <router-link class="dropdown-item" to="/create-test-bank" active-class="active">建立測驗題庫</router-link>
           </li>
+          <li v-if="canSeeNavLink(userType, 'create-test-bank')">
+            <router-link class="dropdown-item" to="/create-test-bank_design" active-class="active"
+              >建立測驗題庫（介面稿）</router-link
+            >
+          </li>
+          <li v-if="canSeeNavLink(userType, 'design')">
+            <router-link class="dropdown-item" to="/design" active-class="active">UI 元件（Bootstrap）</router-link>
+          </li>
           <li v-if="canSeeNavLink(userType, 'student-answer-analysis')">
             <router-link class="dropdown-item" to="/student-answer-analysis" active-class="active"
               >學生作答分析</router-link

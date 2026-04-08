@@ -144,7 +144,7 @@ onMounted(() => {
         <span class="navbar-brand mb-0">作答弱點分析</span>
       </div>
     </div>
-    <div v-if="error" class="alert alert-warning py-2 small mx-4 mb-3">
+    <div v-if="error" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
       {{ error }}
     </div>
 
@@ -164,22 +164,22 @@ onMounted(() => {
               :key="sectionKey"
               class="mb-3"
             >
-              <div class="small fw-semibold text-secondary mb-2">{{ sectionKey }}</div>
-              <ul v-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length" class="small lh-base mb-0 ps-3">
+              <div class="my-font-size-sm fw-semibold text-secondary mb-2">{{ sectionKey }}</div>
+              <ul v-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length" class="my-font-size-sm lh-base mb-0 ps-3">
                 <li v-for="(line, i) in weaknessReportParsed[sectionKey]" :key="i">{{ line }}</li>
               </ul>
-              <div v-else-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length === 0" class="small text-muted">—</div>
-              <div v-else class="small">{{ weaknessReportParsed[sectionKey] }}</div>
+              <div v-else-if="Array.isArray(weaknessReportParsed[sectionKey]) && weaknessReportParsed[sectionKey].length === 0" class="my-font-size-sm text-muted">—</div>
+              <div v-else class="my-font-size-sm">{{ weaknessReportParsed[sectionKey] }}</div>
             </div>
           </template>
-          <div v-else class="small lh-base" style="white-space: pre-wrap;">{{ weaknessReport }}</div>
+          <div v-else class="my-font-size-sm lh-base" style="white-space: pre-wrap;">{{ weaknessReport }}</div>
         </div>
 
         <!-- 作答紀錄摘要表：題號 / 單元 / 難度 / 分數 / 時間（每題一筆作答） -->
         <div class="text-start page-block-spacing">
           <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">作答紀錄摘要</div>
           <div class="table-responsive">
-            <table class="table table-bordered table-sm mb-0 small">
+            <table class="table table-bordered table-sm mb-0 my-font-size-sm">
               <thead class="table-light">
                 <tr>
                   <th class="fw-medium">題號</th>
@@ -223,42 +223,42 @@ onMounted(() => {
           <div class="card-body text-start">
             <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
               <div>
-                <label class="form-label small text-secondary fw-medium mb-1">單元</label>
-                <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ item.rag_name ?? item.exam_name ?? '—' }}</div>
+                <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">單元</label>
+                <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ item.rag_name ?? item.exam_name ?? '—' }}</div>
               </div>
               <div>
-                <label class="form-label small text-secondary fw-medium mb-1">難度</label>
-                <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level) }}</div>
+                <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">難度</label>
+                <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ getDifficultyLabel(examQuizLevelFromRow(item) ?? item.quiz_level) }}</div>
               </div>
             </div>
             <div class="mb-3">
-              <div class="form-label small text-secondary fw-medium mb-1">題目</div>
+              <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">題目</div>
               <div class="bg-body-secondary border rounded p-2 lh-base">
                 {{ item.quiz_content ?? '—' }}
               </div>
             </div>
             <div v-if="item.quiz_hint" class="mb-3">
-              <div class="form-label small text-secondary fw-medium mb-1">提示</div>
-              <div class="rounded bg-body-tertiary small mt-2 p-2 text-secondary">
+              <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">提示</div>
+              <div class="rounded bg-body-tertiary my-font-size-sm mt-2 p-2 text-secondary">
                 {{ item.quiz_hint }}
               </div>
             </div>
             <div v-if="item.quiz_answer_reference || item.quiz_reference_answer" class="mb-3">
-              <div class="form-label small text-secondary fw-medium mb-1">參考答案(暫存)</div>
-              <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ item.quiz_answer_reference ?? item.quiz_reference_answer }}</div>
+              <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">參考答案(暫存)</div>
+              <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ item.quiz_answer_reference ?? item.quiz_reference_answer }}</div>
             </div>
             <template v-if="getSingleAnswer(item)">
               <div class="mb-3">
-                <label class="form-label small text-secondary fw-medium mb-1">答案</label>
-                <div class="rounded bg-body-tertiary small mb-2 p-2">{{ getSingleAnswer(item).quiz_answer ?? getSingleAnswer(item).student_answer ?? '—' }}</div>
+                <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">答案</label>
+                <div class="rounded bg-body-tertiary my-font-size-sm mb-2 p-2">{{ getSingleAnswer(item).quiz_answer ?? getSingleAnswer(item).student_answer ?? '—' }}</div>
               </div>
               <div class="mb-3">
-                <div class="form-label small text-secondary fw-medium mb-1">批改結果</div>
-                <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ getGradingResultText(getSingleAnswer(item)) }}</div>
+                <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">批改結果</div>
+                <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ getGradingResultText(getSingleAnswer(item)) }}</div>
               </div>
             </template>
             <template v-else>
-              <div class="text-muted small">尚無作答</div>
+              <div class="text-muted my-font-size-sm">尚無作答</div>
             </template>
           </div>
         </div>

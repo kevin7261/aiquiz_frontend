@@ -10,13 +10,15 @@
   import StudentAnswerAnalysisPage from '../pages/StudentAnswerAnalysisPage.vue';
   import ProfilePage from '../pages/ProfilePage.vue';
   import CreateExamQuizBankPage from '../pages/CreateExamQuizBankPage.vue';
+  import CreateExamQuizBankDesignPage from '../pages/CreateExamQuizBankDesignPage.vue';
+  import DesignPage from '../pages/DesignPage.vue';
   import UserManagementPage from '../pages/UserManagementPage.vue';
   import SystemSettingsPage from '../pages/SystemSettingsPage.vue';
   import LogListPage from '../pages/LogListPage.vue';
 
   export default {
     name: 'RightView',
-    components: { ExamPage, AnswerWeaknessAnalysisPage, StudentAnswerAnalysisPage, ProfilePage, CreateExamQuizBankPage, UserManagementPage, SystemSettingsPage, LogListPage },
+    components: { ExamPage, AnswerWeaknessAnalysisPage, StudentAnswerAnalysisPage, ProfilePage, CreateExamQuizBankPage, CreateExamQuizBankDesignPage, DesignPage, UserManagementPage, SystemSettingsPage, LogListPage },
     props: {
       currentView: { type: String, required: true },
       tabId: { type: String, required: true },
@@ -31,6 +33,8 @@
     <StudentAnswerAnalysisPage v-else-if="currentView === 'studentAnswerAnalysis'" />
     <ProfilePage v-else-if="currentView === 'profile'" />
     <CreateExamQuizBankPage v-else-if="currentView === 'createExamQuizBank'" :tabId="tabId" />
+    <CreateExamQuizBankDesignPage v-else-if="currentView === 'createExamQuizBankDesign'" :tabId="tabId" />
+    <DesignPage v-else-if="currentView === 'designPage'" :tab-id="tabId" />
     <UserManagementPage v-else-if="currentView === 'userManagement'" />
     <SystemSettingsPage v-else-if="currentView === 'systemSettings'" />
     <LogListPage v-else-if="currentView === 'logList'" />

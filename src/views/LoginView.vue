@@ -83,12 +83,12 @@
 </script>
 
 <template>
-  <div class="d-flex flex-column justify-content-center align-items-center h-100 my-bgcolor-gray-100 position-relative">
+  <div class="d-flex flex-column justify-content-center align-items-center h-100 my-bgcolor-black position-relative">
     <LoadingOverlay
       :is-visible="loading"
       loading-text="登入中..."
     />
-    <div class="card shadow-sm my-login-card">
+    <div class="card shadow-sm login-view-card bg-white text-dark">
       <div class="card-body p-4">
         <h4 class="card-title text-center mb-4">{{ courseName }} 登入</h4>
         <form @submit.prevent="onLogin">
@@ -123,3 +123,10 @@
     </div>
   </div>
 </template>
+
+<style scoped>
+.login-view-card {
+  width: 100%;
+  max-width: 360px;
+}
+</style>

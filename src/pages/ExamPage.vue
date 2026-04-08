@@ -934,7 +934,7 @@ onMounted(() => {
     <div class="flex-shrink-0 bg-white">
       <div class="d-flex align-items-center justify-content-center px-4 w-100 border-bottom border-secondary-subtle">
         <template v-if="examListLoading || forExamLoading">
-          <span class="small text-secondary">—</span>
+          <span class="my-font-size-sm text-secondary">—</span>
         </template>
         <template v-else-if="examList.length === 0">
           <div class="w-100 d-flex justify-content-center py-2">
@@ -1001,16 +1001,16 @@ onMounted(() => {
           </ul>
         </template>
       </div>
-      <div v-if="forExamError" class="alert alert-warning py-2 small mx-4 mb-3">
+      <div v-if="forExamError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
         {{ forExamError }}
       </div>
-      <div v-if="examListError" class="alert alert-warning py-2 small mx-4 mb-3">
+      <div v-if="examListError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
         {{ examListError }}
       </div>
-      <div v-if="createExamError" class="alert alert-danger py-2 small mx-4 mb-3">
+      <div v-if="createExamError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
         {{ createExamError }}
       </div>
-      <div v-if="deleteExamError" class="alert alert-danger py-2 small mx-4 mb-3">
+      <div v-if="deleteExamError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
         {{ deleteExamError }}
       </div>
     </div>
@@ -1038,16 +1038,16 @@ onMounted(() => {
                   <div class="card-body text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">單元</label>
-                        <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
+                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">單元</label>
+                        <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                       </div>
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1">難度</label>
-                        <div class="form-control form-control-sm bg-body-secondary border small" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
+                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">難度</label>
+                        <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
                       </div>
                     </div>
                     <div class="mb-3">
-                      <div class="form-label small text-secondary fw-medium mb-1">題目</div>
+                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">題目</div>
                       <div class="bg-body-secondary border rounded p-2 lh-base">
                         {{ currentState.cardList[slotIndex - 1].quiz }}
                       </div>
@@ -1080,21 +1080,21 @@ onMounted(() => {
                           </button>
                         </div>
                       </div>
-                      <div v-if="currentState.cardList[slotIndex - 1].rateError" class="small text-danger text-end mt-1">
+                      <div v-if="currentState.cardList[slotIndex - 1].rateError" class="my-font-size-sm text-danger text-end mt-1">
                         {{ currentState.cardList[slotIndex - 1].rateError }}
                       </div>
-                      <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary small mt-2 p-2 text-secondary">
+                      <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary my-font-size-sm mt-2 p-2 text-secondary">
                         {{ currentState.cardList[slotIndex - 1].hint }}
                       </div>
                     </div>
                     <div v-if="currentState.cardList[slotIndex - 1].referenceAnswer" class="mb-3">
-                      <div class="form-label small text-secondary fw-medium mb-1">參考答案(暫存)</div>
-                      <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
+                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">參考答案(暫存)</div>
+                      <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
                     </div>
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
-                        <label :for="`quiz-answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label small text-secondary fw-medium mb-0">答案</label>
-                        <span class="form-text small text-secondary text-end flex-shrink-0 mb-0">{{ currentState.cardList[slotIndex - 1].quiz_answer.length }} / 2000</span>
+                        <label :for="`quiz-answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label my-font-size-sm text-secondary fw-medium mb-0">答案</label>
+                        <span class="form-text my-font-size-sm text-secondary text-end flex-shrink-0 mb-0">{{ currentState.cardList[slotIndex - 1].quiz_answer.length }} / 2000</span>
                       </div>
                       <template v-if="!currentState.cardList[slotIndex - 1].confirmed">
                         <textarea
@@ -1106,7 +1106,7 @@ onMounted(() => {
                           placeholder="請輸入您的答案..."
                           maxlength="2000"
                         />
-                        <div v-if="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])" class="form-text small text-warning">
+                        <div v-if="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])" class="form-text my-font-size-sm text-warning">
                           此題與目前題庫版本不一致，無法作答。請改題或重新產生題目。
                         </div>
                         <div class="d-flex justify-content-end mt-2">
@@ -1121,12 +1121,12 @@ onMounted(() => {
                         </div>
                       </template>
                       <template v-else>
-                        <div class="rounded bg-body-tertiary small mb-2 p-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
+                        <div class="rounded bg-body-tertiary my-font-size-sm mb-2 p-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
                       </template>
                     </div>
                     <div class="mb-3">
-                      <div class="form-label small text-secondary fw-medium mb-1">批改結果</div>
-                      <div class="rounded bg-body-tertiary border p-2 small" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
+                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">批改結果</div>
+                      <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
                     </div>
                   </div>
                 </div>
@@ -1140,7 +1140,7 @@ onMounted(() => {
                   <div class="card-body text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div class="flex-grow-1 min-w-0" style="min-width: 10rem">
-                        <label class="form-label small text-secondary fw-medium mb-1" :for="`exam-quiz-unit-${slotIndex}-toggle`">單元</label>
+                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1" :for="`exam-quiz-unit-${slotIndex}-toggle`">單元</label>
                         <UnitSelectDropdown
                           v-model="getSlotFormState(slotIndex).generateQuizTabId"
                           :options="generateQuizUnits"
@@ -1148,7 +1148,7 @@ onMounted(() => {
                         />
                       </div>
                       <div>
-                        <label class="form-label small text-secondary fw-medium mb-1 d-block">難度</label>
+                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1 d-block">難度</label>
                         <div class="btn-group btn-group-sm" role="group" aria-label="難度">
                           <template v-for="(opt, di) in difficultyOptions" :key="opt">
                             <input
@@ -1173,7 +1173,7 @@ onMounted(() => {
                         產生題目
                       </button>
                     </div>
-                    <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 small">
+                    <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 my-font-size-sm">
                       {{ getSlotFormState(slotIndex).error }}
                     </div>
                   </div>
@@ -1193,7 +1193,7 @@ onMounted(() => {
               </button>
               <p
                 v-if="generateQuizBlocked && !forExamLoading && activeTabId"
-                class="small text-secondary mb-0 mt-2 text-center"
+                class="my-font-size-sm text-secondary mb-0 mt-2 text-center"
               >
                 目前沒有可用RAG
               </p>
@@ -1221,7 +1221,7 @@ onMounted(() => {
   line-height: 1;
 }
 .tab-nav-action-btn :deep(.fa-solid) {
-  font-size: 0.6875rem;
+  font-size: var(--my-font-size-2xs);
   line-height: 1;
   width: 1em;
   height: 1em;
