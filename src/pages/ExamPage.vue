@@ -974,7 +974,7 @@ onMounted(() => {
                 <button
                   v-if="activeTabId === getExamTabId(exam)"
                   type="button"
-                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn p-0"
+                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn"
                   title="重新命名分頁"
                   :disabled="deleteExamLoading || examRenameSaving"
                   @click.stop="openExamRenameModal(getExamTabId(exam))"
@@ -984,7 +984,7 @@ onMounted(() => {
                 <button
                   v-if="activeTabId === getExamTabId(exam)"
                   type="button"
-                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn p-0"
+                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn"
                   title="刪除此測驗"
                   :disabled="deleteExamLoading || examRenameSaving"
                   @click.stop="deleteExam(getExamTabId(exam))"
@@ -1215,23 +1215,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* 與建立測驗題庫分頁列一致：頁籤筆／刪除同尺寸、略小 */
-.my-tab-nav-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 0.875rem;
-  min-width: 0.875rem;
-  height: 0.875rem;
-  padding: 0 !important;
-  line-height: 1;
-}
-.my-tab-nav-action-btn :deep(.fa-solid) {
-  font-size: var(--my-font-size-sm);
-  line-height: 1;
-  width: 1em;
-  height: 1em;
-}
-</style>

@@ -3,9 +3,9 @@
  * - body 預設字體／字級／色（common.css；內文色 --my-color-black；淺色底 --my-color-surface；字面色／邊線／焦點環僅在此檔）
  * - 字級 rem 僅在此定義 --my-font-size-*；版面字級／字重僅併 common `.my-font-{xl|lg|md|sm}-{400|600}`（勿另造 `.my-font-size-*` 等純字級 class，與變數前綴區隔）
  * - 字重：僅 --my-font-weight-regular（400）、--my-font-weight-semibold（600）；common 內用 var(--my-font-weight-*)，禁止字面量 400／600
- * - common：字階 .my-font-*-{400|600}（僅字級字重）；網頁標題（頂欄品牌等）.my-font-xl-400；區塊標題 .my-font-lg-600；字色 .my-color-*；底 .my-bgcolor-*；業務頁淺底主區併 .my-bgcolor-page-block、rounded-3、p-3 p-lg-4、mb-4；深底稿頁區塊併 .my-bgcolor-gray-dark、rounded-3、p-3 p-lg-4、mb-4；淺字鈕 .my-button-white-border／.my-button-white-borderless；32×32 圓形圖示鈕 .my-btn-circle（分頁「+」、稿頁複製等）
+ * - common：字階 .my-font-*-{400|600}（僅字級字重）；網頁標題（頂欄品牌等）.my-font-xl-400；區塊標題 .my-font-lg-600；字色 .my-color-*；底 .my-bgcolor-*；業務頁淺底主區併 .my-bgcolor-page-block、rounded-3、p-3 p-lg-4、mb-4；深底稿頁區塊併 .my-bgcolor-gray-dark、rounded-3、p-3 p-lg-4、mb-4；淺字鈕 .my-button-white-border／.my-button-white-borderless；黑底填色鈕 .my-button-black、白色填色鈕 .my-button-white；32×32 圓形圖示鈕 .my-btn-circle（分頁「+」、稿頁複製等）
  * - 主要區塊縱向間距：common .my-page-block-spacing（業務頁內文區多區塊用）
- * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；原生 select 樣式見 common .my-form-select
+ * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；原生 select 見 common .my-form-select；與中型按鈕同高文字欄見 common .form-control.my-input-md；深底黑底白字併 .my-input-md--on-dark
  * - LoadingOverlay、LoginView 等另以各元件 scoped 樣式或 Bootstrap 補齊非權杖行為（`data-bs-theme="dark"` 不覆寫此檔變數）
  * - 捲軸樣式（common.css 全域）；Bootstrap 式下拉見 common .my-dropdown-menu
  * - 撰寫 CSS 時：同一規則內最後先 padding 再 margin；Vue／HTML 的 `class` 字串：`p-*`／`m-*` 等間距類別整串置末、之後不得再接其它 class（先 p 後 m）

@@ -369,17 +369,8 @@ const showUploadFileSection = computed(
   () => props.mockWithoutApi || (!!activeTabId.value && !hasUploadedFileMetadata.value)
 );
 
-/**
- * 建立流程 stepper：1 僅上傳、2 含建立測驗題庫、3 含題目測試
- * - 無 file_metadata／無 rag_metadata → 1
- * - 有 file_metadata／無 rag_metadata → 1–2
- * - 有 file_metadata／有 rag_metadata → 1–2–3
- */
-const createRagStepperPhase = computed(() => {
-  if (hasUploadedFileMetadata.value && hasRagMetadata.value) return 3;
-  if (hasUploadedFileMetadata.value) return 2;
-  return 1;
-});
+/** 建立流程 stepper 階段（固定為 1，不隨上傳／題庫進度變化） */
+const createRagStepperPhase = 1;
 
 /** 已有 file_metadata 時，畫面僅顯示之 ZIP 檔名 */
 const uploadedZipDisplayName = computed(() => {
@@ -1314,7 +1305,10 @@ function applyMockGradingPreview(item) {
 </script>
 
 <template>
-  <div class="d-flex flex-column bg-body-secondary h-100 position-relative">
+  <div
+    class="d-flex flex-column h-100 position-relative"
+    :class="mockWithoutApi ? 'overflow-hidden my-bgcolor-black' : 'my-bgcolor-page-block'"
+  >
     <LoadingOverlay
       :is-visible="isAnyLoading"
       loading-text="請稍候，正在載入或處理..."
@@ -1327,20 +1321,36 @@ function applyMockGradingPreview(item) {
       title="修改測驗題庫分頁名稱"
       @save="onRenameRagTabSave"
     />
-    <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
+    <header v-if="mockWithoutApi" class="flex-shrink-0 my-bgcolor-black py-3 px-3 px-md-4">
+      <div class="container-fluid px-0">
+        <div class="row justify-content-center">
+          <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
+            <p class="my-font-xl-600 my-color-white text-break mb-0">建立測驗題庫</p>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div v-else class="navbar navbar-expand-lg my-bgcolor-surface flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
         <span class="navbar-brand my-font-xl-400 mb-0">建立測驗題庫</span>
       </div>
     </div>
-    <div class="flex-shrink-0 my-rag-tabs-bar bg-white">
+    <div
+      class="flex-shrink-0 my-rag-tabs-bar"
+      :class="mockWithoutApi ? 'my-rag-tabs-bar--design my-bgcolor-black my-rag-tabs-bar--design-fullwidth-bottom' : 'my-bgcolor-surface'"
+    >
       <div
-        class="d-flex justify-content-center align-items-center border-bottom border-secondary-subtle w-100 px-4"
+        class="d-flex justify-content-center w-100 px-4"
+        :class="mockWithoutApi ? 'align-items-end pb-0' : 'align-items-center my-border-bottom-border-muted'"
       >
         <template v-if="ragListLoading">
-          <span class="my-font-sm-400 text-secondary">載入中...</span>
+          <span class="my-font-sm-400 my-color-gray-light">載入中...</span>
         </template>
         <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
-          <div class="w-100 d-flex justify-content-center py-2">
+          <div
+            class="w-100 d-flex justify-content-center"
+            :class="mockWithoutApi ? 'py-0' : 'py-2'"
+          >
             <button
               type="button"
               class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-white-borderless my-btn-circle"
@@ -1368,7 +1378,7 @@ function applyMockGradingPreview(item) {
                 :aria-current="activeTabId === item._tabId ? 'page' : undefined"
               >
                 <span
-                  class="flex-grow-1 text-start"
+                  class="flex-grow-1 text-start pe-2"
                   style="cursor: pointer"
                   @click="activeTabId = item._tabId"
                 >
@@ -1377,7 +1387,7 @@ function applyMockGradingPreview(item) {
                 <button
                   v-if="activeTabId === item._tabId"
                   type="button"
-                  class="btn btn-link text-decoration-none my-tab-nav-action-btn p-0 text-muted"
+                  class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-light pe-2"
                   title="重新命名分頁"
                   :disabled="mockWithoutApi ? false : deleteRagLoading || renameRagTabSaving"
                   @click.stop="openRenameRagTab(item._tabId)"
@@ -1385,38 +1395,48 @@ function applyMockGradingPreview(item) {
                   <i class="fa-solid fa-pen" aria-hidden="true" />
                 </button>
                 <span
+                  v-else
+                  class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn pe-2"
+                  aria-hidden="true"
+                />
+                <span
                   v-if="item._isExamRag"
-                  class="d-inline-flex justify-content-center align-items-center flex-shrink-0"
-                  style="min-width: 1.25rem; line-height: 1"
+                  class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
                   title="試卷用題庫"
                   role="img"
                 >
                   <span
-                    class="rounded-circle d-inline-block bg-success"
+                    class="rounded-circle d-inline-block"
+                    :class="mockWithoutApi ? 'my-bgcolor-blue' : 'my-bgcolor-green'"
                     style="width: 0.5rem; height: 0.5rem"
                   />
                 </span>
                 <button
                   v-else-if="activeTabId === item._tabId"
                   type="button"
-                  class="btn btn-link text-decoration-none my-tab-nav-action-btn p-0 text-muted"
+                  class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-light"
                   title="刪除此出題單元"
                   :disabled="mockWithoutApi ? false : deleteRagLoading || renameRagTabSaving"
                   @click.stop="onDeleteRagTab(item._tabId)"
                 >
                   <i class="fa-solid fa-xmark" aria-hidden="true" />
                 </button>
+                <span
+                  v-else-if="!item._isExamRag"
+                  class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
+                  aria-hidden="true"
+                />
               </div>
             </li>
             <li v-for="item in newTabItems" :key="'new-' + item.id" class="nav-item">
               <button
                 type="button"
-                class="nav-link"
+                class="nav-link d-flex align-items-center gap-1 w-100 text-start border-0 bg-transparent"
                 :class="{ active: activeTabId === item.id }"
                 :aria-current="activeTabId === item.id ? 'page' : undefined"
                 @click="activeTabId = item.id"
               >
-                {{ item.label }}
+                <span class="flex-grow-1 text-start pe-2">{{ item.label }}</span>
               </button>
             </li>
             <li class="nav-item d-flex align-items-center ms-2">
@@ -1425,7 +1445,8 @@ function applyMockGradingPreview(item) {
                 title="新增分頁"
                 :aria-label="createRagLoading ? '建立中' : '新增分頁'"
                 :aria-busy="createRagLoading"
-                class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-white-borderless my-btn-circle mb-2"
+                class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-white-borderless my-btn-circle"
+                :class="{ 'mb-2': !mockWithoutApi }"
                 :disabled="mockWithoutApi ? false : createRagLoading"
                 @click="addNewTab"
               >
@@ -1439,18 +1460,22 @@ function applyMockGradingPreview(item) {
           </ul>
         </template>
       </div>
-      <div v-if="ragListError" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-3">
+      <div v-if="ragListError" class="my-alert-warning-soft my-font-sm-400 py-2 mx-4 mb-3">
         {{ ragListError }}
       </div>
-      <div v-if="createRagError" class="alert alert-danger my-font-sm-400 py-2 mx-4 mb-3">
+      <div v-if="createRagError" class="my-alert-danger-soft my-font-sm-400 py-2 mx-4 mb-3">
         {{ createRagError }}
       </div>
     </div>
 
-    <!-- 內容區：與 /create-test-bank 相同版面 -->
-    <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
-      <div class="row justify-content-center">
-        <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
+    <!-- 內容區：/create-test-bank 白底；/create-test-bank_design 與 DesignPage 同黑底與欄寬 -->
+    <div
+      class="flex-grow-1 overflow-auto"
+      :class="mockWithoutApi ? 'my-bgcolor-black create-exam-quiz-bank--design-mock' : 'my-bgcolor-surface px-4 py-5'"
+    >
+      <div :class="mockWithoutApi ? 'container-fluid px-3 px-md-4 py-4' : ''">
+        <div class="row justify-content-center">
+          <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
       <!-- 無資料時不顯示表單，點「+」後才顯示；mockWithoutApi 時仍顯示示範表單 -->
       <template v-if="showCreateBankMainForm">
       <!-- 建立流程 stepper：依 file_metadata / rag_metadata 亮起 1～3 步 -->
@@ -1463,7 +1488,7 @@ function applyMockGradingPreview(item) {
             >1</span>
             <span
               class="mt-2"
-              :class="createRagStepperPhase >= 1 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'"
+              :class="createRagStepperPhase >= 1 ? 'my-color-black my-font-sm-600' : 'my-color-gray-light my-font-sm-400'"
             >上傳檔案</span>
           </div>
           <div
@@ -1478,7 +1503,7 @@ function applyMockGradingPreview(item) {
             >2</span>
             <span
               class="mt-2"
-              :class="createRagStepperPhase >= 2 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'"
+              :class="createRagStepperPhase >= 2 ? 'my-color-black my-font-sm-600' : 'my-color-gray-light my-font-sm-400'"
             >建立測驗題庫</span>
           </div>
           <div
@@ -1493,14 +1518,15 @@ function applyMockGradingPreview(item) {
             >3</span>
             <span
               class="mt-2"
-              :class="createRagStepperPhase >= 3 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'"
+              :class="createRagStepperPhase >= 3 ? 'my-color-black my-font-sm-600' : 'my-color-gray-light my-font-sm-400'"
             >測試問題</span>
           </div>
         </div>
       </div>
-      <!-- 尚無 file_metadata 時顯示上傳區；mockWithoutApi 時固定一併顯示 -->
-      <div v-if="showUploadFileSection" class="text-start my-page-block-spacing">
-        <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
+      <!-- 尚無 file_metadata 時顯示上傳區；mockWithoutApi 時固定一併顯示（標題與 DesignPage 深灰區塊內 h2 同規） -->
+      <section v-if="showUploadFileSection" class="text-start my-page-block-spacing">
+        <div class="rounded-4 my-bgcolor-gray-dark p-3 p-lg-4 mb-4">
+          <h2 class="my-font-lg-600 my-color-white text-break mb-4">上傳檔案</h2>
           <input
             ref="zipFileInputRef"
             type="file"
@@ -1518,26 +1544,26 @@ function applyMockGradingPreview(item) {
             @click="openZipFileDialog()"
           >
             <template v-if="currentState.zipLoading">
-              <span class="text-secondary my-font-sm-400">上傳中...</span>
+              <span class="my-font-sm-400 my-color-gray-light">上傳中...</span>
             </template>
             <template v-else>
               <template v-if="currentState.zipFileName">
-                <span class="my-font-sm-400 text-body">{{ currentState.zipFileName }}</span>
-                <div class="my-font-sm-400 text-muted mt-1">點擊可重新選擇檔案</div>
+                <span class="my-font-sm-400 my-color-white">{{ currentState.zipFileName }}</span>
+                <div class="my-font-sm-400 my-color-gray-light mt-1">點擊可重新選擇檔案</div>
               </template>
-              <span v-else class="my-font-sm-400 text-secondary">拖曳檔案到這裡，或點擊選擇檔案</span>
-              <div class="my-font-sm-400 text-muted mt-2">
+              <span v-else class="my-font-sm-400 my-color-gray-light">拖曳檔案到這裡，或點擊選擇檔案</span>
+              <div class="my-font-sm-400 my-color-gray-light mt-2">
                 可解析的檔案副檔名：.zip、.pdf、.doc、.docx、.ppt、.pptx
               </div>
             </template>
           </div>
-          <div v-if="currentState.zipError" class="alert alert-danger my-font-sm-400 py-2 mt-2 mb-0">
+          <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
             {{ currentState.zipError }}
           </div>
-          <div class="d-flex justify-content-end mt-2">
+          <div class="d-flex justify-content-end mt-3">
             <button
               type="button"
-              class="btn btn-primary"
+              class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-white flex-shrink-0 px-3 py-2"
               :disabled="currentState.zipLoading || !currentState.zipFileName"
               @click.stop="confirmUploadZip"
             >
@@ -1545,49 +1571,49 @@ function applyMockGradingPreview(item) {
             </button>
           </div>
         </div>
-      </div>
+      </section>
       <!-- 建立 RAG：要有 file_metadata 才顯示；已有 rag_metadata 時僅純文字顯示出題單元／chunk／規範 -->
       <div
         v-if="fileMetadataToShow != null"
         class="text-start my-page-block-spacing"
-        :class="{ 'pe-none text-muted': !hasRagMetadata && packGroupsEditBlocked }"
+        :class="{ 'pe-none my-color-gray-light': !hasRagMetadata && packGroupsEditBlocked }"
       >
         <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
         <div class="mb-3">
-          <div class="my-font-sm-600 text-secondary mb-1">上傳檔案名稱</div>
+          <div class="my-font-sm-600 my-color-gray-light mb-1">上傳檔案名稱</div>
           <div class="my-font-sm-400 text-break">{{ uploadedZipDisplayName }}</div>
-          <div v-if="uploadZipFileSizeDisplay" class="my-font-sm-400 text-muted mt-1">檔案大小：{{ uploadZipFileSizeDisplay }}</div>
+          <div v-if="uploadZipFileSizeDisplay" class="my-font-sm-400 my-color-gray-light mt-1">檔案大小：{{ uploadZipFileSizeDisplay }}</div>
         </div>
 
         <template v-if="hasRagMetadata">
           <div class="mb-3">
-            <div class="my-font-sm-600 text-secondary mb-1">出題單元</div>
+            <div class="my-font-sm-600 my-color-gray-light mb-1">出題單元</div>
             <div v-if="ragListReadonlyGroups.length" class="my-font-sm-400 text-break">{{ ragListReadonlyInlineText }}</div>
-            <div v-else class="my-font-sm-400 text-muted">—</div>
+            <div v-else class="my-font-sm-400 my-color-gray-light">—</div>
           </div>
           <div v-if="ragBuildOutputSizeSummary" class="mb-3">
-            <div class="my-font-sm-600 text-secondary mb-1">建置輸出檔大小</div>
+            <div class="my-font-sm-600 my-color-gray-light mb-1">建置輸出檔大小</div>
             <div class="my-font-sm-400 text-break">{{ ragBuildOutputSizeSummary }}</div>
           </div>
           <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
             <div>
-              <div class="my-font-sm-600 text-secondary mb-1">分段長度（字元）</div>
+              <div class="my-font-sm-600 my-color-gray-light mb-1">分段長度（字元）</div>
               <div class="my-font-sm-400">{{ chunkSize }}</div>
             </div>
             <div>
-              <div class="my-font-sm-600 text-secondary mb-1">分段重疊（字元）</div>
+              <div class="my-font-sm-600 my-color-gray-light mb-1">分段重疊（字元）</div>
               <div class="my-font-sm-400">{{ chunkOverlap }}</div>
             </div>
           </div>
           <div class="mb-3">
             <div class="my-font-sm-400 mb-1">出題說明（給 AI）</div>
-            <div class="my-font-sm-400 border rounded bg-body-tertiary p-3">
+            <div class="my-font-sm-400 border rounded my-bgcolor-surface-tint p-3">
               你是一個「{{ courseNameForPrompt }}」課程的教授，請給學生設計試卷題目：<br>
               【出題規範】<br>
               請根據輸入的「參考內容」設計試卷題目。<br>
               **請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。**<br>
               題目難度：{quiz_level}。<br>
-              <span class="lh-base text-break text-danger">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</span><br>
+              <span class="lh-base text-break my-color-red">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</span><br>
             【回傳格式】<br>
             請以 JSON 格式回傳：<br>
             { "quiz_content": "問題內容", <br>
@@ -1614,7 +1640,7 @@ function applyMockGradingPreview(item) {
               {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
             </button>
           </div>
-          <div v-if="currentState.forExamError" class="alert alert-danger my-font-sm-400 py-2 mb-0 mt-2">
+          <div v-if="currentState.forExamError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 mt-2">
             {{ currentState.forExamError }}
           </div>
         </template>
@@ -1622,12 +1648,12 @@ function applyMockGradingPreview(item) {
         <template v-else>
           <!-- 課程：可拖曳至出題單元 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
-            <label class="form-label my-font-sm-600 text-secondary mb-1">資料夾</label>
-            <div class="d-flex flex-wrap gap-2 rounded border bg-body p-2">
+            <label class="form-label my-font-sm-600 my-color-gray-light mb-1">資料夾</label>
+            <div class="d-flex flex-wrap gap-2 rounded border my-bgcolor-surface p-2">
               <div
                 v-for="(name, i) in secondFoldersFull"
                 :key="'sf-' + i"
-                class="badge bg-secondary-subtle text-secondary border border-secondary-subtle user-select-none px-2 py-1"
+                class="badge my-badge-surface-outline user-select-none px-2 py-1"
                 style="cursor: grab;"
                 draggable="true"
                 role="button"
@@ -1642,11 +1668,11 @@ function applyMockGradingPreview(item) {
 
           <!-- 出題單元：可放置課程標籤 -->
           <div class="mb-2">
-            <label class="form-label my-font-sm-600 text-secondary mb-0">出題單元</label>
+            <label class="form-label my-font-sm-600 my-color-gray-light mb-0">出題單元</label>
             <div class="d-flex flex-wrap align-items-start gap-2">
               <template v-for="(group, gi) in ragListDisplayGroups" :key="'rg-' + gi">
                 <div
-                  class="my-pack-drop-target border rounded d-flex align-items-center gap-1 position-relative bg-body-secondary p-2"
+                  class="my-pack-drop-target border rounded d-flex align-items-center gap-1 position-relative my-bgcolor-surface-tint p-2"
                   style="min-width: 120px; min-height: 2.5rem;"
                   @dragover.prevent="onDragOver($event)"
                   @dragenter.prevent="onDragEnter($event)"
@@ -1657,7 +1683,7 @@ function applyMockGradingPreview(item) {
                     <div
                       v-for="(tag, ti) in group"
                       :key="'t-' + gi + '-' + ti"
-                      class="badge bg-primary d-inline-flex align-items-center gap-1 px-2 py-1"
+                      class="badge my-bgcolor-blue my-color-white d-inline-flex align-items-center gap-1 px-2 py-1"
                       style="cursor: grab;"
                       draggable="true"
                       role="button"
@@ -1666,17 +1692,17 @@ function applyMockGradingPreview(item) {
                     >
                       {{ tag }}
                       <span
-                        class="text-muted ms-1"
+                        class="my-color-gray-light ms-1"
                         style="cursor: pointer;"
                         @click.stop="removeFromRagList(gi, ti)"
                       >×</span>
                     </div>
-                    <span v-if="!group.length" class="text-muted my-font-sm-400">拖入此處</span>
+                    <span v-if="!group.length" class="my-color-gray-light my-font-sm-400">拖入此處</span>
                   </div>
                   <button
                     v-if="(currentState.packTasksList || []).length > 0"
                     type="button"
-                    class="btn btn-link text-muted text-decoration-none flex-shrink-0 p-0 ms-1"
+                    class="btn btn-link my-color-gray-light text-decoration-none flex-shrink-0 p-0 ms-1"
                     style="min-width: 1.5rem;"
                     @click.stop="removeRagListGroup(gi)"
                   >
@@ -1685,7 +1711,7 @@ function applyMockGradingPreview(item) {
                 </div>
               </template>
               <div
-                class="btn btn-outline-primary d-flex justify-content-center align-items-center my-pack-drop-target"
+                class="btn my-btn-outline-blue-hollow d-flex justify-content-center align-items-center my-pack-drop-target"
                 style="min-width: 140px; min-height: 2.5rem; cursor: pointer;"
                 role="button"
                 tabindex="0"
@@ -1703,7 +1729,7 @@ function applyMockGradingPreview(item) {
             <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
               <button
                 type="button"
-                class="btn btn-outline-secondary"
+                class="btn my-btn-outline-neutral my-font-sm-400"
                 :disabled="!secondFoldersFull.length"
                 @click="addAllSecondFoldersAsGroups"
               >
@@ -1711,7 +1737,7 @@ function applyMockGradingPreview(item) {
               </button>
               <button
                 type="button"
-                class="btn btn-outline-secondary"
+                class="btn my-btn-outline-neutral my-font-sm-400"
                 :disabled="!secondFoldersFull.length"
                 title="在現有出題單元之後再追加一組；該組包含全部資料夾，打包時以 + 連成同一題庫"
                 @click="setAllSecondFoldersAsSingleGroup"
@@ -1723,7 +1749,7 @@ function applyMockGradingPreview(item) {
 
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
             <div style="min-width: 180px; flex: 1 1 180px; max-width: 280px;">
-              <label class="form-label my-font-sm-600 text-secondary mb-1">分段長度（字元）</label>
+              <label class="form-label my-font-sm-600 my-color-gray-light mb-1">分段長度（字元）</label>
               <input
                 v-model.number="chunkSize"
                 type="number"
@@ -1734,7 +1760,7 @@ function applyMockGradingPreview(item) {
               >
             </div>
             <div style="min-width: 180px; flex: 1 1 180px; max-width: 280px;">
-              <label class="form-label my-font-sm-600 text-secondary mb-1">分段重疊（字元）</label>
+              <label class="form-label my-font-sm-600 my-color-gray-light mb-1">分段重疊（字元）</label>
               <input
                 v-model.number="chunkOverlap"
                 type="number"
@@ -1746,8 +1772,8 @@ function applyMockGradingPreview(item) {
             </div>
           </div>
           <div class="mt-3">
-            <label class="form-label my-font-sm-600 text-secondary mb-1">出題說明（給 AI）</label>
-            <div class="my-font-sm-400 border rounded bg-body-tertiary p-3">
+            <label class="form-label my-font-sm-600 my-color-gray-light mb-1">出題說明（給 AI）</label>
+            <div class="my-font-sm-400 border rounded my-bgcolor-surface-tint p-3">
               【出題規範】<br>
               請根據輸入的「參考內容」設計試卷題目。<br>
               請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。<br>
@@ -1776,7 +1802,7 @@ function applyMockGradingPreview(item) {
               確定
             </button>
           </div>
-          <div v-if="currentState.packError" class="alert alert-danger my-font-sm-400 py-2 mb-2">
+          <div v-if="currentState.packError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-2">
             {{ currentState.packError }}
           </div>
         </template>
@@ -1786,10 +1812,9 @@ function applyMockGradingPreview(item) {
       <div
         v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
         class="text-start my-page-block-spacing"
-        :class="{ 'text-muted': ragGenerateDisabled }"
+        :class="{ 'my-color-gray-light': ragGenerateDisabled }"
       >
-        <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
-        <div class="my-font-lg-600 border-bottom pb-2 mb-4">測試問題</div>
+        <div class="my-font-lg-600 my-color-white border-bottom pb-2 mb-4">測試問題</div>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="mb-4">
@@ -1814,7 +1839,7 @@ function applyMockGradingPreview(item) {
                 <div class="text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div class="flex-grow-1 min-w-0" style="min-width: 10rem">
-                      <label class="form-label my-font-sm-600 text-secondary mb-1" :for="`rag-quiz-unit-${slotIndex}-toggle`">單元</label>
+                      <label class="form-label my-font-sm-600 my-color-gray-light mb-1" :for="`rag-quiz-unit-${slotIndex}-toggle`">單元</label>
                       <UnitSelectDropdown
                         v-model="getSlotFormState(slotIndex).generateQuizTabId"
                         :options="generateQuizUnits"
@@ -1822,7 +1847,7 @@ function applyMockGradingPreview(item) {
                       />
                     </div>
                     <div>
-                      <label class="form-label my-font-sm-600 text-secondary d-block mb-1">難度</label>
+                      <label class="form-label my-font-sm-600 my-color-gray-light d-block mb-1">難度</label>
                       <div class="btn-group btn-group-sm" role="group">
                         <template v-for="(opt, di) in difficultyOptions" :key="opt">
                           <input
@@ -1834,7 +1859,7 @@ function applyMockGradingPreview(item) {
                             :value="opt"
                             autocomplete="off"
                           >
-                          <label class="btn btn-outline-primary" :for="'rag-quiz-diff-' + slotIndex + '-' + di">{{ opt }}</label>
+                          <label class="btn my-btn-outline-blue-hollow" :for="'rag-quiz-diff-' + slotIndex + '-' + di">{{ opt }}</label>
                         </template>
                       </div>
                     </div>
@@ -1847,7 +1872,7 @@ function applyMockGradingPreview(item) {
                       產生題目
                     </button>
                   </div>
-                  <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger my-font-sm-400 py-2 mt-2 mb-0">
+                  <div v-if="getSlotFormState(slotIndex).error" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
                     {{ getSlotFormState(slotIndex).error }}
                   </div>
                 </div>
@@ -1866,11 +1891,11 @@ function applyMockGradingPreview(item) {
             </button>
           </div>
         </div>
-        </div>
       </div>
 
       </template>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -1891,6 +1916,18 @@ function applyMockGradingPreview(item) {
   border-color: var(--my-color-blue) !important;
   background: var(--my-drop-zone-active-bg) !important;
 }
+/* 上傳外層為稿頁同款 my-bgcolor-gray-dark 時，內嵌拖放區比照 DesignPage 深灰塊內黑底票 */
+.my-bgcolor-gray-dark .my-zip-drop-zone {
+  border-color: color-mix(in srgb, var(--my-color-white) 28%, transparent);
+  background: var(--my-color-black);
+}
+.my-bgcolor-gray-dark .my-zip-drop-zone:hover:not(.my-zip-drop-zone-disabled) {
+  border-color: var(--my-color-blue);
+  background: color-mix(in srgb, var(--my-color-blue) 14%, var(--my-color-black));
+}
+.my-bgcolor-gray-dark .my-zip-drop-zone-over {
+  background: color-mix(in srgb, var(--my-color-blue) 22%, var(--my-color-black)) !important;
+}
 .my-zip-drop-zone-disabled {
   cursor: not-allowed;
   border-color: color-mix(in srgb, var(--my-color-black) 20%, transparent);
@@ -1908,9 +1945,11 @@ function applyMockGradingPreview(item) {
   height: 2.25rem;
   line-height: 1;
 }
+/* 與 DesignPage 白色填色鈕同語意：啟用步驟為白底＋黑字＋淡邊，不用藍 */
 .my-create-rag-stepper-num--on {
-  background-color: var(--my-color-blue);
-  color: var(--my-color-surface);
+  background-color: var(--my-color-surface);
+  color: var(--my-color-black);
+  border: 1px solid var(--my-color-border-muted);
 }
 .my-create-rag-stepper-num--off {
   background-color: color-mix(in srgb, var(--my-color-black) 6%, var(--my-color-surface));
@@ -1927,7 +1966,7 @@ function applyMockGradingPreview(item) {
   border-radius: 1px;
 }
 .my-create-rag-stepper-line--on {
-  background-color: var(--my-color-blue);
+  background-color: color-mix(in srgb, var(--my-color-black) 32%, transparent);
 }
 
 </style>

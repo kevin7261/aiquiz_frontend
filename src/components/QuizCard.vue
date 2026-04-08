@@ -59,26 +59,17 @@ const answerInputDisabled = computed(() => {
       <!-- 單元與難度（唯讀顯示） -->
       <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
         <div>
-          <label
-            class="form-label my-font-sm-600 mb-1"
-            :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-          >單元</label>
-          <div class="form-control form-control-sm bg-body-secondary border my-font-sm-400" style="min-height: 31px;">{{ card.ragName || '—' }}</div>
+          <label class="form-label my-font-sm-600 mb-1 my-color-gray-light">單元</label>
+          <div class="form-control form-control-sm my-bgcolor-surface-tint border my-font-sm-400" style="min-height: 31px;">{{ card.ragName || '—' }}</div>
         </div>
         <div>
-          <label
-            class="form-label my-font-sm-600 mb-1"
-            :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-          >難度</label>
-          <div class="form-control form-control-sm bg-body-secondary border my-font-sm-400" style="min-height: 31px;">{{ card.generateLevel || '—' }}</div>
+          <label class="form-label my-font-sm-600 mb-1 my-color-gray-light">難度</label>
+          <div class="form-control form-control-sm my-bgcolor-surface-tint border my-font-sm-400" style="min-height: 31px;">{{ card.generateLevel || '—' }}</div>
         </div>
       </div>
       <div class="mb-3">
-        <div
-          class="form-label my-font-sm-600 mb-1"
-          :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-        >題目</div>
-        <div class="bg-body-secondary border rounded lh-base p-2">
+        <div class="form-label my-font-sm-600 mb-1 my-color-gray-light">題目</div>
+        <div class="my-bgcolor-surface-tint border rounded lh-base p-2">
           {{ card.quiz }}
         </div>
       </div>
@@ -88,7 +79,7 @@ const answerInputDisabled = computed(() => {
           :class="[
             designUi
               ? 'btn rounded-pill d-inline-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border px-3 py-0'
-              : 'btn btn-outline-secondary py-0',
+              : 'btn my-btn-outline-neutral my-font-sm-400 py-0',
           ]"
           @click="emit('toggle-hint', card)"
         >
@@ -96,30 +87,22 @@ const answerInputDisabled = computed(() => {
         </button>
         <div
           v-show="card.hintVisible"
-          class="rounded bg-body-tertiary my-font-sm-400 p-2 mt-2"
-          :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
+          class="rounded my-bgcolor-surface-tint my-font-sm-400 my-color-gray-light p-2 mt-2"
         >
           {{ card.hint }}
         </div>
       </div>
       <div v-if="card.referenceAnswer" class="mb-3">
-        <div
-          class="form-label my-font-sm-600 mb-1"
-          :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-        >參考答案(暫存)</div>
-        <div class="rounded bg-body-tertiary border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ card.referenceAnswer }}</div>
+        <div class="form-label my-font-sm-600 mb-1 my-color-gray-light">參考答案(暫存)</div>
+        <div class="rounded my-bgcolor-surface-tint border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ card.referenceAnswer }}</div>
       </div>
       <div class="mb-3">
         <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
           <label
             :for="`quiz-answer-${card.id}`"
-            class="form-label my-font-sm-600 mb-0"
-            :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
+            class="form-label my-font-sm-600 mb-0 my-color-gray-light"
           >答案</label>
-          <span
-            class="form-text my-font-sm-400 text-end flex-shrink-0 mb-0"
-            :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-          >{{ card.quiz_answer.length }} / 2000</span>
+          <span class="form-text my-font-sm-400 my-color-gray-light text-end flex-shrink-0 mb-0">{{ card.quiz_answer.length }} / 2000</span>
         </div>
         <template v-if="!card.confirmed">
           <textarea
@@ -132,31 +115,23 @@ const answerInputDisabled = computed(() => {
             placeholder="請輸入您的答案..."
             maxlength="2000"
           />
-          <div v-if="answerInputDisabled" class="form-text my-font-sm-400 text-warning">此題與目前題庫版本不一致，無法作答。請改題或重新產生題目。</div>
+          <div v-if="answerInputDisabled" class="form-text my-font-sm-400 my-color-yellow">此題與目前題庫版本不一致，無法作答。請改題或重新產生題目。</div>
           <div class="d-flex justify-content-end mt-2">
             <button
               type="button"
-              :class="[
-                'btn rounded-pill flex-shrink-0 px-3 py-2',
-                designUi
-                  ? 'd-flex justify-content-center align-items-center my-button-blue'
-                  : 'btn-primary',
-              ]"
+              class="btn rounded-pill d-flex justify-content-center align-items-center flex-shrink-0 px-3 py-2 my-font-md-400 my-button-blue"
               :disabled="answerInputDisabled"
               @click="emit('confirm-answer', card)"
             >確定</button>
           </div>
         </template>
         <template v-else>
-          <div class="rounded bg-body-tertiary my-font-sm-400 p-2 mb-2">{{ card.quiz_answer }}</div>
+          <div class="rounded my-bgcolor-surface-tint my-font-sm-400 p-2 mb-2">{{ card.quiz_answer }}</div>
         </template>
       </div>
       <div class="mb-3">
-        <label
-          class="form-label my-font-sm-600 mb-1"
-          :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-        >批改規則（預覽）</label>
-        <div class="my-font-sm-400 border rounded bg-body-tertiary p-3">
+        <label class="form-label my-font-sm-600 mb-1 my-color-gray-light">批改規則（預覽）</label>
+        <div class="my-font-sm-400 border rounded my-bgcolor-surface-tint p-3">
           你是一位「{{ courseName }}」課程的教授，請批改這道題目：<br>
           【評分規範】<br>
           根據「測驗題目」與「課程內容」，評估「學生答案」的內容是否正確。<br>
@@ -181,11 +156,8 @@ const answerInputDisabled = computed(() => {
       </div>
       <!-- 批改結果區（由 useQuizGrading 格式化後顯示） -->
       <div class="mb-3">
-        <div
-          class="form-label my-font-sm-600 mb-1"
-          :class="designUi ? 'my-color-gray-light' : 'text-secondary'"
-        >批改結果</div>
-        <div class="rounded bg-body-tertiary border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ card.gradingResult || '尚未批改' }}</div>
+        <div class="form-label my-font-sm-600 mb-1 my-color-gray-light">批改結果</div>
+        <div class="rounded my-bgcolor-surface-tint border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ card.gradingResult || '尚未批改' }}</div>
       </div>
     </div>
   </div>
