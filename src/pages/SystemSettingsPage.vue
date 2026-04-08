@@ -147,16 +147,17 @@ async function save(block) {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">系統設定</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">系統設定</span>
       </div>
     </div>
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-          <div class="text-start page-block-spacing">
+          <div class="text-start my-page-block-spacing">
+            <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
             <template v-for="block in BLOCKS" :key="block.id">
               <div class="mb-4">
-                <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">{{ block.label }}</label>
+                <label class="form-label my-font-sm-600 text-secondary mb-1">{{ block.label }}</label>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <div class="flex-grow-1" style="min-width: 0">
                     <input
@@ -167,7 +168,7 @@ async function save(block) {
                       :disabled="fetchLoading"
                       :autocomplete="block.id === 'llmApiKey' ? 'off' : undefined"
                     >
-                    <div v-if="fetchLoading" class="form-text my-font-size-sm">載入中...</div>
+                    <div v-if="fetchLoading" class="form-text my-font-sm-400">載入中...</div>
                   </div>
                   <button
                     type="button"
@@ -181,20 +182,21 @@ async function save(block) {
               </div>
               <div
                 v-if="state[block.id].message"
-                :class="['alert py-2 mb-4', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger']"
+                :class="['alert', state[block.id].messageType === 'success' ? 'alert-success' : 'alert-danger', 'py-2', 'mb-4']"
                 role="alert"
               >
                 {{ state[block.id].message }}
               </div>
             </template>
             <div class="mb-4">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">服務位址（僅供查閱）</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">服務位址（僅供查閱）</label>
               <div
                 class="form-control form-control-sm bg-body-secondary font-monospace text-break py-2"
                 role="status"
               >
                 {{ API_BASE }}
               </div>
+            </div>
             </div>
           </div>
         </div>

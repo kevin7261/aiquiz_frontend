@@ -96,7 +96,7 @@
 </script>
 
 <template>
-  <div class="container-fluid h-100 p-0 d-flex flex-column">
+  <div class="container-fluid h-100 d-flex flex-column p-0">
     <LoadingOverlay
       :isVisible="false"
       loadingText="載入中..."
@@ -105,7 +105,7 @@
       subText=""
     />
 
-    <div class="row h-100 g-0 home-layout">
+    <div class="row h-100 g-0 my-home-layout">
       <div class="col-4 col-md-3 col-lg-2 h-100 overflow-hidden">
         <LeftView
           :user-name="userName"
@@ -121,7 +121,7 @@
 </template>
 
 <style scoped>
-.home-layout {
+.my-home-layout {
   min-height: 0;
   flex: 1 1 0;
 }

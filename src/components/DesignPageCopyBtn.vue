@@ -1,11 +1,11 @@
 <template>
   <button
     type="button"
-    class="design-page-copy-btn btn btn-link d-inline-flex align-items-center justify-content-center flex-shrink-0 rounded-circle p-1 lh-1 shadow-none text-decoration-none border-0"
-    :class="onLightBg ? 'design-page-copy-btn--light' : 'design-page-copy-btn--dark'"
+    class="btn rounded-circle d-flex align-items-center justify-content-center my-btn-circle my-font-md-400 bg-transparent border-0 flex-shrink-0 lh-1 shadow-none my-design-page-copy-btn"
+    :class="onLightBg ? 'my-design-page-copy-btn--light' : 'my-design-page-copy-btn--dark'"
     @click.prevent="onCopy"
   >
-    <i class="fa-regular fa-copy small" aria-hidden="true"></i>
+    <i class="fa-regular fa-copy" aria-hidden="true"></i>
   </button>
 </template>
 
@@ -27,30 +27,30 @@ async function onCopy() {
 
 <style scoped>
 /* 權杖色；勿用 Bootstrap link-*／語意 text-* */
-.design-page-copy-btn--dark {
+.my-design-page-copy-btn--dark {
   color: var(--my-color-gray-light);
 }
 
-.design-page-copy-btn--dark:hover,
-.design-page-copy-btn--dark:focus-visible,
-.design-page-copy-btn--dark:active {
+.my-design-page-copy-btn--dark:hover,
+.my-design-page-copy-btn--dark:focus-visible,
+.my-design-page-copy-btn--dark:active {
   color: var(--my-color-white);
   background-color: color-mix(in srgb, var(--my-color-white) 12%, transparent);
 }
 
-.design-page-copy-btn--light {
+.my-design-page-copy-btn--light {
   color: var(--my-color-black);
 }
 
-.design-page-copy-btn--light:hover,
-.design-page-copy-btn--light:focus-visible,
-.design-page-copy-btn--light:active {
+.my-design-page-copy-btn--light:hover,
+.my-design-page-copy-btn--light:focus-visible,
+.my-design-page-copy-btn--light:active {
   color: var(--my-color-black);
   background-color: color-mix(in srgb, var(--my-color-black) 8%, transparent);
 }
 
-.design-page-copy-btn:focus-visible {
-  outline: 2px solid var(--my-select-focus-ring);
+.my-design-page-copy-btn:focus-visible {
+  outline: 2px solid var(--my-color-blue-focus-ring);
   outline-offset: 2px;
 }
 </style>

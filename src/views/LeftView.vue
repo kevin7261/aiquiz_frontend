@@ -4,7 +4,7 @@
    *
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、主要導覽（測驗、作答弱點分析）
-   * - 左下角使用者名下拉：出題／學生作答分析／使用者管理／系統設定、分隔線、設定、登出
+   * - 左下角使用者名下拉：出題／學生作答分析／使用者管理／系統設定、分隔線、設定、登出（/design、/create-test-bank_design 不列於選單，僅網址進入）
    * - 依 user_type 顯示允許的項目（canSeeNavLink）
    */
   import { ref, computed, onMounted } from 'vue';
@@ -63,8 +63,8 @@
 
 <template>
   <aside class="h-100 d-flex flex-column w-100 bg-white border-end">
-    <div class="px-3 pt-3 pb-2 fw-semibold fs-5 text-body lh-sm">{{ courseName }}</div>
-    <nav class="nav nav-pills flex-column flex-grow-1 justify-content-center px-3 pt-3 gap-1 overflow-auto">
+    <div class="fw-semibold fs-5 text-body lh-sm px-3 pt-3 pb-2">{{ courseName }}</div>
+    <nav class="nav nav-pills flex-column flex-grow-1 justify-content-center gap-1 overflow-auto px-3 pt-3">
       <router-link
         v-if="canSeeNavLink(userType, 'work')"
         to="/exam"
@@ -93,14 +93,6 @@
         <ul class="dropdown-menu dropdown-menu-start shadow-sm w-100">
           <li v-if="canSeeNavLink(userType, 'create-test-bank')">
             <router-link class="dropdown-item" to="/create-test-bank" active-class="active">建立測驗題庫</router-link>
-          </li>
-          <li v-if="canSeeNavLink(userType, 'create-test-bank')">
-            <router-link class="dropdown-item" to="/create-test-bank_design" active-class="active"
-              >建立測驗題庫（介面稿）</router-link
-            >
-          </li>
-          <li v-if="canSeeNavLink(userType, 'design')">
-            <router-link class="dropdown-item" to="/design" active-class="active">UI 元件（Bootstrap）</router-link>
           </li>
           <li v-if="canSeeNavLink(userType, 'student-answer-analysis')">
             <router-link class="dropdown-item" to="/student-answer-analysis" active-class="active"

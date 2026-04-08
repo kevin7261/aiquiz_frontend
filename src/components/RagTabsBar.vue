@@ -2,10 +2,10 @@
 /**
  * RagTabsBar - 建立 RAG 頁的分頁列
  *
- * 顯示：後端 RAG 列表（ragItems）+ 尚未儲存的「新增」分頁（newTabItems）+ 「+」按鈕。
- * 點選分頁會 emit update:activeTabId；點「+」會 emit add-new-tab。
+ * 顯示：後端 RAG 列表（ragItems）+ 尚未儲存的「新增」分頁（newTabItems）+ Font Awesome「+」按鈕。
+ * 點選分頁會 emit update:activeTabId；點新增鈕會 emit add-new-tab。
  * 已儲存的 ragItems：僅當前選中分頁顯示筆（rename-tab）與刪除（delete-rag，× 圖示）；試卷用 RAG（_isExamRag）僅綠點、無刪除；newTabItems 無筆／刪除。
- * 若 RAG 列表與新分頁皆空，僅顯示「+ 新增」按鈕以建立第一個 RAG。
+ * 若 RAG 列表與新分頁皆空，僅顯示新增（fa-plus）按鈕以建立第一個 RAG。
  * 下方可顯示 ragListError、createRagError 警告/錯誤訊息。
  */
 defineProps({
@@ -17,7 +17,7 @@ defineProps({
   activeTabId: { type: [String, Number], default: null },
   /** 是否正在載入 RAG 列表 */
   ragListLoading: { type: Boolean, default: false },
-  /** 是否正在建立新 RAG（按「+」後） */
+  /** 是否正在建立新 RAG（按新增鈕後） */
   createRagLoading: { type: Boolean, default: false },
   /** RAG 列表載入失敗訊息 */
   ragListError: { type: String, default: '' },
@@ -27,7 +27,7 @@ defineProps({
   deleteRagLoading: { type: Boolean, default: false },
   /** 重新命名請求進行中（禁用筆與 ×） */
   renameTabLoading: { type: Boolean, default: false },
-  /** 為 true 時不因載入狀態禁用「+ 新增」與分頁操作按鈕（介面稿頁用） */
+  /** 為 true 時不因載入狀態禁用新增鈕與分頁操作按鈕（介面稿頁用） */
   relaxButtonDisables: { type: Boolean, default: false },
   /** 與 UI 元件參考深色底＋04 藍色按鈕一致（建立測驗題庫設計稿用） */
   designChrome: { type: Boolean, default: false },
@@ -40,20 +40,20 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
   <div
     class="flex-shrink-0"
     :class="[
-      designChrome ? 'rag-tabs-bar--design my-bgcolor-black border-bottom my-border-bottom-muted' : 'bg-white',
+      designChrome ? 'my-rag-tabs-bar--design my-bgcolor-black border-bottom' : 'bg-white',
     ]"
   >
     <div
-      class="d-flex justify-content-center px-4 w-100"
+      class="d-flex justify-content-center w-100 px-4"
       :class="[
         designChrome ? 'align-items-end pb-0' : 'align-items-center border-bottom border-secondary-subtle',
       ]"
     >
       <!-- 載入中僅顯示文字 -->
       <template v-if="ragListLoading">
-        <span class="my-font-size-sm" :class="designChrome ? 'my-color-gray-light' : 'text-secondary'">載入中...</span>
+        <span class="my-font-sm-400" :class="designChrome ? 'my-color-gray-light' : 'text-secondary'">載入中...</span>
       </template>
-      <!-- 無任何分頁時只顯示「+ 新增」建立按鈕（上下留白，避免貼齊底線） -->
+      <!-- 無任何分頁時只顯示新增鈕（fa-plus；上下留白，避免貼齊底線） -->
       <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
         <div
           class="w-100 d-flex justify-content-center"
@@ -61,15 +61,22 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
         >
           <button
             type="button"
-            class="btn rounded-pill btn-sm my-font-size-xs px-2 py-1 flex-shrink-0 d-flex align-items-center justify-content-center rag-tabs-add-btn my-btn-border my-border-color-blue"
+            class="btn rounded-circle d-flex align-items-center justify-content-center my-font-md-400 my-button-white-borderless my-btn-circle"
+            title="新增分頁"
+            :aria-label="createRagLoading ? '建立中' : '新增分頁'"
+            :aria-busy="createRagLoading"
             :disabled="relaxButtonDisables ? false : createRagLoading"
             @click="emit('add-new-tab')"
           >
-            {{ createRagLoading ? '建立中...' : '+ 新增' }}
+            <i
+              class="fa-solid"
+              :class="createRagLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </template>
-      <!-- 有分頁時顯示 nav-tabs + 右側「+ 新增」（與底線留距，不貼齊） -->
+      <!-- 有分頁時顯示 nav-tabs + 右側新增鈕（與底線留距，不貼齊） -->
       <template v-else>
         <ul class="nav nav-tabs border-bottom-0">
           <li v-for="item in ragItems" :key="'rag-' + item._tabId" class="nav-item">
@@ -90,7 +97,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
                 v-if="activeTabId === item._tabId"
                 type="button"
                 :class="[
-                  'btn btn-link p-0 text-decoration-none tab-nav-action-btn',
+                  'btn btn-link text-decoration-none my-tab-nav-action-btn p-0',
                   designChrome ? 'my-color-gray-light' : 'text-muted',
                 ]"
                 title="重新命名分頁"
@@ -108,7 +115,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
               >
                 <span
                   class="rounded-circle d-inline-block"
-                  :class="designChrome ? 'my-bgcolor-green' : 'bg-success'"
+                  :class="designChrome ? 'my-bgcolor-blue' : 'bg-success'"
                   style="width: 0.5rem; height: 0.5rem;"
                 />
               </span>
@@ -116,7 +123,7 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
                 v-else-if="activeTabId === item._tabId"
                 type="button"
                 :class="[
-                  'btn btn-link p-0 text-decoration-none tab-nav-action-btn',
+                  'btn btn-link text-decoration-none my-tab-nav-action-btn p-0',
                   designChrome ? 'my-color-gray-light' : 'text-muted',
                 ]"
                 title="刪除此出題單元"
@@ -138,28 +145,35 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
               {{ item.label }}
             </button>
           </li>
-          <li class="nav-item ms-2 d-flex align-items-center">
+          <li class="nav-item d-flex align-items-center ms-2">
             <button
               type="button"
+              title="新增分頁"
+              :aria-label="createRagLoading ? '建立中' : '新增分頁'"
+              :aria-busy="createRagLoading"
               :class="[
-                'btn rounded-pill btn-sm my-font-size-xs px-2 py-1 flex-shrink-0 d-flex align-items-center justify-content-center rag-tabs-add-btn my-btn-border my-border-color-blue',
+                'btn rounded-circle d-flex align-items-center justify-content-center my-font-md-400 my-button-white-borderless my-btn-circle',
                 designChrome ? '' : 'mb-2',
               ]"
               :disabled="relaxButtonDisables ? false : createRagLoading"
               @click="emit('add-new-tab')"
             >
-              {{ createRagLoading ? '建立中...' : '+ 新增' }}
+              <i
+                class="fa-solid"
+                :class="createRagLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+                aria-hidden="true"
+              />
             </button>
           </li>
         </ul>
       </template>
     </div>
     <!-- 列表載入錯誤（例如網路問題） -->
-    <div v-if="ragListError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
+    <div v-if="ragListError" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-3">
       {{ ragListError }}
     </div>
     <!-- 建立 RAG 失敗（例如後端驗證錯誤） -->
-    <div v-if="createRagError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
+    <div v-if="createRagError" class="alert alert-danger my-font-sm-400 py-2 mx-4 mb-3">
       {{ createRagError }}
     </div>
   </div>
@@ -186,36 +200,36 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
   border-top-color: transparent !important;
   border-left-color: transparent !important;
   border-right-color: transparent !important;
-  border-bottom-color: var(--bs-primary) !important;
+  border-bottom-color: var(--my-color-blue) !important;
 }
 
-.rag-tabs-bar--design .nav-tabs .nav-link {
+.my-rag-tabs-bar--design .nav-tabs .nav-link {
   color: var(--my-color-gray-light);
 }
-.rag-tabs-bar--design .nav-tabs .nav-link.active {
+.my-rag-tabs-bar--design .nav-tabs .nav-link.active {
   color: var(--my-color-white);
 }
-.rag-tabs-bar--design .nav-tabs .nav-link.active,
-.rag-tabs-bar--design .nav-tabs .nav-link.active:hover,
-.rag-tabs-bar--design .nav-tabs .nav-link.active:focus,
-.rag-tabs-bar--design .nav-tabs .nav-link.active:focus-visible {
+.my-rag-tabs-bar--design .nav-tabs .nav-link.active,
+.my-rag-tabs-bar--design .nav-tabs .nav-link.active:hover,
+.my-rag-tabs-bar--design .nav-tabs .nav-link.active:focus,
+.my-rag-tabs-bar--design .nav-tabs .nav-link.active:focus-visible {
   border-bottom-color: var(--my-color-blue) !important;
 }
 
 /* 設計稿：分頁底緣與外層底線之間不留空隙 */
-.rag-tabs-bar--design .nav-tabs {
+.my-rag-tabs-bar--design .nav-tabs {
   margin-bottom: 0 !important;
 }
-.rag-tabs-bar--design .nav-tabs .nav-link {
+.my-rag-tabs-bar--design .nav-tabs .nav-link {
   padding-bottom: 0.25rem;
   margin-bottom: 0;
 }
-.rag-tabs-bar--design .nav-item {
+.my-rag-tabs-bar--design .nav-item {
   margin-bottom: 0 !important;
 }
 
 /* 頁籤筆／刪除：同外框與圖示字級（略小），字級設在 .fa-solid 以免與 .btn-link 預設字級牽制 */
-.tab-nav-action-btn {
+.my-tab-nav-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -225,26 +239,10 @@ const emit = defineEmits(['update:activeTabId', 'add-new-tab', 'delete-rag', 're
   padding: 0 !important;
   line-height: 1;
 }
-.tab-nav-action-btn :deep(.fa-solid) {
-  font-size: var(--my-font-size-2xs);
+.my-tab-nav-action-btn :deep(.fa-solid) {
+  font-size: var(--my-font-size-sm);
   line-height: 1;
   width: 1em;
   height: 1em;
-}
-
-/* 「+ 新增」：藍色描邊（.my-btn-border＋.my-border-color-blue）；覆寫深色主題描邊鈕預設灰框／白字 */
-button.rag-tabs-add-btn.btn.my-btn-border.my-border-color-blue {
-  color: var(--my-color-blue);
-  background-color: transparent;
-  border-color: var(--my-color-blue);
-}
-button.rag-tabs-add-btn.btn.my-btn-border.my-border-color-blue:hover:not(:disabled),
-button.rag-tabs-add-btn.btn.my-btn-border.my-border-color-blue:active:not(:disabled) {
-  color: var(--my-color-white);
-  background-color: color-mix(in srgb, var(--my-color-blue) 32%, transparent);
-  border-color: var(--my-color-blue);
-}
-button.rag-tabs-add-btn.btn.my-btn-border.my-border-color-blue:disabled {
-  opacity: 0.55;
 }
 </style>

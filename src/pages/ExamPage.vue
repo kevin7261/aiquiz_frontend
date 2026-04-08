@@ -576,7 +576,7 @@ async function onExamRenameSave(name) {
   }
 }
 
-/** 按 + 新增測驗：POST /exam/tab/create，body 含 exam_tab_id、person_id、tab_name、local（與 RAG tab/create 一致） */
+/** 按「＋」新增測驗分頁：POST /exam/tab/create，body 含 exam_tab_id、person_id、tab_name、local（與 RAG tab/create 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -754,7 +754,7 @@ async function generateQuiz(slotIndex) {
     return;
   }
   if (!hasValidExamId && !examTabIdStr) {
-    slotState.error = '請先按「+ 新增」建立測驗，或重新整理頁面後再試';
+    slotState.error = '請先按「＋」建立測驗分頁，或重新整理頁面後再試';
     return;
   }
   if (!generateQuizUnits.value.length) {
@@ -879,7 +879,7 @@ async function confirmAnswer(item) {
   }
   if (!activeTabId.value) {
     item.confirmed = true;
-    item.gradingResult = '請先選擇一個測驗分頁，或按「+ 新增」建立測驗。';
+    item.gradingResult = '請先選擇一個測驗分頁，或按「＋」建立測驗。';
     return;
   }
   const exam = currentExamItem.value;
@@ -927,24 +927,31 @@ onMounted(() => {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">測驗</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">測驗</span>
       </div>
     </div>
     <!-- 固定 tab 頁籤列（與建立 RAG 頁一致，僅內容區可上下滑） -->
     <div class="flex-shrink-0 bg-white">
-      <div class="d-flex align-items-center justify-content-center px-4 w-100 border-bottom border-secondary-subtle">
+      <div class="d-flex align-items-center justify-content-center w-100 border-bottom border-secondary-subtle px-4">
         <template v-if="examListLoading || forExamLoading">
-          <span class="my-font-size-sm text-secondary">—</span>
+          <span class="my-font-sm-400 text-secondary">—</span>
         </template>
         <template v-else-if="examList.length === 0">
           <div class="w-100 d-flex justify-content-center py-2">
             <button
               type="button"
-              class="btn btn-outline-primary"
+              class="btn rounded-circle d-flex align-items-center justify-content-center my-font-md-400 my-button-white-borderless my-btn-circle"
+              title="新增測驗分頁"
+              :aria-label="createExamLoading ? '建立中' : '新增測驗分頁'"
+              :aria-busy="createExamLoading"
               :disabled="createExamLoading"
               @click="addNewTab"
             >
-              {{ createExamLoading ? '建立中...' : '+ 新增' }}
+              <i
+                class="fa-solid"
+                :class="createExamLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+                aria-hidden="true"
+              />
             </button>
           </div>
         </template>
@@ -967,7 +974,7 @@ onMounted(() => {
                 <button
                   v-if="activeTabId === getExamTabId(exam)"
                   type="button"
-                  class="btn btn-link p-0 text-muted text-decoration-none tab-nav-action-btn"
+                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn p-0"
                   title="重新命名分頁"
                   :disabled="deleteExamLoading || examRenameSaving"
                   @click.stop="openExamRenameModal(getExamTabId(exam))"
@@ -977,7 +984,7 @@ onMounted(() => {
                 <button
                   v-if="activeTabId === getExamTabId(exam)"
                   type="button"
-                  class="btn btn-link p-0 text-muted text-decoration-none tab-nav-action-btn"
+                  class="btn btn-link text-muted text-decoration-none my-tab-nav-action-btn p-0"
                   title="刪除此測驗"
                   :disabled="deleteExamLoading || examRenameSaving"
                   @click.stop="deleteExam(getExamTabId(exam))"
@@ -986,29 +993,36 @@ onMounted(() => {
                 </button>
               </div>
             </li>
-            <li class="nav-item ms-2 d-flex align-items-center">
+            <li class="nav-item d-flex align-items-center ms-2">
               <button
                 type="button"
-                class="btn btn-outline-primary mb-2"
+                class="btn rounded-circle d-flex align-items-center justify-content-center my-font-md-400 my-button-white-borderless my-btn-circle mb-2"
+                title="新增測驗分頁"
+                :aria-label="createExamLoading ? '建立中' : '新增測驗分頁'"
+                :aria-busy="createExamLoading"
                 :disabled="createExamLoading"
                 @click="addNewTab"
               >
-                {{ createExamLoading ? '建立中...' : '+ 新增' }}
+                <i
+                  class="fa-solid"
+                  :class="createExamLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+                  aria-hidden="true"
+                />
               </button>
             </li>
           </ul>
         </template>
       </div>
-      <div v-if="forExamError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
+      <div v-if="forExamError" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-3">
         {{ forExamError }}
       </div>
-      <div v-if="examListError" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3">
+      <div v-if="examListError" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-3">
         {{ examListError }}
       </div>
-      <div v-if="createExamError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
+      <div v-if="createExamError" class="alert alert-danger my-font-sm-400 py-2 mx-4 mb-3">
         {{ createExamError }}
       </div>
-      <div v-if="deleteExamError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3">
+      <div v-if="deleteExamError" class="alert alert-danger my-font-sm-400 py-2 mx-4 mb-3">
         {{ deleteExamError }}
       </div>
     </div>
@@ -1021,7 +1035,7 @@ onMounted(() => {
         <!-- 產生題目與作答：與建立 RAG 頁一致（出題與評分）；資料來自 GET /rag/tab/for-exam，使用 POST /exam/tab/quiz/create、submitGrade（/exam/tab/quiz/grade） -->
         <div
           v-if="activeTabId"
-          class="text-start page-block-spacing"
+          class="text-start my-page-block-spacing"
         >
           <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
           <div class="mb-4">
@@ -1029,24 +1043,22 @@ onMounted(() => {
               <!-- 第 slotIndex 題：若已有該題卡片則顯示卡片，否則顯示產生題目表單 -->
               <template v-if="currentState.cardList[slotIndex - 1]">
                 <!-- 已有卡片：顯示完整題目區塊 -->
-                <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
-                  <div class="card-header py-2">
-                    <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
-                  </div>
-                  <div class="card-body text-start">
+                <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4" :class="{ 'mt-4': slotIndex > 1 }">
+                  <div class="my-font-lg-600 border-bottom pb-2 mb-3">第 {{ slotIndex }} 題</div>
+                  <div class="text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
-                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">單元</label>
-                        <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
+                        <label class="form-label my-font-sm-600 text-secondary mb-1">單元</label>
+                        <div class="form-control form-control-sm bg-body-secondary border my-font-sm-400" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].ragName || '—' }}</div>
                       </div>
                       <div>
-                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">難度</label>
-                        <div class="form-control form-control-sm bg-body-secondary border my-font-size-sm" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
+                        <label class="form-label my-font-sm-600 text-secondary mb-1">難度</label>
+                        <div class="form-control form-control-sm bg-body-secondary border my-font-sm-400" style="min-height: 31px;">{{ currentState.cardList[slotIndex - 1].generateLevel || '—' }}</div>
                       </div>
                     </div>
                     <div class="mb-3">
-                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">題目</div>
-                      <div class="bg-body-secondary border rounded p-2 lh-base">
+                      <div class="form-label my-font-sm-600 text-secondary mb-1">題目</div>
+                      <div class="bg-body-secondary border rounded lh-base p-2">
                         {{ currentState.cardList[slotIndex - 1].quiz }}
                       </div>
                     </div>
@@ -1078,21 +1090,21 @@ onMounted(() => {
                           </button>
                         </div>
                       </div>
-                      <div v-if="currentState.cardList[slotIndex - 1].rateError" class="my-font-size-sm text-danger text-end mt-1">
+                      <div v-if="currentState.cardList[slotIndex - 1].rateError" class="my-font-sm-400 text-danger text-end mt-1">
                         {{ currentState.cardList[slotIndex - 1].rateError }}
                       </div>
-                      <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary my-font-size-sm mt-2 p-2 text-secondary">
+                      <div v-show="currentState.cardList[slotIndex - 1].hintVisible" class="rounded bg-body-tertiary my-font-sm-400 text-secondary p-2 mt-2">
                         {{ currentState.cardList[slotIndex - 1].hint }}
                       </div>
                     </div>
                     <div v-if="currentState.cardList[slotIndex - 1].referenceAnswer" class="mb-3">
-                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">參考答案(暫存)</div>
-                      <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
+                      <div class="form-label my-font-sm-600 text-secondary mb-1">參考答案(暫存)</div>
+                      <div class="rounded bg-body-tertiary border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].referenceAnswer }}</div>
                     </div>
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
-                        <label :for="`quiz-answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label my-font-size-sm text-secondary fw-medium mb-0">答案</label>
-                        <span class="form-text my-font-size-sm text-secondary text-end flex-shrink-0 mb-0">{{ currentState.cardList[slotIndex - 1].quiz_answer.length }} / 2000</span>
+                        <label :for="`quiz-answer-${currentState.cardList[slotIndex - 1].id}`" class="form-label my-font-sm-600 text-secondary mb-0">答案</label>
+                        <span class="form-text my-font-sm-400 text-secondary text-end flex-shrink-0 mb-0">{{ currentState.cardList[slotIndex - 1].quiz_answer.length }} / 2000</span>
                       </div>
                       <template v-if="!currentState.cardList[slotIndex - 1].confirmed">
                         <textarea
@@ -1104,7 +1116,7 @@ onMounted(() => {
                           placeholder="請輸入您的答案..."
                           maxlength="2000"
                         />
-                        <div v-if="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])" class="form-text my-font-size-sm text-warning">
+                        <div v-if="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])" class="form-text my-font-sm-400 text-warning">
                           此題與目前題庫版本不一致，無法作答。請改題或重新產生題目。
                         </div>
                         <div class="d-flex justify-content-end mt-2">
@@ -1119,26 +1131,24 @@ onMounted(() => {
                         </div>
                       </template>
                       <template v-else>
-                        <div class="rounded bg-body-tertiary my-font-size-sm mb-2 p-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
+                        <div class="rounded bg-body-tertiary my-font-sm-400 p-2 mb-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
                       </template>
                     </div>
                     <div class="mb-3">
-                      <div class="form-label my-font-size-sm text-secondary fw-medium mb-1">批改結果</div>
-                      <div class="rounded bg-body-tertiary border p-2 my-font-size-sm" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
+                      <div class="form-label my-font-sm-600 text-secondary mb-1">批改結果</div>
+                      <div class="rounded bg-body-tertiary border my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
                     </div>
                   </div>
                 </div>
               </template>
               <template v-else>
                 <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
-                <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
-                  <div class="card-header py-2">
-                    <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
-                  </div>
-                  <div class="card-body text-start pt-3">
+                <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4" :class="{ 'mt-4': slotIndex > 1 }">
+                  <div class="my-font-lg-600 border-bottom pb-2 mb-3">第 {{ slotIndex }} 題</div>
+                  <div class="text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div class="flex-grow-1 min-w-0" style="min-width: 10rem">
-                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1" :for="`exam-quiz-unit-${slotIndex}-toggle`">單元</label>
+                        <label class="form-label my-font-sm-600 text-secondary mb-1" :for="`exam-quiz-unit-${slotIndex}-toggle`">單元</label>
                         <UnitSelectDropdown
                           v-model="getSlotFormState(slotIndex).generateQuizTabId"
                           :options="generateQuizUnits"
@@ -1146,7 +1156,7 @@ onMounted(() => {
                         />
                       </div>
                       <div>
-                        <label class="form-label my-font-size-sm text-secondary fw-medium mb-1 d-block">難度</label>
+                        <label class="form-label my-font-sm-600 text-secondary d-block mb-1">難度</label>
                         <div class="btn-group btn-group-sm" role="group">
                           <template v-for="(opt, di) in difficultyOptions" :key="opt">
                             <input
@@ -1171,7 +1181,7 @@ onMounted(() => {
                         產生題目
                       </button>
                     </div>
-                    <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 my-font-size-sm">
+                    <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger my-font-sm-400 py-2 mt-2 mb-0">
                       {{ getSlotFormState(slotIndex).error }}
                     </div>
                   </div>
@@ -1180,7 +1190,7 @@ onMounted(() => {
             </template>
 
             <!-- 新增題目按鈕：固定在最下面，每按一次多一個「第 n 題」區塊 -->
-            <div class="mb-0 pt-2 d-flex flex-column align-items-center">
+            <div class="d-flex flex-column align-items-center pt-2 mb-0">
               <button
                 type="button"
                 class="btn btn-primary"
@@ -1191,7 +1201,7 @@ onMounted(() => {
               </button>
               <p
                 v-if="generateQuizBlocked && !forExamLoading && activeTabId"
-                class="my-font-size-sm text-secondary mb-0 mt-2 text-center"
+                class="my-font-sm-400 text-secondary text-center mb-0 mt-2"
               >
                 目前沒有可用RAG
               </p>
@@ -1208,7 +1218,7 @@ onMounted(() => {
 
 <style scoped>
 /* 與 RagTabsBar 一致：頁籤筆／刪除同尺寸、略小 */
-.tab-nav-action-btn {
+.my-tab-nav-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1218,8 +1228,8 @@ onMounted(() => {
   padding: 0 !important;
   line-height: 1;
 }
-.tab-nav-action-btn :deep(.fa-solid) {
-  font-size: var(--my-font-size-2xs);
+.my-tab-nav-action-btn :deep(.fa-solid) {
+  font-size: var(--my-font-size-sm);
   line-height: 1;
   width: 1em;
   height: 1em;

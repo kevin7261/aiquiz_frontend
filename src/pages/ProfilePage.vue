@@ -123,23 +123,24 @@ async function saveProfile() {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">設定</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">設定</span>
       </div>
     </div>
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-          <div class="text-start page-block-spacing">
+          <div class="text-start my-page-block-spacing">
+            <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
             <div class="mb-4">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">帳號</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">帳號</label>
               <input :value="account" type="text" class="form-control form-control-sm" placeholder="帳號" readonly disabled>
             </div>
             <div class="mb-4">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">名稱</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">名稱</label>
               <input :value="displayName" type="text" class="form-control form-control-sm" placeholder="名稱" readonly disabled>
             </div>
             <div v-if="canEditLlmApiKey" class="mb-4">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">建立測驗題庫用的 AI 服務 API 金鑰</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">建立測驗題庫用的 AI 服務 API 金鑰</label>
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="flex-grow-1" style="min-width: 0">
                   <input
@@ -162,10 +163,11 @@ async function saveProfile() {
             </div>
             <div
               v-if="message"
-              :class="['alert py-2 mb-4', messageType === 'success' ? 'alert-success' : 'alert-danger']"
+              :class="['alert', messageType === 'success' ? 'alert-success' : 'alert-danger', 'py-2', 'mb-4']"
               role="alert"
             >
               {{ message }}
+            </div>
             </div>
           </div>
         </div>

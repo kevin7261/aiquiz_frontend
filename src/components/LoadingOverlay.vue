@@ -29,19 +29,19 @@
 <template>
   <div
     v-if="isVisible"
-    class="loading-overlay d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100"
+    class="my-loading-overlay d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100"
   >
-    <div class="text-center my-bgcolor-white rounded shadow loading-overlay-panel p-4">
-      <div class="spinner-border text-primary loading-overlay-spinner mb-3" role="status">
+    <div class="text-center my-bgcolor-white rounded shadow my-loading-overlay-panel p-4">
+      <div class="spinner-border text-primary my-loading-overlay-spinner mb-3" role="status">
         <span class="visually-hidden">{{ loadingText }}</span>
       </div>
-      <div class="fs-5 fw-semibold text-dark">{{ loadingText }}</div>
+      <div class="my-font-xl-400 text-dark">{{ loadingText }}</div>
       <div class="mt-3" v-if="showProgress && progress >= 0">
-        <div class="progress loading-overlay-progress">
+        <div class="progress my-loading-overlay-progress">
           <div
-            class="d-flex align-items-center justify-content-center progress-bar bg-primary loading-overlay-progress-bar"
+            class="d-flex align-items-center justify-content-center progress-bar bg-primary my-loading-overlay-progress-bar my-font-sm-400"
             role="progressbar"
-            :style="{ '--loading-overlay-progress-pct': progress + '%' }"
+            :style="{ '--my-loading-overlay-progress-pct': progress + '%' }"
             :aria-valuenow="progress"
             aria-valuemin="0"
             aria-valuemax="100"
@@ -51,35 +51,34 @@
         </div>
       </div>
       <div v-if="subText" class="mt-2">
-        <span class="my-font-size-xs my-color-gray-light">{{ subText }}</span>
+        <span class="my-font-sm-400 my-color-gray-light">{{ subText }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.loading-overlay {
-  background-color: rgba(0, 0, 0, 0.7);
+.my-loading-overlay {
+  background-color: color-mix(in srgb, var(--my-color-black) 70%, transparent);
   z-index: 9999;
 }
 
-.loading-overlay-panel {
+.my-loading-overlay-panel {
   min-width: 300px;
   max-width: 400px;
 }
 
-.loading-overlay-spinner {
+.my-loading-overlay-spinner {
   width: 2rem;
   height: 2rem;
 }
 
-.loading-overlay-progress {
+.my-loading-overlay-progress {
   height: 8px;
 }
 
-.loading-overlay-progress-bar {
-  width: var(--loading-overlay-progress-pct, 0);
-  font-size: var(--my-font-size-xs);
+.my-loading-overlay-progress-bar {
+  width: var(--my-loading-overlay-progress-pct, 0);
   color: var(--my-color-white);
 }
 </style>

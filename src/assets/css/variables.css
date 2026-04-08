@@ -1,24 +1,26 @@
 /**
  * 設計權杖 — 僅保留目前前端實際用到的變數：
- * - body 預設字體／字級／色（common.css；內文色用 --my-color-black、底用 #fff 字面量）
- * - 字級 rem 僅在此定義 --my-font-size-*；其餘 CSS／元件只許 font-size: var(--my-font-size-*)
+ * - body 預設字體／字級／色（common.css；內文色 --my-color-black；淺色底 --my-color-surface；字面色／邊線／焦點環僅在此檔）
+ * - 字級 rem 僅在此定義 --my-font-size-*；版面字級／字重僅併 common `.my-font-{xl|lg|md|sm}-{400|600}`（勿另造 `.my-font-size-*` 等純字級 class，與變數前綴區隔）
  * - 字重：僅 --my-font-weight-regular（400）、--my-font-weight-semibold（600）；common 內用 var(--my-font-weight-*)，禁止字面量 400／600
- * - common：字階 .my-type-*-{400|600}（僅字級字重）；字色 .my-color-*；底 .my-bgcolor-*
- * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；select：--my-select-*
- * - /design、LoadingOverlay、LoginView 另以各元件 scoped 樣式或 Bootstrap 補齊非權杖行為
- * - 捲軸樣式（common.css 全域）；下拉選單權杖 --my-dropdown-*
- * - 撰寫 CSS 時：同一規則內最後先 padding 再 margin；Vue／HTML 的 Bootstrap class 亦同（p-* 後 m-*）
+ * - common：字階 .my-font-*-{400|600}（僅字級字重）；網頁標題（頂欄品牌等）.my-font-xl-400；區塊標題 .my-font-lg-600；字色 .my-color-*；底 .my-bgcolor-*；業務頁淺底主區併 .my-bgcolor-page-block、rounded-3、p-3 p-lg-4、mb-4；深底稿頁區塊併 .my-bgcolor-gray-dark、rounded-3、p-3 p-lg-4、mb-4；淺字鈕 .my-button-white-border／.my-button-white-borderless；32×32 圓形圖示鈕 .my-btn-circle（分頁「+」、稿頁複製等）
+ * - 主要區塊縱向間距：common .my-page-block-spacing（業務頁內文區多區塊用）
+ * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；原生 select 樣式見 common .my-form-select
+ * - LoadingOverlay、LoginView 等另以各元件 scoped 樣式或 Bootstrap 補齊非權杖行為（`data-bs-theme="dark"` 不覆寫此檔變數）
+ * - 捲軸樣式（common.css 全域）；Bootstrap 式下拉見 common .my-dropdown-menu
+ * - 撰寫 CSS 時：同一規則內最後先 padding 再 margin；Vue／HTML 的 `class` 字串：`p-*`／`m-*` 等間距類別整串置末、之後不得再接其它 class（先 p 後 m）
  */
 :root {
   --my-font-family-primary: "Roboto", "Noto Sans TC", sans-serif;
 
-  /* 字級：rem 只在此；xl→xs 五階 + 2xs（極小輔助）→ common .my-type-*-400／600、.my-font-size-* */
-  --my-font-size-2xs: 0.6875rem;
-  --my-font-size-xs: 0.75rem;
-  --my-font-size-sm: 0.875rem;
-  --my-font-size-md: 1rem;
-  --my-font-size-lg: 1.125rem;
-  --my-font-size-xl: 1.25rem;
+  /* 字級：rem 只在此；xl→sm 四階（階距 0.125rem）→ common .my-font-*-400／600 */
+  --my-font-size-sm: 0.75rem;
+  --my-font-size-md: 0.875rem;
+  --my-font-size-lg: 1rem;
+  --my-font-size-xl: 1.125rem;
+
+  /* 業務頁淺底主區背景：common .my-bgcolor-page-block（與頁面 --my-color-surface 區隔） */
+  --my-page-block-bg: color-mix(in srgb, var(--my-color-black) 3.5%, var(--my-color-surface));
 
   /* 字重：全站僅此兩級；表頭／字階強調用 semibold */
   --my-font-weight-regular: 400;
@@ -40,52 +42,22 @@
   --my-color-blue: #1b6fd6;
   --my-color-blue-hover: #155db3;
 
-  /* 原生下拉 select：邊框、底、字、圓角、focus 光暈、內距、箭頭（箭頭用 FA，見 .my-form-select-wrap） */
-  --my-select-border-color: #ced4da;
-  --my-select-bg: #ffffff;
-  --my-select-color: var(--my-color-black);
-  --my-select-border-radius: 0.375rem;
-  --my-select-focus-ring: rgba(27, 111, 214, 0.22);
-  --my-select-padding-y: 0.5rem;
-  --my-select-padding-inline-start: 0.8rem;
-  --my-select-padding-inline-end: 2.25rem;
-  --my-select-caret-inset-end: 0.75rem;
-  --my-select-caret-size: var(--my-font-size-sm);
-  --my-select-caret-color: var(--my-color-gray-light);
+  /* 淺色版面純白底、表單邊線、主色焦點環（勿在 common／元件寫字面 hex／rgba） */
+  --my-color-surface: #ffffff;
+  --my-color-border-muted: #ced4da;
+  --my-color-blue-focus-ring: color-mix(in srgb, var(--my-color-blue) 22%, transparent);
 
-  /* 捲軸：軌道透明；槽寬 6pt、滑塊可見 4pt（WebKit 以透明邊內縮）；滑塊淺灰 */
+  /* ZIP／檔案拖放區（淺底以 --my-color-white 混色） */
+  --my-drop-zone-border: color-mix(in srgb, var(--my-color-black) 20%, transparent);
+  --my-drop-zone-bg: color-mix(in srgb, var(--my-color-black) 2%, var(--my-color-white));
+  --my-drop-zone-hover-bg: color-mix(in srgb, var(--my-color-blue) 4%, var(--my-color-white));
+  --my-drop-zone-active-bg: color-mix(in srgb, var(--my-color-blue) 8%, var(--my-color-white));
+  --my-drop-pack-active-bg: color-mix(in srgb, var(--my-color-blue) 15%, var(--my-color-white));
+
+  /* 捲軸：軌道透明；槽寬 6pt、滑塊可見 4pt（WebKit 以透明邊內縮）；滑塊僅用中性色 */
   --my-scrollbar-track: transparent;
   --my-scrollbar-size: 6pt;
   --my-scrollbar-thumb-inset: 1pt; /* 左右／上下各 1pt → 6 − 2 = 4pt */
-  --my-scrollbar-thumb: #c5c6c9;
-  --my-scrollbar-thumb-hover: #a8aaae;
-
-  /* 邊框／卡片陰影：僅由 --my-color-* 混色，勿用 Bootstrap secondary 當裝飾邊 */
-  --my-border-faint: color-mix(in srgb, var(--my-color-black) 10%, transparent);
-  --my-border-muted: color-mix(in srgb, var(--my-color-black) 20%, transparent);
-  --my-border-subtle: color-mix(in srgb, var(--my-color-gray-light) 40%, transparent);
-  --my-shadow-card: 0 0.3rem 0.85rem color-mix(in srgb, var(--my-color-black) 16%, transparent);
-
-  /* Bootstrap 式下拉選單（權杖色，與 .my-dropdown-menu 併用） */
-  --my-dropdown-menu-bg: #ffffff;
-  --my-dropdown-item-color: var(--my-color-black);
-  --my-dropdown-item-hover-bg: color-mix(in srgb, var(--my-color-black) 7%, transparent);
-}
-
-/* 與 Bootstrap data-bs-theme="dark" 並用時覆寫（如 /design） */
-[data-bs-theme="dark"] {
-  --my-select-border-color: rgba(255, 255, 255, 0.28);
-  --my-select-bg: var(--my-color-gray-dark);
-  --my-select-color: var(--my-color-white);
-  --my-select-focus-ring: rgba(27, 111, 214, 0.4);
-  /* 深色底上略亮一點的淺灰滑塊 */
-  --my-scrollbar-thumb: #d0d1d4;
-  --my-scrollbar-thumb-hover: #b4b6ba;
-  --my-border-faint: color-mix(in srgb, var(--my-color-white) 10%, transparent);
-  --my-border-muted: color-mix(in srgb, var(--my-color-white) 45%, transparent);
-  --my-border-subtle: color-mix(in srgb, var(--my-color-white) 22%, transparent);
-  --my-shadow-card: 0 0.35rem 1rem color-mix(in srgb, var(--my-color-black) 65%, transparent);
-  --my-dropdown-menu-bg: var(--my-color-gray-dark);
-  --my-dropdown-item-color: var(--my-color-white);
-  --my-dropdown-item-hover-bg: color-mix(in srgb, var(--my-color-white) 10%, transparent);
+  --my-scrollbar-thumb: color-mix(in srgb, var(--my-color-gray-light) 55%, var(--my-color-white));
+  --my-scrollbar-thumb-hover: color-mix(in srgb, var(--my-color-gray-light) 78%, var(--my-color-black));
 }

@@ -47,8 +47,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     const el = e.currentTarget;
-    if (el && !el.classList.contains('pack-drop-active')) {
-      el.classList.add('pack-drop-active');
+    if (el && !el.classList.contains('my-pack-drop-active')) {
+      el.classList.add('my-pack-drop-active');
     }
   }
 
@@ -57,8 +57,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     const el = e.currentTarget;
-    if (el && !el.classList.contains('pack-drop-active')) {
-      el.classList.add('pack-drop-active');
+    if (el && !el.classList.contains('my-pack-drop-active')) {
+      el.classList.add('my-pack-drop-active');
     }
   }
 
@@ -66,14 +66,14 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const el = e.currentTarget;
     const related = e.relatedTarget;
     if (el && related && el.contains(related)) return;
-    if (el) el.classList.remove('pack-drop-active');
+    if (el) el.classList.remove('my-pack-drop-active');
   }
 
   function onDropRagList(e, targetGroupIdx) {
     e.preventDefault();
     e.stopPropagation();
     const el = e.currentTarget;
-    if (el) el.classList.remove('pack-drop-active');
+    if (el) el.classList.remove('my-pack-drop-active');
     if (packAndGenerateDisabled.value) return;
 
     const payload = dragPayload;

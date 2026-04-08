@@ -515,17 +515,18 @@ onMounted(() => {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">使用者管理</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">使用者管理</span>
       </div>
     </div>
-    <div v-if="error" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-3" role="alert">{{ error }}</div>
-    <div v-if="deleteUserError" class="alert alert-danger py-2 my-font-size-sm mx-4 mb-3" role="alert">{{ deleteUserError }}</div>
+    <div v-if="error" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-3" role="alert">{{ error }}</div>
+    <div v-if="deleteUserError" class="alert alert-danger my-font-sm-400 py-2 mx-4 mb-3" role="alert">{{ deleteUserError }}</div>
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-5">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-          <div class="text-start page-block-spacing">
+          <div class="text-start my-page-block-spacing">
+            <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-              <p class="my-font-size-sm text-secondary mb-0">
+              <p class="my-font-sm-400 text-secondary mb-0">
                 共 {{ count }} 筆使用者
               </p>
               <div class="d-flex flex-wrap gap-2">
@@ -537,27 +538,27 @@ onMounted(() => {
                 </button>
               </div>
             </div>
-            <div v-if="loading" class="text-muted my-font-size-sm" />
+            <div v-if="loading" class="text-muted my-font-sm-400" />
             <div v-else class="table-responsive">
               <table class="table table-bordered table-hover table-sm">
                 <thead class="table-light">
                   <tr>
-                    <th class="my-font-size-sm fw-medium">登入 ID</th>
-                    <th class="my-font-size-sm fw-medium">姓名</th>
-                    <th class="my-font-size-sm fw-medium">類型</th>
-                    <th class="my-font-size-sm fw-medium text-center" style="width: 3rem;" />
+                    <th class="my-font-sm-600">登入 ID</th>
+                    <th class="my-font-sm-600">姓名</th>
+                    <th class="my-font-sm-600">類型</th>
+                    <th class="my-font-sm-600 text-center" style="width: 3rem;" />
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(u, idx) in users" :key="userRowKey(u, idx)">
-                    <td class="my-font-size-sm">{{ u.person_id ?? '—' }}</td>
-                    <td class="my-font-size-sm">{{ u.name ?? '—' }}</td>
-                    <td class="my-font-size-sm">{{ userTypeLabel(u.user_type) }}</td>
-                    <td class="my-font-size-sm text-center align-middle">
+                    <td class="my-font-sm-400">{{ u.person_id ?? '—' }}</td>
+                    <td class="my-font-sm-400">{{ u.name ?? '—' }}</td>
+                    <td class="my-font-sm-400">{{ userTypeLabel(u.user_type) }}</td>
+                    <td class="my-font-sm-400 text-center align-middle">
                       <button
                         v-if="u.person_id != null && String(u.person_id).trim() !== '' && !isCurrentUserRow(u)"
                         type="button"
-                        class="btn btn-link text-danger text-decoration-none p-0 lh-1"
+                        class="btn btn-link text-danger text-decoration-none lh-1 p-0"
                         :disabled="deletingPersonId != null"
                         :title="`刪除 ${String(u.person_id).trim()}`"
                         @click="deleteUser(u)"
@@ -569,10 +570,11 @@ onMounted(() => {
                     </td>
                   </tr>
                   <tr v-if="!loading && users.length === 0">
-                    <td colspan="4" class="text-muted text-center my-font-size-sm">尚無使用者</td>
+                    <td colspan="4" class="text-muted text-center my-font-sm-400">尚無使用者</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
             </div>
           </div>
         </div>
@@ -582,12 +584,11 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="modalSingleOpen"
-        class="modal fade show d-block"
+        class="modal fade show d-block my-modal-backdrop"
         tabindex="-1"
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-single-modal-title"
-        style="background-color: rgba(0, 0, 0, 0.45);"
         @click.self="closeSingleModal"
       >
         <div class="modal-dialog modal-dialog-centered" @click.stop>
@@ -605,7 +606,7 @@ onMounted(() => {
             </div>
             <div class="modal-body pt-2">
               <div class="mb-3">
-                <label for="user-single-id" class="form-label my-font-size-sm text-secondary mb-1">登入 ID</label>
+                <label for="user-single-id" class="form-label my-font-sm-400 text-secondary mb-1">登入 ID</label>
                 <input
                   id="user-single-id"
                   v-model="singlePersonId"
@@ -618,12 +619,12 @@ onMounted(() => {
                   :disabled="singleSaving"
                   @input="clearSingleSubmitError"
                 >
-                <div v-if="singlePersonIdDuplicate" class="invalid-feedback d-block my-font-size-sm">
+                <div v-if="singlePersonIdDuplicate" class="invalid-feedback d-block my-font-sm-400">
                   此登入 ID 已存在
                 </div>
               </div>
               <div class="mb-3">
-                <label for="user-single-name" class="form-label my-font-size-sm text-secondary mb-1">姓名</label>
+                <label for="user-single-name" class="form-label my-font-sm-400 text-secondary mb-1">姓名</label>
                 <input
                   id="user-single-name"
                   v-model="singleName"
@@ -636,7 +637,7 @@ onMounted(() => {
                 >
               </div>
               <div class="mb-0">
-                <label for="user-single-type" class="form-label my-font-size-sm text-secondary mb-1">類型</label>
+                <label for="user-single-type" class="form-label my-font-sm-400 text-secondary mb-1">類型</label>
                 <select
                   id="user-single-type"
                   v-model.number="singleUserType"
@@ -649,7 +650,7 @@ onMounted(() => {
                   </option>
                 </select>
               </div>
-              <div v-if="singleSubmitError" class="text-danger my-font-size-sm mt-3 mb-0">
+              <div v-if="singleSubmitError" class="text-danger my-font-sm-400 mt-3 mb-0">
                 {{ singleSubmitError }}
               </div>
             </div>
@@ -674,12 +675,11 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="modalBatchOpen"
-        class="modal fade show d-block"
+        class="modal fade show d-block my-modal-backdrop"
         tabindex="-1"
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-batch-modal-title"
-        style="background-color: rgba(0, 0, 0, 0.45);"
         @click.self="closeBatchModal"
       >
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" @click.stop>
@@ -696,7 +696,7 @@ onMounted(() => {
               />
             </div>
             <div class="modal-body pt-2">
-              <p class="my-font-size-sm text-secondary mb-2">
+              <p class="my-font-sm-400 text-secondary mb-2">
                 Excel 第一行為表頭，須含 <strong>ID</strong>、<strong>姓名</strong>。若檔內 <strong>登入 ID 重複</strong>或<strong>與現有使用者重複</strong>，將無法送出；匯入的每位將新增為「{{ USER_TYPE_LABELS[RESTRICTED_USER_TYPE] }}」。
               </p>
               <input
@@ -708,8 +708,8 @@ onMounted(() => {
                 @change="onExcelChange"
               >
               <div
-                class="zip-drop-zone rounded border border-dashed p-4 text-center position-relative"
-                :class="{ 'zip-drop-zone-over': isExcelDragOver }"
+                class="my-zip-drop-zone rounded border border-dashed text-center position-relative p-4"
+                :class="{ 'my-zip-drop-zone-over': isExcelDragOver }"
                 @dragover.prevent="onExcelDragOver"
                 @dragenter.prevent="onExcelDragOver"
                 @dragleave="onExcelDragLeave"
@@ -717,59 +717,59 @@ onMounted(() => {
                 @click="openExcelFileDialog"
               >
                 <template v-if="excelFileName">
-                  <span class="my-font-size-sm text-body">{{ excelFileName }}</span>
-                  <div class="mt-1 my-font-size-sm text-muted">拖曳檔案到這裡，或點擊重新選擇</div>
+                  <span class="my-font-sm-400 text-body">{{ excelFileName }}</span>
+                  <div class="my-font-sm-400 text-muted mt-1">拖曳檔案到這裡，或點擊重新選擇</div>
                 </template>
                 <template v-else>
-                  <span class="my-font-size-sm text-secondary">拖曳 Excel 到這裡，或點擊選擇檔案</span>
-                  <div class="mt-2 my-font-size-sm text-muted">格式：表頭須含 ID、姓名 欄（ID 不分大小寫）</div>
+                  <span class="my-font-sm-400 text-secondary">拖曳 Excel 到這裡，或點擊選擇檔案</span>
+                  <div class="my-font-sm-400 text-muted mt-2">格式：表頭須含 ID、姓名 欄（ID 不分大小寫）</div>
                 </template>
               </div>
-              <div v-if="excelParseError" class="alert alert-warning mt-2 mb-0 py-2 my-font-size-sm" role="alert">
+              <div v-if="excelParseError" class="alert alert-warning my-font-sm-400 py-2 mt-2 mb-0" role="alert">
                 {{ excelParseError }}
               </div>
               <div v-if="excelPreviewRows.length > 0" class="table-responsive mt-3">
                 <table class="table table-bordered table-hover table-sm mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th class="my-font-size-sm fw-medium">ID</th>
-                      <th class="my-font-size-sm fw-medium">姓名</th>
+                      <th class="my-font-sm-600">ID</th>
+                      <th class="my-font-sm-600">姓名</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="(row, idx) in excelPreviewRows" :key="'excel-' + idx">
-                      <td class="my-font-size-sm text-break">{{ row.id }}</td>
-                      <td class="my-font-size-sm text-break">{{ row.name }}</td>
+                      <td class="my-font-sm-400 text-break">{{ row.id }}</td>
+                      <td class="my-font-sm-400 text-break">{{ row.name }}</td>
                     </tr>
                   </tbody>
                 </table>
-                <p class="my-font-size-sm text-secondary mt-2 mb-0">共 {{ excelPreviewRows.length }} 筆預覽（有效登入 ID：{{ batchPayloadNormalized.length }} 筆）</p>
+                <p class="my-font-sm-400 text-secondary mt-2 mb-0">共 {{ excelPreviewRows.length }} 筆預覽（有效登入 ID：{{ batchPayloadNormalized.length }} 筆）</p>
               </div>
               <div
                 v-if="excelPreviewRows.length > 0 && batchPayloadNormalized.length === 0"
-                class="alert alert-warning py-2 my-font-size-sm mt-3 mb-0"
+                class="alert alert-warning my-font-sm-400 py-2 mt-3 mb-0"
                 role="alert"
               >
                 沒有有效的登入 ID，請檢查 Excel。
               </div>
               <div
                 v-if="batchDuplicateIdsInFile.length > 0"
-                class="alert alert-danger py-2 my-font-size-sm mt-3 mb-0"
+                class="alert alert-danger my-font-sm-400 py-2 mt-3 mb-0"
                 role="alert"
               >
                 Excel 內登入 ID 重複：{{ batchDuplicateIdsInFile.join('、') }}，請修正檔案後再試。
               </div>
               <div
                 v-if="batchIdsClashingExisting.length > 0"
-                class="alert alert-danger py-2 my-font-size-sm mt-3 mb-0"
+                class="alert alert-danger my-font-sm-400 py-2 mt-3 mb-0"
                 role="alert"
               >
                 以下登入 ID 已存在於系統：{{ batchIdsClashingExisting.join('、') }}，請從檔案移除後再試。
               </div>
-              <div v-if="batchSubmitSummary.ok > 0 || batchSubmitSummary.fail > 0" class="my-font-size-sm mt-3 text-secondary">
+              <div v-if="batchSubmitSummary.ok > 0 || batchSubmitSummary.fail > 0" class="my-font-sm-400 text-secondary mt-3">
                 本次結果：成功 {{ batchSubmitSummary.ok }} 筆，失敗 {{ batchSubmitSummary.fail }} 筆
               </div>
-              <div v-if="batchSubmitError" class="text-danger my-font-size-sm mt-2 mb-0">
+              <div v-if="batchSubmitError" class="text-danger my-font-sm-400 mt-2 mb-0">
                 {{ batchSubmitError }}
               </div>
             </div>
@@ -794,18 +794,18 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.zip-drop-zone {
+.my-zip-drop-zone {
   cursor: pointer;
   border-width: 2px;
-  border-color: rgba(0, 0, 0, 0.2);
-  background: rgba(0, 0, 0, 0.02);
+  border-color: var(--my-drop-zone-border);
+  background: var(--my-drop-zone-bg);
 }
-.zip-drop-zone:hover {
-  border-color: var(--bs-primary);
-  background: rgba(13, 110, 253, 0.04);
+.my-zip-drop-zone:hover {
+  border-color: var(--my-color-blue);
+  background: var(--my-drop-zone-hover-bg);
 }
-.zip-drop-zone-over {
-  border-color: var(--bs-primary) !important;
-  background: rgba(13, 110, 253, 0.08) !important;
+.my-zip-drop-zone-over {
+  border-color: var(--my-color-blue) !important;
+  background: var(--my-drop-zone-active-bg) !important;
 }
 </style>

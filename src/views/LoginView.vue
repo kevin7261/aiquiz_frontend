@@ -88,7 +88,7 @@
       :is-visible="loading"
       loading-text="登入中..."
     />
-    <div class="card shadow-sm login-view-card bg-white text-dark">
+    <div class="card shadow-sm my-login-view-card bg-white text-dark">
       <div class="card-body p-4">
         <h4 class="card-title text-center mb-4">{{ courseName }} 登入</h4>
         <form @submit.prevent="onLogin">
@@ -125,7 +125,7 @@
 </template>
 
 <style scoped>
-.login-view-card {
+.my-login-view-card {
   width: 100%;
   max-width: 360px;
 }

@@ -82,30 +82,32 @@ onMounted(() => {
     <LoadingOverlay :is-visible="loading" loading-text="載入中..." />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center align-items-center gap-2">
-        <span class="navbar-brand mb-0">系統紀錄</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">系統紀錄</span>
         <button type="button" class="btn btn-outline-secondary" :disabled="loading" @click="fetchLogs">重新載入</button>
       </div>
     </div>
-    <div v-if="error" class="alert alert-warning py-2 my-font-size-sm mx-4 mb-0 mt-2" role="alert">{{ error }}</div>
+    <div v-if="error" class="alert alert-warning my-font-sm-400 py-2 mx-4 mb-0 mt-2" role="alert">{{ error }}</div>
     <div class="flex-grow-1 overflow-auto bg-white px-4 py-4">
       <div class="row justify-content-center">
         <div class="col-12 col-xl-11">
+          <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
           <div class="table-responsive">
             <table class="table table-bordered table-hover table-sm">
               <thead class="table-light">
                 <tr>
-                  <th v-for="col in columns" :key="col" class="my-font-size-sm fw-medium">{{ columnHeaderLabel(col) }}</th>
+                  <th v-for="col in columns" :key="col" class="my-font-sm-600">{{ columnHeaderLabel(col) }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(row, idx) in rows" :key="row.log_id ?? idx">
-                  <td v-for="col in columns" :key="col" class="my-font-size-sm text-break">{{ cellDisplay(row[col]) }}</td>
+                  <td v-for="col in columns" :key="col" class="my-font-sm-400 text-break">{{ cellDisplay(row[col]) }}</td>
                 </tr>
                 <tr v-if="!loading && rows.length === 0">
-                  <td :colspan="Math.max(columns.length, 1)" class="text-muted text-center my-font-size-sm">尚無資料</td>
+                  <td :colspan="Math.max(columns.length, 1)" class="text-muted text-center my-font-sm-400">尚無資料</td>
                 </tr>
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       </div>

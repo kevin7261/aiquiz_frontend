@@ -27,7 +27,7 @@
 </script>
 
 <template>
-  <main class="right-view flex-grow-1 overflow-hidden d-flex flex-column">
+  <main class="my-right-view flex-grow-1 overflow-hidden d-flex flex-column">
     <ExamPage v-if="currentView === 'work'" :tabId="tabId" />
     <AnswerWeaknessAnalysisPage v-else-if="currentView === 'studentWeaknessAnalysis'" />
     <StudentAnswerAnalysisPage v-else-if="currentView === 'studentAnswerAnalysis'" />
@@ -42,7 +42,7 @@
 </template>
 
 <style scoped>
-.right-view {
+.my-right-view {
   min-height: 0;
   min-width: 0;
 }

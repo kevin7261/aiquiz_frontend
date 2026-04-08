@@ -12,7 +12,7 @@ const props = defineProps({
   placeholder: { type: String, default: '— 請選擇單元 —' },
   /** 用於觸發鈕 id（會加上 -toggle），須在頁面內唯一 */
   menuId: { type: String, required: true },
-  /** 與 UI 元件參考（DesignPage）06 · 下拉選單一致 */
+  /** 與 UI 元件參考（DesignPage）07 · 下拉選單一致 */
   designUi: { type: Boolean, default: false },
 });
 
@@ -40,9 +40,9 @@ function select(val) {
     <button
       :id="toggleId"
       :class="[
-        'dropdown-toggle w-100 d-flex align-items-center justify-content-between unit-select-dd-toggle',
+        'dropdown-toggle w-100 d-flex align-items-center justify-content-between my-unit-select-dd-toggle',
         designUi
-          ? 'btn rounded-pill my-dropdown-caret my-bgcolor-blue my-color-white my-btn-hover-blue px-3 py-2'
+          ? 'btn rounded-pill my-dropdown-caret my-button-blue px-3 py-2'
           : 'btn btn-outline-secondary',
       ]"
       type="button"
@@ -52,7 +52,7 @@ function select(val) {
       :title="buttonLabel"
     >
       <span
-        class="text-truncate text-start flex-grow-1 min-w-0"
+        class="text-truncate text-start"
         :class="designUi ? 'pe-2' : 'me-2'"
       >{{ buttonLabel }}</span>
       <i
@@ -62,7 +62,7 @@ function select(val) {
       />
     </button>
     <ul
-      class="dropdown-menu dropdown-menu-start w-100 unit-select-dd-menu"
+      class="dropdown-menu dropdown-menu-start w-100 my-unit-select-dd-menu"
       :class="designUi ? 'my-dropdown-menu' : 'shadow-sm'"
       :aria-labelledby="toggleId"
     >
@@ -91,11 +91,11 @@ function select(val) {
 </template>
 
 <style scoped>
-/* 觸發鈕與選單同寬，佔滿父層（父層請搭配 flex-grow-1 min-w-0 以在橫向排版吃滿剩餘寬度） */
-.unit-select-dd-toggle {
+/* 觸發鈕與選單同寬，佔滿父層 */
+.my-unit-select-dd-toggle {
   max-width: 100%;
 }
-.unit-select-dd-menu {
+.my-unit-select-dd-menu {
   max-height: 280px;
   overflow-y: auto;
   max-width: 100%;

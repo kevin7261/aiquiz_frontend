@@ -852,7 +852,7 @@ async function confirmUploadZip() {
   }
   const tabId = activeTabId.value;
   if (isNewTabId(tabId) || !tabId) {
-    state.zipError = '請先按「+ 新增」建立測驗題庫分頁，再上傳檔案';
+    state.zipError = '請先按「＋」建立測驗題庫分頁，再上傳檔案';
     return;
   }
   const personId = getPersonId(authStore);
@@ -1105,7 +1105,7 @@ async function confirmAnswer(item) {
     />
     <div class="navbar navbar-expand-lg bg-white flex-shrink-0">
       <div class="container-fluid d-flex justify-content-center">
-        <span class="navbar-brand mb-0">建立測驗題庫</span>
+        <span class="navbar-brand my-font-xl-400 mb-0">建立測驗題庫</span>
       </div>
     </div>
     <RagTabsBar
@@ -1131,44 +1131,44 @@ async function confirmAnswer(item) {
       <!-- 無資料時不顯示表單，點「+」後才顯示；有資料時顯示對應 tab 表單 -->
       <template v-if="ragList.length > 0 || showFormWhenNoData">
       <!-- 建立流程 stepper：依 file_metadata / rag_metadata 亮起 1～3 步 -->
-      <div v-if="activeTabId" class="create-rag-stepper text-start page-block-spacing">
+      <div v-if="activeTabId" class="my-create-rag-stepper text-start my-page-block-spacing">
         <div class="d-flex align-items-start justify-content-between gap-2 gap-sm-3 w-100">
           <div class="flex-grow-1 d-flex flex-column align-items-center text-center px-1">
             <span
-              class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold my-font-size-sm"
-              :class="createRagStepperPhase >= 1 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
+              class="my-create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 my-font-sm-600"
+              :class="createRagStepperPhase >= 1 ? 'my-create-rag-stepper-num--on' : 'my-create-rag-stepper-num--off'"
             >1</span>
-            <span class="mt-2 my-font-size-sm" :class="createRagStepperPhase >= 1 ? 'text-dark fw-medium' : 'text-muted'">上傳檔案</span>
+            <span class="mt-2" :class="createRagStepperPhase >= 1 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'">上傳檔案</span>
           </div>
           <div
-            class="create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
-            :class="createRagStepperPhase >= 2 ? 'create-rag-stepper-line--on' : ''"
+            class="my-create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
+            :class="createRagStepperPhase >= 2 ? 'my-create-rag-stepper-line--on' : ''"
             aria-hidden="true"
           />
           <div class="flex-grow-1 d-flex flex-column align-items-center text-center px-1">
             <span
-              class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold my-font-size-sm"
-              :class="createRagStepperPhase >= 2 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
+              class="my-create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 my-font-sm-600"
+              :class="createRagStepperPhase >= 2 ? 'my-create-rag-stepper-num--on' : 'my-create-rag-stepper-num--off'"
             >2</span>
-            <span class="mt-2 my-font-size-sm" :class="createRagStepperPhase >= 2 ? 'text-dark fw-medium' : 'text-muted'">建立測驗題庫</span>
+            <span class="mt-2" :class="createRagStepperPhase >= 2 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'">建立測驗題庫</span>
           </div>
           <div
-            class="create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
-            :class="createRagStepperPhase >= 3 ? 'create-rag-stepper-line--on' : ''"
+            class="my-create-rag-stepper-line align-self-center flex-grow-1 mx-n1 mx-sm-0"
+            :class="createRagStepperPhase >= 3 ? 'my-create-rag-stepper-line--on' : ''"
             aria-hidden="true"
           />
           <div class="flex-grow-1 d-flex flex-column align-items-center text-center px-1">
             <span
-              class="create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-semibold my-font-size-sm"
-              :class="createRagStepperPhase >= 3 ? 'create-rag-stepper-num--on' : 'create-rag-stepper-num--off'"
+              class="my-create-rag-stepper-num rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 my-font-sm-600"
+              :class="createRagStepperPhase >= 3 ? 'my-create-rag-stepper-num--on' : 'my-create-rag-stepper-num--off'"
             >3</span>
-            <span class="mt-2 my-font-size-sm" :class="createRagStepperPhase >= 3 ? 'text-dark fw-medium' : 'text-muted'">測試問題</span>
+            <span class="mt-2" :class="createRagStepperPhase >= 3 ? 'text-dark my-font-sm-600' : 'text-muted my-font-sm-400'">測試問題</span>
           </div>
         </div>
       </div>
       <!-- 尚無 file_metadata 時才顯示上傳區；檔名改顯示於「建立測驗題庫」內 -->
-      <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start page-block-spacing border rounded p-3">
-        <div class="">
+      <div v-if="activeTabId && !hasUploadedFileMetadata" class="text-start my-page-block-spacing">
+        <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
           <input
             ref="zipFileInputRef"
             type="file"
@@ -1177,8 +1177,8 @@ async function confirmAnswer(item) {
             @change="onZipChange"
           >
           <div
-            class="zip-drop-zone rounded border border-dashed p-5 text-center position-relative"
-            :class="{ 'zip-drop-zone-over': isZipDragOver }"
+            class="my-zip-drop-zone rounded border border-dashed text-center position-relative p-5"
+            :class="{ 'my-zip-drop-zone-over': isZipDragOver }"
             @dragover="onZipDragOver"
             @dragenter="onZipDragOver"
             @dragleave="onZipDragLeave"
@@ -1186,20 +1186,20 @@ async function confirmAnswer(item) {
             @click="openZipFileDialog()"
           >
             <template v-if="currentState.zipLoading">
-              <span class="text-secondary my-font-size-sm">上傳中...</span>
+              <span class="text-secondary my-font-sm-400">上傳中...</span>
             </template>
             <template v-else>
               <template v-if="currentState.zipFileName">
-                <span class="my-font-size-sm text-body">{{ currentState.zipFileName }}</span>
-                <div class="mt-1 my-font-size-sm text-muted">點擊可重新選擇檔案</div>
+                <span class="my-font-sm-400 text-body">{{ currentState.zipFileName }}</span>
+                <div class="my-font-sm-400 text-muted mt-1">點擊可重新選擇檔案</div>
               </template>
-              <span v-else class="my-font-size-sm text-secondary">拖曳檔案到這裡，或點擊選擇檔案</span>
-              <div class="mt-2 my-font-size-sm text-muted">
+              <span v-else class="my-font-sm-400 text-secondary">拖曳檔案到這裡，或點擊選擇檔案</span>
+              <div class="my-font-sm-400 text-muted mt-2">
                 可解析的檔案副檔名：.zip、.pdf、.doc、.docx、.ppt、.pptx
               </div>
             </template>
           </div>
-          <div v-if="currentState.zipError" class="alert alert-danger mt-2 mb-0 py-2 my-font-size-sm">
+          <div v-if="currentState.zipError" class="alert alert-danger my-font-sm-400 py-2 mt-2 mb-0">
             {{ currentState.zipError }}
           </div>
           <div class="d-flex justify-content-end mt-2">
@@ -1217,38 +1217,39 @@ async function confirmAnswer(item) {
       <!-- 建立 RAG：要有 file_metadata 才顯示；已有 rag_metadata 時僅純文字顯示出題單元／chunk／規範 -->
       <div
         v-if="fileMetadataToShow != null"
-        class="text-start page-block-spacing border rounded p-3"
+        class="text-start my-page-block-spacing"
         :class="{ 'pe-none text-muted': !hasRagMetadata && packGroupsEditBlocked }"
       >
+        <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
         <div class="mb-3">
-          <div class="my-font-size-sm text-secondary fw-medium mb-1">上傳檔案名稱</div>
-          <div class="my-font-size-sm text-break">{{ uploadedZipDisplayName }}</div>
-          <div v-if="uploadZipFileSizeDisplay" class="my-font-size-sm text-muted mt-1">檔案大小：{{ uploadZipFileSizeDisplay }}</div>
+          <div class="my-font-sm-600 text-secondary mb-1">上傳檔案名稱</div>
+          <div class="my-font-sm-400 text-break">{{ uploadedZipDisplayName }}</div>
+          <div v-if="uploadZipFileSizeDisplay" class="my-font-sm-400 text-muted mt-1">檔案大小：{{ uploadZipFileSizeDisplay }}</div>
         </div>
 
         <template v-if="hasRagMetadata">
           <div class="mb-3">
-            <div class="my-font-size-sm text-secondary fw-medium mb-1">出題單元</div>
-            <div v-if="ragListReadonlyGroups.length" class="my-font-size-sm text-break">{{ ragListReadonlyInlineText }}</div>
-            <div v-else class="my-font-size-sm text-muted">—</div>
+            <div class="my-font-sm-600 text-secondary mb-1">出題單元</div>
+            <div v-if="ragListReadonlyGroups.length" class="my-font-sm-400 text-break">{{ ragListReadonlyInlineText }}</div>
+            <div v-else class="my-font-sm-400 text-muted">—</div>
           </div>
           <div v-if="ragBuildOutputSizeSummary" class="mb-3">
-            <div class="my-font-size-sm text-secondary fw-medium mb-1">建置輸出檔大小</div>
-            <div class="my-font-size-sm text-break">{{ ragBuildOutputSizeSummary }}</div>
+            <div class="my-font-sm-600 text-secondary mb-1">建置輸出檔大小</div>
+            <div class="my-font-sm-400 text-break">{{ ragBuildOutputSizeSummary }}</div>
           </div>
           <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
             <div>
-              <div class="my-font-size-sm text-secondary fw-medium mb-1">分段長度（字元）</div>
-              <div class="my-font-size-sm">{{ chunkSize }}</div>
+              <div class="my-font-sm-600 text-secondary mb-1">分段長度（字元）</div>
+              <div class="my-font-sm-400">{{ chunkSize }}</div>
             </div>
             <div>
-              <div class="my-font-size-sm text-secondary fw-medium mb-1">分段重疊（字元）</div>
-              <div class="my-font-size-sm">{{ chunkOverlap }}</div>
+              <div class="my-font-sm-600 text-secondary mb-1">分段重疊（字元）</div>
+              <div class="my-font-sm-400">{{ chunkOverlap }}</div>
             </div>
           </div>
           <div class="mb-3">
-            <div class="my-font-size-sm mb-1">出題說明（給 AI）</div>
-            <div class="my-font-size-sm border rounded p-3 bg-body-tertiary">
+            <div class="my-font-sm-400 mb-1">出題說明（給 AI）</div>
+            <div class="my-font-sm-400 border rounded bg-body-tertiary p-3">
               你是一個「{{ courseNameForPrompt }}」課程的教授，請給學生設計試卷題目：<br>
               【出題規範】<br>
               請根據輸入的「參考內容」設計試卷題目。<br>
@@ -1270,14 +1271,18 @@ async function confirmAnswer(item) {
           >
             <button
               type="button"
-              :class="currentRagIsExamRag ? 'btn btn-outline-secondary' : 'btn btn-success'"
+              :class="
+                currentRagIsExamRag
+                  ? 'btn rounded-pill my-font-md-400 my-button-white-border'
+                  : 'btn rounded-pill my-font-md-400 my-button-blue'
+              "
               :disabled="currentState.forExamLoading"
               @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
             >
               {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
             </button>
           </div>
-          <div v-if="currentState.forExamError" class="alert alert-danger py-2 my-font-size-sm mb-0 mt-2">
+          <div v-if="currentState.forExamError" class="alert alert-danger my-font-sm-400 py-2 mb-0 mt-2">
             {{ currentState.forExamError }}
           </div>
         </template>
@@ -1285,12 +1290,12 @@ async function confirmAnswer(item) {
         <template v-else>
           <!-- 課程：可拖曳至出題單元 -->
           <div v-if="secondFoldersFull.length" class="mb-3">
-            <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">資料夾</label>
-            <div class="d-flex flex-wrap gap-2 p-2 rounded border bg-body">
+            <label class="form-label my-font-sm-600 text-secondary mb-1">資料夾</label>
+            <div class="d-flex flex-wrap gap-2 rounded border bg-body p-2">
               <div
                 v-for="(name, i) in secondFoldersFull"
                 :key="'sf-' + i"
-                class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 user-select-none"
+                class="badge bg-secondary-subtle text-secondary border border-secondary-subtle user-select-none px-2 py-1"
                 style="cursor: grab;"
                 draggable="true"
                 role="button"
@@ -1305,11 +1310,11 @@ async function confirmAnswer(item) {
 
           <!-- 出題單元：可放置課程標籤 -->
           <div class="mb-2">
-            <label class="form-label my-font-size-sm text-secondary fw-medium mb-0">出題單元</label>
+            <label class="form-label my-font-sm-600 text-secondary mb-0">出題單元</label>
             <div class="d-flex flex-wrap align-items-start gap-2">
               <template v-for="(group, gi) in ragListDisplayGroups" :key="'rg-' + gi">
                 <div
-                  class="pack-drop-target border rounded p-2 d-flex align-items-center gap-1 position-relative bg-body-secondary"
+                  class="my-pack-drop-target border rounded d-flex align-items-center gap-1 position-relative bg-body-secondary p-2"
                   style="min-width: 120px; min-height: 2.5rem;"
                   @dragover.prevent="onDragOver($event)"
                   @dragenter.prevent="onDragEnter($event)"
@@ -1320,7 +1325,7 @@ async function confirmAnswer(item) {
                     <div
                       v-for="(tag, ti) in group"
                       :key="'t-' + gi + '-' + ti"
-                      class="badge bg-primary px-2 py-1 d-inline-flex align-items-center gap-1"
+                      class="badge bg-primary d-inline-flex align-items-center gap-1 px-2 py-1"
                       style="cursor: grab;"
                       draggable="true"
                       role="button"
@@ -1329,17 +1334,17 @@ async function confirmAnswer(item) {
                     >
                       {{ tag }}
                       <span
-                        class="ms-1 text-muted"
+                        class="text-muted ms-1"
                         style="cursor: pointer;"
                         @click.stop="removeFromRagList(gi, ti)"
                       >×</span>
                     </div>
-                    <span v-if="!group.length" class="text-muted my-font-size-sm">拖入此處</span>
+                    <span v-if="!group.length" class="text-muted my-font-sm-400">拖入此處</span>
                   </div>
                   <button
                     v-if="(currentState.packTasksList || []).length > 0"
                     type="button"
-                    class="btn btn-link p-0 ms-1 text-muted text-decoration-none flex-shrink-0"
+                    class="btn btn-link text-muted text-decoration-none flex-shrink-0 p-0 ms-1"
                     style="min-width: 1.5rem;"
                     @click.stop="removeRagListGroup(gi)"
                   >
@@ -1348,7 +1353,7 @@ async function confirmAnswer(item) {
                 </div>
               </template>
               <div
-                class="btn btn-outline-primary d-flex align-items-center justify-content-center pack-drop-target"
+                class="btn btn-outline-primary d-flex align-items-center justify-content-center my-pack-drop-target"
                 style="min-width: 140px; min-height: 2.5rem; cursor: pointer;"
                 role="button"
                 tabindex="0"
@@ -1363,7 +1368,7 @@ async function confirmAnswer(item) {
                 + 新增出題單元
               </div>
             </div>
-            <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+            <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
               <button
                 type="button"
                 class="btn btn-outline-secondary"
@@ -1386,7 +1391,7 @@ async function confirmAnswer(item) {
 
           <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
             <div style="min-width: 180px; flex: 1 1 180px; max-width: 280px;">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">分段長度（字元）</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">分段長度（字元）</label>
               <input
                 v-model.number="chunkSize"
                 type="number"
@@ -1397,7 +1402,7 @@ async function confirmAnswer(item) {
               >
             </div>
             <div style="min-width: 180px; flex: 1 1 180px; max-width: 280px;">
-              <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">分段重疊（字元）</label>
+              <label class="form-label my-font-sm-600 text-secondary mb-1">分段重疊（字元）</label>
               <input
                 v-model.number="chunkOverlap"
                 type="number"
@@ -1409,15 +1414,15 @@ async function confirmAnswer(item) {
             </div>
           </div>
           <div class="mt-3">
-            <label class="form-label my-font-size-sm text-secondary fw-medium mb-1">出題說明（給 AI）</label>
-            <div class="my-font-size-sm border rounded p-3 bg-body-tertiary">
+            <label class="form-label my-font-sm-600 text-secondary mb-1">出題說明（給 AI）</label>
+            <div class="my-font-sm-400 border rounded bg-body-tertiary p-3">
               【出題規範】<br>
               請根據輸入的「參考內容」設計試卷題目。<br>
               請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。<br>
               題目難度：{quiz_level}。<br>
               <textarea
                 v-model="currentState.systemInstruction"
-                class="form-control form-control-sm font-monospace my-font-size-sm my-3"
+                class="form-control form-control-sm font-monospace my-font-sm-400 my-3"
                 rows="5"
                 :placeholder="'留空則使用預設：' + DEFAULT_SYSTEM_INSTRUCTION"
                 style="max-width: 100%;"
@@ -1429,7 +1434,7 @@ async function confirmAnswer(item) {
               "quiz_answer_reference": "參考答案內容" }<br>
             </div>
           </div>
-          <div class="mt-3 d-flex justify-content-end">
+          <div class="d-flex justify-content-end mt-3">
             <button
               type="button"
               class="btn btn-primary"
@@ -1439,18 +1444,20 @@ async function confirmAnswer(item) {
               確定
             </button>
           </div>
-          <div v-if="currentState.packError" class="alert alert-danger py-2 my-font-size-sm mb-2">
+          <div v-if="currentState.packError" class="alert alert-danger my-font-sm-400 py-2 mb-2">
             {{ currentState.packError }}
           </div>
         </template>
+        </div>
       </div>
       <!-- 測試問題：有 rag_metadata（本機 Pack 或後端已帶入）即顯示 -->
       <div
         v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
-        class="text-start page-block-spacing"
+        class="text-start my-page-block-spacing"
         :class="{ 'text-muted': ragGenerateDisabled }"
       >
-        <div class="fs-5 fw-semibold mb-4 pb-2 border-bottom">測試問題</div>
+        <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
+        <div class="my-font-lg-600 border-bottom pb-2 mb-4">測試問題</div>
 
         <!-- 題目區塊：每按一次「新增題目」才多一個「第 n 題」；按鈕固定在最下面 -->
         <div class="mb-4">
@@ -1469,14 +1476,12 @@ async function confirmAnswer(item) {
             </template>
             <template v-else>
               <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
-              <div class="card mb-4" :class="{ 'mt-4': slotIndex > 1 }">
-                <div class="card-header py-2">
-                  <span class="fs-6 fw-semibold mb-0">第 {{ slotIndex }} 題</span>
-                </div>
-                <div class="card-body text-start pt-3">
+              <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4" :class="{ 'mt-4': slotIndex > 1 }">
+                <div class="my-font-lg-600 border-bottom pb-2 mb-3">第 {{ slotIndex }} 題</div>
+                <div class="text-start pt-3">
                   <div class="d-flex flex-wrap align-items-end gap-3">
                     <div class="flex-grow-1 min-w-0" style="min-width: 10rem">
-                      <label class="form-label my-font-size-sm text-secondary fw-medium mb-1" :for="`rag-quiz-unit-${slotIndex}-toggle`">單元</label>
+                      <label class="form-label my-font-sm-600 text-secondary mb-1" :for="`rag-quiz-unit-${slotIndex}-toggle`">單元</label>
                       <UnitSelectDropdown
                         v-model="getSlotFormState(slotIndex).generateQuizTabId"
                         :options="generateQuizUnits"
@@ -1484,7 +1489,7 @@ async function confirmAnswer(item) {
                       />
                     </div>
                     <div>
-                      <label class="form-label my-font-size-sm text-secondary fw-medium mb-1 d-block">難度</label>
+                      <label class="form-label my-font-sm-600 text-secondary d-block mb-1">難度</label>
                       <div class="btn-group btn-group-sm" role="group">
                         <template v-for="(opt, di) in difficultyOptions" :key="opt">
                           <input
@@ -1509,7 +1514,7 @@ async function confirmAnswer(item) {
                       產生題目
                     </button>
                   </div>
-                  <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger mt-2 mb-0 py-2 my-font-size-sm">
+                  <div v-if="getSlotFormState(slotIndex).error" class="alert alert-danger my-font-sm-400 py-2 mt-2 mb-0">
                     {{ getSlotFormState(slotIndex).error }}
                   </div>
                 </div>
@@ -1518,7 +1523,7 @@ async function confirmAnswer(item) {
           </template>
 
           <!-- 新增題目按鈕：固定在最下面，每按一次多一個「第 n 題」區塊 -->
-          <div class="mb-0 pt-2 d-flex justify-content-center">
+          <div class="d-flex justify-content-center pt-2 mb-0">
             <button
               type="button"
               class="btn btn-primary"
@@ -1527,6 +1532,7 @@ async function confirmAnswer(item) {
               新增題目
             </button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -1538,56 +1544,56 @@ async function confirmAnswer(item) {
 </template>
 
 <style scoped>
-.zip-drop-zone {
+.my-zip-drop-zone {
   cursor: pointer;
   border-width: 2px;
-  border-color: rgba(0, 0, 0, 0.2);
-  background: rgba(0, 0, 0, 0.02);
+  border-color: var(--my-drop-zone-border);
+  background: var(--my-drop-zone-bg);
 }
-.zip-drop-zone:hover:not(.zip-drop-zone-disabled) {
-  border-color: var(--bs-primary);
-  background: rgba(13, 110, 253, 0.04);
+.my-zip-drop-zone:hover:not(.my-zip-drop-zone-disabled) {
+  border-color: var(--my-color-blue);
+  background: var(--my-drop-zone-hover-bg);
 }
-.zip-drop-zone-over {
-  border-color: var(--bs-primary) !important;
-  background: rgba(13, 110, 253, 0.08) !important;
+.my-zip-drop-zone-over {
+  border-color: var(--my-color-blue) !important;
+  background: var(--my-drop-zone-active-bg) !important;
 }
-.zip-drop-zone-disabled {
+.my-zip-drop-zone-disabled {
   cursor: not-allowed;
-  border-color: color-mix(in srgb, var(--bs-body-color) 22%, var(--bs-border-color));
-  background-color: color-mix(in srgb, var(--bs-body-bg) 88%, var(--bs-secondary-bg));
-  color: var(--bs-secondary-color);
+  border-color: color-mix(in srgb, var(--my-color-black) 20%, transparent);
+  background-color: color-mix(in srgb, var(--my-color-surface) 88%, var(--my-color-gray-light));
+  color: var(--my-color-gray-light);
 }
-.pack-drop-target.pack-drop-active {
-  background-color: rgba(13, 202, 240, 0.15) !important;
-  border-color: var(--bs-info) !important;
+.my-pack-drop-target.my-pack-drop-active {
+  background-color: var(--my-drop-pack-active-bg) !important;
+  border-color: var(--my-color-blue) !important;
 }
 
 /* 建立測驗題庫頁：流程 stepper（1–2–3） */
-.create-rag-stepper-num {
+.my-create-rag-stepper-num {
   width: 2.25rem;
   height: 2.25rem;
   line-height: 1;
 }
-.create-rag-stepper-num--on {
-  background-color: var(--bs-primary);
-  color: var(--bs-white);
+.my-create-rag-stepper-num--on {
+  background-color: var(--my-color-blue);
+  color: var(--my-color-surface);
 }
-.create-rag-stepper-num--off {
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-secondary-color);
-  border: 1px solid var(--bs-border-color);
+.my-create-rag-stepper-num--off {
+  background-color: color-mix(in srgb, var(--my-color-black) 6%, var(--my-color-surface));
+  color: var(--my-color-gray-light);
+  border: 1px solid color-mix(in srgb, var(--my-color-black) 20%, transparent);
 }
-.create-rag-stepper-line {
+.my-create-rag-stepper-line {
   flex: 1 1 1rem;
   min-width: 0.35rem;
   height: 2px;
   margin-top: 1.125rem;
   align-self: flex-start;
-  background-color: var(--bs-border-color);
+  background-color: color-mix(in srgb, var(--my-color-black) 20%, transparent);
   border-radius: 1px;
 }
-.create-rag-stepper-line--on {
-  background-color: var(--bs-primary);
+.my-create-rag-stepper-line--on {
+  background-color: var(--my-color-blue);
 }
 </style>
