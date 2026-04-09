@@ -2,14 +2,14 @@
 /**
  * UserManagementPage - 使用者管理頁面
  *
- * 列表：GET /user/users（依 user_id 升冪）。「新增一筆」「批次新增學生」並列於列表區塊下方，以按鈕開啟 Modal。
+ * 列表：GET /user/users（依 user_id 升冪）；每次從側欄進入本頁（KeepAlive onActivated）重新抓取。「新增一筆」「批次新增學生」並列於列表區塊下方，以按鈕開啟 Modal。
  * 單筆：POST /user/users；body person_id、name、user_type；query person_id 與 body.person_id 一致（loggedFetch personId）。
  * 批次：POST /user/users/batch；body 為 [{ person_id, name }]；query 為呼叫者 person_id（loggedFetch 預設）。
  * Excel 匯入後即檢查檔內重複與與列表重複；有則禁用「批次新增學生」按鈕。單筆送出前亦會檢查重複。
  * 單筆 Modal：輸入 ID 時即時比對列表；須 ID、姓名、類型皆填且未重複才可按「新增使用者」。類型為 Bootstrap 5 dropdown（同 Design 08／UnitSelectDropdown）。
  * 刪除：POST /user/users/delete，body 為被刪 person_id；query 為呼叫者（loggedFetch 預設）。
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onActivated } from 'vue';
 import { API_BASE, API_USER_USERS, API_USER_BATCH, API_USER_DELETE } from '../constants/api.js';
 import { useAuthStore } from '../stores/authStore.js';
 import {
@@ -478,7 +478,7 @@ async function submitBatchUsers() {
   }
 }
 
-onMounted(() => {
+onActivated(() => {
   fetchUsers();
 });
 </script>

@@ -12,7 +12,7 @@
  *
  * 試題資料表 public."Exam_Quiz"（與 GET/POST 題目 payload 對齊）：exam_quiz_id、exam_id、exam_tab_id、person_id、rag_id、unit_name、file_name、quiz_content、quiz_hint、quiz_answer_reference、quiz_rate（-1／0／1）、quiz_metadata、updated_at、created_at。畫面「單元」優先 unit_name；難度優先 quiz_level，否則 quiz_metadata.quiz_level。
  */
-import { ref, computed, watch, onMounted, reactive } from 'vue';
+import { ref, computed, watch, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import {
   API_BASE,
@@ -314,8 +314,8 @@ watch(forExamRag, (rag) => {
 }, { immediate: true });
 
 /**
- * 載入 GET /exam/tabs：immediate 涵蓋首次進入（含尚無 person_id 時仍要列表）；
- * person_id／user_id 變動時再抓一次以帶正確 X-Person-Id。勿在 onMounted 再呼叫 fetchExamTests，否則與 immediate 重複一次。
+ * 載入 GET /exam/tabs：watch(person_id) immediate 涵蓋首次進入（含尚無 person_id 時仍要列表）；
+ * person_id／user_id 變動時再抓一次。每次從側欄進入測驗頁（KeepAlive onActivated）再抓 GET /exam/tabs 與 GET /rag/tab/for-exam（rag_id／試卷題庫）；首次 onActivated 僅補抓 for-exam，避免與 immediate 雙重 GET /exam/tabs。
  */
 watch(
   () => getCurrentPersonId(),
@@ -935,8 +935,15 @@ async function confirmAnswer(item) {
   }
 }
 
-/** 試題用 RAG 僅於掛載時抓；測驗列表由 watch(person_id) immediate 負責，避免與 onMounted 雙重 GET /exam/tabs */
-onMounted(() => {
+/** 與使用者管理頁相同：每次「打開」測驗頁（含從快取恢復）拉 GET /exam/tabs、GET /rag/tab/for-exam（rag_id） */
+const examPageActivatedOnce = ref(false);
+onActivated(() => {
+  if (!examPageActivatedOnce.value) {
+    examPageActivatedOnce.value = true;
+    fetchForExamRag();
+    return;
+  }
+  fetchExamTests();
   fetchForExamRag();
 });
 </script>
