@@ -28,7 +28,7 @@ const props = defineProps({
   designUi: { type: Boolean, default: false },
   /** 稿頁「測試題目」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
   designEmbedded: { type: Boolean, default: false },
-  /** 正在送出「確定批改」（按鈕顯示 spinner＋「批改中」；批改結果區塊於回傳後才出現；不佔全畫面） */
+  /** 正在送出「確定批改」（全螢幕 LoadingOverlay 由父層顯示；按鈕僅停用） */
   gradeSubmitting: { type: Boolean, default: false },
   /** 測驗頁：顯示題目讚／差（32×32 my-btn-circle · 透明底；未選 fa-regular my-color-gray-1、選中 fa-solid my-color-black；與 POST /exam/tab/quiz/rate 搭配；需 designUi）；為 true 時不顯示「批改規則（預覽）」 */
   showExamRating: { type: Boolean, default: false },
@@ -284,16 +284,10 @@ const showGradingResultSection = computed(
               class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
               :disabled="answerInputDisabled || gradeSubmitting"
               :aria-busy="gradeSubmitting"
-              :aria-label="gradeSubmitting ? '批改中' : '確定批改'"
+              aria-label="確定批改"
               @click="emit('confirm-answer', card)"
             >
-              <span
-                v-if="gradeSubmitting"
-                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                role="status"
-                aria-hidden="true"
-              />
-              {{ gradeSubmitting ? '批改中' : '確定批改' }}
+              確定批改
             </button>
           </div>
         </template>

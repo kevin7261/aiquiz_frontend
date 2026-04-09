@@ -18,6 +18,15 @@
 
 const { defineConfig } = require('@vue/cli-service');
 
+/**
+ * 開發伺服器 API 代理目標（npm run serve）。
+ * 預設本機 FastAPI（與 src/constants/api.js 之 API_BASE_LOCAL 一致）；若要改打 Render 請設 DEV_API_PROXY_TARGET。
+ */
+const devApiProxyTarget =
+  process.env.DEV_API_PROXY_TARGET && String(process.env.DEV_API_PROXY_TARGET).trim() !== ''
+    ? String(process.env.DEV_API_PROXY_TARGET).replace(/\/$/, '')
+    : 'http://127.0.0.1:8000';
+
 module.exports = defineConfig({
   /**
    * 🌐 公開路徑設定 (Public Path Configuration)
@@ -71,41 +80,42 @@ module.exports = defineConfig({
 
     /**
      * 🔀 開發環境 API 代理（避開 CORS）
+     * 預設轉發本機 8000；線上後端請設 DEV_API_PROXY_TARGET（Vercel 生產不走此 proxy，見 api.js API_BASE）。
      * 使用物件格式（webpack-dev-server v4 最穩定的寫法）。
      * 每個 key 為前綴；SPA 路由 /exam（無後綴斜線）不會被 /exam/tab 吃掉。
      * /user/ 需加斜線，避免誤匹配 SPA 的 /user-management、/users 等前端路由。
      */
     proxy: {
       '/api': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/rag': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/user/': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/exam/tab': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/system-settings/': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/person-analysis/': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/course-analysis/': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
       '/log/': {
-        target: 'https://aiquiz-backend-z4mo.onrender.com',
+        target: devApiProxyTarget,
         changeOrigin: true,
       },
     },

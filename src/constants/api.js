@@ -1,12 +1,13 @@
 /**
  * API 常數模組 - 後端 API 路徑與基底網址
  *
+ * 對應後端專案儲存庫名稱：**MyQuiz.ai_backend**（與本前端 MyQuiz.ai_frontend 配對）。
  * 用途：集中管理所有 API 端點，方便切換環境與維護。
  * 請求時請搭配 API_BASE 組成完整 URL（或由 axios 等 baseURL 設定）。
  */
 
-/** 正式環境後端（非本機開啟前端時使用） */
-const API_BASE_PRODUCTION = 'https://aiquiz-backend-z4mo.onrender.com';
+/** 正式環境後端（MyQuiz.ai_backend 於 Render 之預設網址；非本機開啟前端時使用） */
+const API_BASE_PRODUCTION = 'https://myquiz-ai-backend.onrender.com';
 /** 本機直連後端（生產建置在本機開啟、或未走 vue 代理時） */
 const API_BASE_LOCAL = 'http://127.0.0.1:8000';
 
@@ -23,9 +24,9 @@ export function isFrontendLocalHost() {
 /**
  * 後端 API 基底網址：
  * - 可設 .env 的 VUE_APP_API_BASE 強制覆寫（勿結尾 /）。
- * - npm run serve 且網址為 localhost／127.0.0.1：使用目前頁面 origin，請求經 vue.config.js proxy 轉發（不必另啟本機 8000）。
+ * - npm run serve 且網址為 localhost／127.0.0.1：使用目前頁面 origin，請求經 vue.config.js proxy 預設轉發本機 8000。
  * - 生產建置在本機開啟：連 127.0.0.1:8000。
- * - 其餘（含區網 IP 開發站）：連 Render 預設後端。
+ * - 其餘（含區網 IP 開發站）：連 MyQuiz.ai_backend 之 Render 預設網址。
  */
 function isValidHttpOrigin(value) {
   if (value == null || String(value).trim() === '' || String(value) === 'null') return false;

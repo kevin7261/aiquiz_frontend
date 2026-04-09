@@ -638,7 +638,7 @@ async function addNewTab() {
 
 /** 刪除測驗：POST /exam/tab/delete/{exam_tab_id}（不需 X-Person-Id），成功後從列表移除並切到其他 tab */
 const deleteExamLoading = ref(false);
-/** 正在送出批改的題卡 id（按鈕顯示「批改中」、結果區待回傳；不觸發全螢幕 LoadingOverlay） */
+/** 正在送出批改的題卡 id（全螢幕 LoadingOverlay「批改中...」；結果區待回傳） */
 const gradingSubmittingCardId = ref(null);
 
 function examCardGradeSubmitting(card) {
@@ -649,18 +649,40 @@ function examCardGradeSubmitting(card) {
   );
 }
 
-/** 任一非同步載入或處理進行中時為 true，用於全螢幕遮罩（產生題目、確定批改僅按鈕狀態，不佔全畫面） */
-const isAnyLoading = computed(() =>
-  forExamLoading.value ||
-  examListLoading.value ||
-  createExamLoading.value ||
-  deleteExamLoading.value
+const hasAnySlotGenerating = computed(() => {
+  const state = currentState.value;
+  const n = Number(state.quizSlotsCount) || 0;
+  for (let i = 1; i <= n; i++) {
+    const slot = state.slotFormState[i];
+    if (slot?.loading) return true;
+  }
+  return false;
+});
+
+const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
+
+/** 全螢幕 LoadingOverlay */
+const isAnyLoading = computed(
+  () =>
+    forExamLoading.value ||
+    examListLoading.value ||
+    createExamLoading.value ||
+    deleteExamLoading.value ||
+    examRenameSaving.value ||
+    hasAnySlotGenerating.value ||
+    isGradingSubmitting.value
 );
 
-/** 全螢幕遮罩文案：刪除測驗分頁時顯示「刪除中」，其餘為「處理中...」 */
-const examLoadingOverlayText = computed(() =>
-  deleteExamLoading.value ? '刪除中...' : '處理中...'
-);
+const examLoadingOverlayText = computed(() => {
+  if (isGradingSubmitting.value) return '批改中...';
+  if (hasAnySlotGenerating.value) return '產生題目中...';
+  if (deleteExamLoading.value) return '刪除中...';
+  if (examRenameSaving.value) return '儲存中...';
+  if (createExamLoading.value) return '建立中...';
+  if (examListLoading.value) return '載入測驗列表中';
+  if (forExamLoading.value) return '載入試卷用題庫中...';
+  return '處理中...';
+});
 
 const deleteExamError = ref('');
 async function deleteExam(examTabId) {
@@ -982,22 +1004,12 @@ onMounted(() => {
                 type="button"
                 class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle mb-2"
                 title="新增測驗分頁"
-                :aria-label="createExamLoading ? '建立中' : '新增測驗分頁'"
+                aria-label="新增測驗分頁"
                 :aria-busy="createExamLoading"
                 :disabled="createExamLoading"
                 @click="addNewTab"
               >
-                <span
-                  v-if="createExamLoading"
-                  class="spinner-border my-app-spinner my-app-spinner--sm"
-                  role="status"
-                  aria-hidden="true"
-                />
-                <i
-                  v-else
-                  class="fa-solid fa-plus"
-                  aria-hidden="true"
-                />
+                <i class="fa-solid fa-plus" aria-hidden="true" />
               </button>
             </li>
           </ul>
@@ -1019,38 +1031,24 @@ onMounted(() => {
 
     <div class="flex-grow-1 overflow-auto my-bgcolor-gray-4 d-flex flex-column min-h-0">
       <div
-        v-if="!examListLoading && examList.length === 0"
+        v-if="examList.length === 0"
         class="flex-grow-1 d-flex align-items-center justify-content-center px-3 py-5 min-h-0"
       >
         <button
+          v-if="!examListLoading"
           type="button"
           class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
           title="新增測驗"
-          :aria-label="createExamLoading ? '建立中' : '新增測驗'"
+          aria-label="新增測驗"
           :disabled="createExamLoading"
           :aria-busy="createExamLoading"
           @click="addNewTab"
         >
-          <span
-            v-if="createExamLoading"
-            class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-            role="status"
-            aria-hidden="true"
-          />
-          <i v-else class="fa-solid fa-plus" aria-hidden="true" />
-          {{ createExamLoading ? '建立中' : '新增測驗' }}
+          <i class="fa-solid fa-plus" aria-hidden="true" />
+          新增測驗
         </button>
       </div>
-      <div
-        v-else-if="examListLoading && examList.length === 0"
-        class="flex-grow-1 d-flex flex-column align-items-center justify-content-center gap-3 px-3 py-5"
-        aria-busy="true"
-      >
-        <div class="spinner-border my-app-spinner" role="status">
-          <span class="visually-hidden">載入測驗列表中</span>
-        </div>
-      </div>
-      <div v-else-if="examList.length > 0" class="container-fluid px-3 px-md-4 py-4">
+      <div v-else class="container-fluid px-3 px-md-4 py-4">
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
             <div
@@ -1132,17 +1130,9 @@ onMounted(() => {
                                 !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()
                             "
                             :aria-busy="getSlotFormState(slotIndex).loading"
-                            :aria-label="
-                              getSlotFormState(slotIndex).loading ? '產生題目中，請稍候' : '產生題目'
-                            "
+                            aria-label="產生題目"
                             @click="generateQuiz(slotIndex)"
                           >
-                            <span
-                              v-if="getSlotFormState(slotIndex).loading"
-                              class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                              role="status"
-                              aria-hidden="true"
-                            />
                             產生題目
                           </button>
                         </div>

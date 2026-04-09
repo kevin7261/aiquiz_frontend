@@ -61,6 +61,7 @@ import { loggedFetch } from '../utils/loggedFetch.js';
 import QuizCard from '../components/QuizCard.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
+import LoadingOverlay from '../components/LoadingOverlay.vue';
 
 const props = defineProps({
   tabId: { type: String, required: true },
@@ -96,7 +97,7 @@ const renameRagTabDraftRagId = ref(null);
 const renameRagTabInitialName = ref('');
 const renameRagTabSaving = ref(false);
 const renameRagTabError = ref('');
-/** 正在送出批改的題卡 id（按鈕顯示「批改中」、結果區待回傳；不觸發內容區載入區塊） */
+/** 正在送出批改的題卡 id（全螢幕 LoadingOverlay「批改中...」；結果區待回傳） */
 const gradingSubmittingCardId = ref(null);
 const deleteRagLoading = ref(false);
 /** 與左側標題相同：GET /system-settings/course-name 的 course_name，失敗時維持 MyQuiz.ai */
@@ -331,16 +332,42 @@ watch(
   { immediate: true }
 );
 
-/** 任一非同步載入或處理進行中時為 true，於內容區顯示 spinner＋文案。ZIP 上傳／開始建立題庫（pack）僅用區塊內按鈕與欄位狀態，勿整頁覆蓋；產生題目、確定批改僅按鈕狀態，不觸發此狀態 */
-const isAnyLoading = computed(() =>
-  ragListLoading.value ||
-  createRagLoading.value ||
-  deleteRagLoading.value
+const hasAnySlotGenerating = computed(() => {
+  const state = currentState.value;
+  const n = Number(state.quizSlotsCount) || 0;
+  for (let i = 1; i <= n; i++) {
+    const slot = state.slotFormState[i];
+    if (slot?.loading) return true;
+  }
+  return false;
+});
+
+const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
+
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／測驗用設定／產生題目／批改 */
+const loadingOverlayVisible = computed(
+  () =>
+    ragListLoading.value ||
+    createRagLoading.value ||
+    deleteRagLoading.value ||
+    renameRagTabSaving.value ||
+    !!currentState.value?.zipLoading ||
+    !!currentState.value?.packLoading ||
+    !!currentState.value?.forExamLoading ||
+    hasAnySlotGenerating.value ||
+    isGradingSubmitting.value
 );
 
-/** 內容區載入文案：刪除分頁 → 刪除中；GET /rag/tabs → 載入測驗題庫中；其餘 → 處理中... */
-const pageLoadingBannerText = computed(() => {
+const loadingOverlayText = computed(() => {
+  if (isGradingSubmitting.value) return '批改中...';
+  if (hasAnySlotGenerating.value) return '產生題目中...';
+  const st = currentState.value;
+  if (st?.zipLoading) return '上傳中...';
+  if (st?.packLoading) return '建立題庫中...';
+  if (st?.forExamLoading) return '設定中...';
   if (deleteRagLoading.value) return '刪除中...';
+  if (renameRagTabSaving.value) return '儲存中...';
+  if (createRagLoading.value) return '建立中...';
   if (ragListLoading.value) return '載入測驗題庫中';
   return '處理中...';
 });
@@ -917,6 +944,7 @@ function setZipFileFromFile(state, tabId, file) {
 
 function onZipChange(e) {
   const state = currentState.value;
+  if (state.zipLoading) return;
   const file = e.target.files?.[0];
   const tabId = activeTabId.value;
   setZipFileFromFile(state, tabId, file);
@@ -941,16 +969,19 @@ function onZipDrop(e) {
   const file = e.dataTransfer.files?.[0];
   if (!file) return;
   const state = currentState.value;
+  if (state.zipLoading) return;
   const tabId = activeTabId.value;
   setZipFileFromFile(state, tabId, file);
   clearZipFileInput();
 }
 function openZipFileDialog() {
+  if (currentState.value.zipLoading) return;
   if (zipFileInputRef.value) zipFileInputRef.value.click();
 }
 
 /** 上傳 ZIP */
 async function confirmUploadZip() {
+  if (currentState.value.zipLoading) return;
   if (props.mockWithoutApi) {
     const state = currentState.value;
     if (!state.uploadedZipFile) {
@@ -1307,6 +1338,10 @@ function applyMockGradingPreview(item) {
 
 <template>
   <div class="d-flex flex-column h-100 overflow-hidden my-bgcolor-gray-4 position-relative">
+    <LoadingOverlay
+      :is-visible="loadingOverlayVisible"
+      :loading-text="loadingOverlayText"
+    />
     <TabRenameModal
       v-model="renameRagTabModalOpen"
       :initial-name="renameRagTabInitialName"
@@ -1392,23 +1427,13 @@ function applyMockGradingPreview(item) {
               <button
                 type="button"
                 title="新增分頁"
-                :aria-label="createRagLoading ? '建立中' : '新增分頁'"
+                aria-label="新增分頁"
                 :aria-busy="createRagLoading"
                 class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle mb-2"
                 :disabled="createRagLoading"
                 @click="addNewTab"
               >
-                <span
-                  v-if="createRagLoading"
-                  class="spinner-border my-app-spinner my-app-spinner--sm"
-                  role="status"
-                  aria-hidden="true"
-                />
-                <i
-                  v-else
-                  class="fa-solid fa-plus"
-                  aria-hidden="true"
-                />
+                <i class="fa-solid fa-plus" aria-hidden="true" />
               </button>
             </li>
           </ul>
@@ -1422,40 +1447,22 @@ function applyMockGradingPreview(item) {
       </div>
     </div>
 
-    <!-- 內容區：載入中僅板面內 spinner＋說明文字（無整區 overlay） -->
     <div class="flex-grow-1 overflow-auto my-bgcolor-gray-4 d-flex flex-column min-h-0">
       <div
-        v-if="isAnyLoading"
-        class="flex-grow-1 d-flex flex-column align-items-center justify-content-center gap-3 px-3 py-5"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div class="spinner-border my-app-spinner" role="status">
-          <span class="visually-hidden">{{ pageLoadingBannerText }}</span>
-        </div>
-        <p class="mb-0 my-font-lg-400 my-color-black text-center">{{ pageLoadingBannerText }}</p>
-      </div>
-      <div
-        v-else-if="!showCreateBankMainForm"
+        v-if="!showCreateBankMainForm"
         class="flex-grow-1 d-flex align-items-center justify-content-center px-3 py-5 min-h-0"
       >
         <button
           type="button"
           class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
           title="新增測驗題庫"
-          :aria-label="createRagLoading ? '建立中' : '新增測驗題庫'"
+          aria-label="新增測驗題庫"
           :disabled="createRagLoading"
           :aria-busy="createRagLoading"
           @click="addNewTab"
         >
-          <span
-            v-if="createRagLoading"
-            class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-            role="status"
-            aria-hidden="true"
-          />
-          <i v-else class="fa-solid fa-plus" aria-hidden="true" />
-          {{ createRagLoading ? '建立中' : '新增測驗題庫' }}
+          <i class="fa-solid fa-plus" aria-hidden="true" />
+          新增測驗題庫
         </button>
       </div>
       <div v-else class="container-fluid px-3 px-md-4 py-4">
@@ -1530,19 +1537,14 @@ function applyMockGradingPreview(item) {
             @drop="onZipDrop"
             @click="openZipFileDialog()"
           >
-            <template v-if="currentState.zipLoading">
-              <span class="my-font-sm-400 my-color-gray-4">上傳中...</span>
+            <template v-if="currentState.zipFileName">
+              <span class="my-font-sm-400 my-color-black">{{ currentState.zipFileName }}</span>
+              <div class="my-font-sm-400 my-color-gray-4 mt-1">點擊可重新選擇檔案</div>
             </template>
-            <template v-else>
-              <template v-if="currentState.zipFileName">
-                <span class="my-font-sm-400 my-color-black">{{ currentState.zipFileName }}</span>
-                <div class="my-font-sm-400 my-color-gray-4 mt-1">點擊可重新選擇檔案</div>
-              </template>
-              <span v-else class="my-font-sm-400 my-color-gray-4">拖曳檔案到這裡，或點擊選擇檔案</span>
-              <div class="my-font-sm-400 my-color-gray-4 mt-2">
-                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
-              </div>
-            </template>
+            <span v-else class="my-font-sm-400 my-color-gray-4">拖曳檔案到這裡，或點擊選擇檔案</span>
+            <div class="my-font-sm-400 my-color-gray-4 mt-2">
+              可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+            </div>
           </div>
           <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
             {{ currentState.zipError }}
@@ -1551,22 +1553,15 @@ function applyMockGradingPreview(item) {
             <button
               type="button"
               class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2"
-              :disabled="currentState.zipLoading || !currentState.zipFileName"
-              :aria-busy="currentState.zipLoading"
+              :disabled="!currentState.zipFileName"
               @click.stop="confirmUploadZip"
             >
-              <span
-                v-if="currentState.zipLoading"
-                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                role="status"
-                aria-hidden="true"
-              />
               確定上傳
             </button>
           </div>
         </div>
       </section>
-      <!-- 建立 RAG：要有 file_metadata 才顯示；兩塊出題設定各一 section（rounded-4 深灰卡，與介面稿一致） -->
+      <!-- 建立 RAG：要有 file_metadata 才顯示；未建置時僅可編輯「出題設定」卡，建置完成後另顯唯讀摘要卡（rounded-4 深灰） -->
       <template v-if="fileMetadataToShow != null || designUiExpandAll">
         <div
           class="w-100"
@@ -1758,7 +1753,7 @@ function applyMockGradingPreview(item) {
             <label
               class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
               for="rag-pack-system-instruction"
-            >出題說明（給 AI）</label>
+            >出題說明 (prompt)</label>
             <div
               class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 d-flex flex-column gap-3"
             >
@@ -1796,16 +1791,10 @@ function applyMockGradingPreview(item) {
                 currentState.packLoading
               "
               :aria-busy="currentState.packLoading"
-              :aria-label="currentState.packLoading ? '建立題庫中' : '開始建立題庫'"
+              aria-label="開始建立題庫"
               @click="confirmPack"
             >
-              <span
-                v-if="currentState.packLoading"
-                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                role="status"
-                aria-hidden="true"
-              />
-              {{ currentState.packLoading ? '建立題庫中' : '開始建立題庫' }}
+              開始建立題庫
             </button>
           </div>
           <div v-if="currentState.packError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-2">
@@ -1813,7 +1802,11 @@ function applyMockGradingPreview(item) {
           </div>
           </div>
           </section>
-          <section class="text-start my-page-block-spacing">
+          <!-- 唯讀摘要：僅在已建置題庫（hasRagMetadata）後顯示；上傳後尚未建置時上方可編輯卡已含檔名，勿再重複一張卡 -->
+          <section
+            v-if="hasRagMetadata || designUiExpandAll"
+            class="text-start my-page-block-spacing"
+          >
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
             <div
               class="my-font-lg-600 my-color-black text-break mb-4"
@@ -1836,7 +1829,6 @@ function applyMockGradingPreview(item) {
                 autocomplete="off"
               >
             </div>
-            <template v-if="hasRagMetadata || designUiExpandAll">
               <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
                 <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題單元</div>
                 <div
@@ -1877,7 +1869,7 @@ function applyMockGradingPreview(item) {
                 </div>
               </div>
               <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
-                <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題說明（給 AI）</div>
+                <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題說明 (prompt)</div>
                 <div
                   class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-font-md-400 lh-base text-break d-flex flex-column gap-3"
                 >
@@ -1915,25 +1907,12 @@ function applyMockGradingPreview(item) {
                   :aria-busy="currentState.forExamLoading"
                   @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
                 >
-                  <span
-                    v-if="currentState.forExamLoading"
-                    class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                    role="status"
-                    aria-hidden="true"
-                  />
                   {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
                 </button>
               </div>
               <div v-if="currentState.forExamError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 mt-2">
                 {{ currentState.forExamError }}
               </div>
-            </template>
-            <p
-              v-if="!hasRagMetadata && !designUiExpandAll"
-              class="my-font-sm-400 my-color-gray-4 mb-0"
-            >
-              正式環境若尚無 rag_metadata，僅會顯示上方可編輯的出題設定表單。
-            </p>
           </div>
           </section>
         </div>
@@ -2026,17 +2005,9 @@ function applyMockGradingPreview(item) {
                       class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
                       :disabled="getSlotFormState(slotIndex).loading || !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()"
                       :aria-busy="getSlotFormState(slotIndex).loading"
-                      :aria-label="
-                        getSlotFormState(slotIndex).loading ? '產生題目中，請稍候' : '產生題目'
-                      "
+                      aria-label="產生題目"
                       @click="generateQuiz(slotIndex)"
                     >
-                      <span
-                        v-if="getSlotFormState(slotIndex).loading"
-                        class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
-                        role="status"
-                        aria-hidden="true"
-                      />
                       產生題目
                     </button>
                   </div>

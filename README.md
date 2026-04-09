@@ -8,6 +8,8 @@
 
 基於 Vue 3 的 **MyQuiz.ai** 單頁應用程式（倉庫名稱 MyQuiz.ai_frontend），提供**工作分頁**與**儀表板**介面，適合數據展示、工作流程與儀表板類專案。程式碼含中文註解，便於維護與擴充。
 
+**後端 API** 對應之儲存庫名稱為 **MyQuiz.ai_backend**（正式環境預設基底網址見 `src/constants/api.js` 之 `API_BASE_PRODUCTION`；本機開發經 `vue.config.js` proxy 轉發至同一後端）。
+
 ### 上傳到新 Repository（MyQuiz.ai_frontend）
 
 本專案已改為獨立 Git 儲存庫。若要推送到 GitHub 上的新 repository `MyQuiz.ai_frontend`：
@@ -51,7 +53,7 @@ git push -u origin main
 
 ### 簡介
 
-**MyQuiz.ai** 為一單頁應用程式（SPA），以 Vue 3 為核心，搭配 Vue Router、Pinia、Bootstrap 5 與 Font Awesome，實作「工作分頁」與「儀表板」兩大區塊，並可依需求擴充狀態與頁面。
+**MyQuiz.ai** 為一單頁應用程式（SPA），以 Vue 3 為核心，搭配 Vue Router、Pinia、Bootstrap 5 與 Font Awesome，實作「工作分頁」與「儀表板」兩大區塊，並可依需求擴充狀態與頁面。後端服務由獨立儲存庫 **MyQuiz.ai_backend** 提供 REST API。
 
 ### 目標與特色
 

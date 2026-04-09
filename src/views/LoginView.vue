@@ -5,16 +5,18 @@
    * 以 person_id（使用者 ID）與 password 呼叫 POST /user/login。
    * 成功時：解析回傳的 user 物件、寫入 authStore.setUser、導向 /exam。
    * 失敗時：顯示後端 detail 或錯誤訊息於 error。
-   * 載入中：按鈕顯示「登入中」與 spinner，並停用送出。
+   * 載入中：全螢幕 LoadingOverlay，並停用送出。
    */
   import { ref, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore.js';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
   import { loggedFetch } from '../utils/loggedFetch.js';
+  import LoadingOverlay from '../components/LoadingOverlay.vue';
 
   export default {
     name: 'LoginView',
+    components: { LoadingOverlay },
     setup() {
       const router = useRouter();
       const authStore = useAuthStore();
@@ -82,6 +84,7 @@
 
 <template>
   <div class="d-flex flex-column h-100 overflow-hidden my-bgcolor-gray-4 position-relative">
+    <LoadingOverlay :is-visible="loading" loading-text="登入中..." />
     <div class="flex-grow-1 overflow-auto my-bgcolor-gray-4 d-flex flex-column min-h-0">
       <div
         class="container-fluid px-3 px-md-4 py-4 flex-grow-1 d-flex align-items-center justify-content-center"
@@ -122,13 +125,7 @@
               :disabled="loading"
               :aria-busy="loading"
             >
-              <span
-                v-if="loading"
-                class="spinner-border my-app-spinner my-app-spinner--sm me-2"
-                role="status"
-                aria-hidden="true"
-              />
-              {{ loading ? '登入中' : '登入' }}
+              登入
             </button>
           </form>
         </div>
