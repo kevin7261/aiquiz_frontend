@@ -13,7 +13,7 @@ const designSampleChoiceWhite = ref('選項一');
     DesignPage｜UI 元件參考（稿）
     - 根層：全高 flex 直向、網頁 canvas 灰淺（my-bgcolor-gray-4）；頂部固定、頁首標題無底分隔線、下方主區可捲動。
     - 頁首標題「UI 元件參考」置中、無 col；主內文仍 container-fluid + row 置中，欄寬上限 col-xl-10／col-xxl-8。
-    - 章節：各 <section> 使用 my-page-block-spacing；區塊 rounded-4 my-bgcolor-gray-3、無 border；子標題 my-font-lg-600 my-color-gray-1。
+    - 章節：各 <section> 使用 my-page-block-spacing；區塊 rounded-4 my-bgcolor-gray-3、無 border；子標題 .my-font-lg-600（common 預設字色 --my-color-black）。
     - 複製：DesignPageCopyBtn 預設淺底深字；class 示範列多為黑框（.my-design-swatch-row my-bgcolor-black）複製鈕 :on-light-bg="false"；08 區塊本體 my-bgcolor-gray-3 shadow-sm（與 canvas 區隔）；其內 class 示範列仍 .my-design-swatch-row--light、:on-light-bg="true"、<code> my-color-black。黑框內 <code>／示範 <span> 皆併 my-font-sm-400（黑底併 my-color-white），避免 Bootstrap code 字級覆蓋。02／03 色票每組一顆色圓；底／字 class 兩黑框橫向同一排（.my-design-swatch-rows）。
     - 編號：05 區塊內含「09 · 徽章」與「08 · 下拉選單」；其後為 06 輸入、07 分頁、08 表格。
   -->
@@ -36,7 +36,7 @@ const designSampleChoiceWhite = ref('選項一');
                common：.my-font-{xl|lg|md|sm}-{400|600}；左欄字重 400、右欄 600；<dl> 示範語意結構 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">01 · 字階</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">01 · 字階</div>
                 <div class="row g-4 align-items-start">
                   <div class="col-12 col-md-6">
                     <dl class="mb-0">
@@ -126,7 +126,7 @@ const designSampleChoiceWhite = ref('選項一');
                每語意一顆色圓；底／字 class 各一黑框，.my-design-swatch-rows 橫向同一排，各附複製鈕。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">02 · 語意色</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">02 · 語意色</div>
                 <div class="row g-3">
                   <div class="col-12">
                     <div class="my-design-swatch-cell">
@@ -181,7 +181,7 @@ const designSampleChoiceWhite = ref('選項一');
                每列一顆色圓（背景階）；底／字 class 兩黑框橫向同一排（.my-design-swatch-rows）。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">03 · 灰階 · 背景</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">03 · 灰階 · 背景</div>
                 <div class="row g-3">
                   <div class="col-12">
                     <div class="my-design-swatch-cell">
@@ -266,7 +266,7 @@ const designSampleChoiceWhite = ref('選項一');
                Design 頁章節外層：rounded-4 my-bgcolor-gray-3 p-4 mb-5、無 border；全站 canvas 為 gray-4（body）；業務內容區 my-bgcolor-page-block（底同 --my-color-gray-3）。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">04 · 區塊定義</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">04 · 區塊定義</div>
                 <div class="my-font-sm-400 d-flex flex-column gap-3">
                   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 gap-md-3 w-100">
                     <div class="my-design-swatch-row my-bgcolor-black min-w-0 flex-grow-1">
@@ -288,7 +288,7 @@ const designSampleChoiceWhite = ref('選項一');
                08 下拉：區塊底 my-bgcolor-gray-3 shadow-sm；外層 .my-design-08-dropdown；示範一白底觸發邊 gray-2；示範二透明底無邊框；選單 .dropdown-menu Bootstrap 預設；觸發 rounded-2 同輸入（非膠囊）。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">05 · 按鈕</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">05 · 按鈕</div>
                 <div class="d-flex flex-column gap-4">
                   <!-- 小：字級 my-font-sm-400、內距 px-3 py-1 -->
                   <div>
@@ -540,7 +540,7 @@ const designSampleChoiceWhite = ref('選項一');
 
             <!-- 09 · 徽章（仍屬 05 同一 section；在 08 下拉之上） -->
             <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5 mt-4">
-              <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">09 · 徽章</div>
+              <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">09 · 徽章</div>
               <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 gap-md-3 w-100">
                 <span
                   class="badge my-bgcolor-gray-3 my-color-black my-border-gray-2 user-select-none my-font-sm-400 flex-shrink-0 align-self-start rounded px-2 py-1"
@@ -564,7 +564,7 @@ const designSampleChoiceWhite = ref('選項一');
 
             <!-- 08 · 下拉選單（仍屬 05 同一 section） -->
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5 mt-4">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">08 · 下拉選單</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">08 · 下拉選單</div>
               <div class="my-design-08-dropdown">
                 <div class="my-color-gray-1 my-font-sm-400 mb-2">中（my-font-md-400 · px-3 py-2）；外層 .my-design-08-dropdown；觸發 rounded-2 同輸入；示範一邊 gray-2；示範二透明底無邊框；選單 Bootstrap 預設</div>
                 <div class="d-flex flex-column gap-3">
@@ -643,7 +643,7 @@ const designSampleChoiceWhite = ref('選項一');
                單行／輸入區塊：啟用與停用各一；停用＝ readonly（勿用 disabled）；全站 .form-control.my-input-md.rounded-2。版面：row 兩欄（示範｜黑框 class＋複製，併 .my-design-swatch-row）。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-              <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">06 · 輸入</div>
+              <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">06 · 輸入</div>
               <div class="d-flex flex-column gap-4">
                 <!-- 單行：示範與複製鈕垂直置中 -->
                 <div class="row g-3 g-lg-4 align-items-center">
@@ -787,7 +787,7 @@ const designSampleChoiceWhite = ref('選項一');
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 overflow-hidden mb-4">
               <div class="px-3 px-lg-4 py-3">
-                <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-0">07 · 分頁</div>
+                <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-0">07 · 分頁</div>
               </div>
               <div class="flex-shrink-0 w-100 my-rag-tabs-bar my-bgcolor-gray-4">
                 <div class="d-flex justify-content-center w-100 align-items-center">
@@ -816,11 +816,7 @@ const designSampleChoiceWhite = ref('選項一');
                     <li class="nav-item">
                       <div role="tab" class="nav-link d-flex align-items-center gap-1">
                         <span class="flex-grow-1 text-start pe-2">分頁2</span>
-                        <!-- 與分頁1 同寬：筆位留白（未選不顯示筆） -->
-                        <span
-                          class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn pe-2"
-                          aria-hidden="true"
-                        />
+                        <!-- 未選分頁不顯示筆／刪除時不佔寬（與建立測驗題庫頁一致） -->
                         <span
                           class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
                           title="試卷用題庫"
@@ -929,7 +925,7 @@ const designSampleChoiceWhite = ref('選項一');
                進階表頭樣式見 common .my-table（本示範為輕量版）。 -->
           <section class="my-page-block-spacing">
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-gray-1 text-break mb-4">08 · 表格</div>
+            <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">08 · 表格</div>
                 <div class="rounded-4 overflow-auto border">
                   <table class="table table-striped table-hover mb-0">
                     <thead>

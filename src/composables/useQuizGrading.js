@@ -2,7 +2,7 @@
  * 評分 Composable
  *
  * 職責：送出評分請求、輪詢 job_id 取得結果、將回傳 JSON 格式化为易讀文字。
- * 會直接修改題目卡片 item（confirmed、gradingResult、gradingResponseJson）。
+ * 會直接修改題目卡片 item（gradingResult、gradingResponseJson；confirmed 僅在整段流程結束後設為 true，送出與輪詢期間維持 false 以便按鈕顯示「批改中」、結果區待回傳後再顯示）。
  * 供 CreateExamQuizBankPage（RAG）、ExamPage（測驗）：RAG 為預設 body；Exam 傳 gradingMode: 'exam' 與 exam 路徑常數。
  */
 import {
@@ -58,8 +58,7 @@ export async function submitGrade(item, context, options = {}) {
         quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
       };
 
-  item.confirmed = true;
-  item.gradingResult = '批改中...';
+  item.gradingResult = '';
 
   try {
     const res = await loggedFetch(`${API_BASE}${quizGradeSubmissionPath}`, {
@@ -169,5 +168,7 @@ export async function submitGrade(item, context, options = {}) {
     item.gradingResult = '批改逾時：請稍後再試或重新送出';
   } catch (err) {
     item.gradingResult = '批改失敗：連線逾時或服務忙碌，請稍後再試。';
+  } finally {
+    item.confirmed = true;
   }
 }

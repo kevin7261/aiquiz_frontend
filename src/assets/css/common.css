@@ -2,9 +2,9 @@
  * 全域與共用 class：
  * 全站：html/body/#app（body 底為 gray-4）、連結無底線、捲軸
  * my-*：對應 --my-*；字級僅 var(--my-font-size-*)；字重僅 var(--my-font-weight-regular)／var(--my-font-weight-semibold)；body 字距 var(--my-letter-spacing)（variables.css）
- * 字階 .my-font-{xl|lg|md|sm}-{400|600}（僅字級字重）；網頁標題 .my-font-xl-400；區塊子標題 .my-font-lg-600 併 .my-color-gray-1；其餘字色另併 .my-color-*；底 .my-bgcolor-*；業務內容區 .my-bgcolor-page-block（同 gray）、rounded-3、p-3 p-lg-4、mb-4；淺灰三階底 .my-bgcolor-gray-2／.my-bgcolor-gray-3／.my-bgcolor-gray-4、mb-4；膠囊填色按鈕併 `.btn`：`.my-button-red`／`.my-button-green`／`.my-button-blue`／`.my-button-black`／`.my-button-gray-2`／`.my-button-gray-3`／`.my-button-white`（填色白＝黑底白字，與 black 同階；黑底稿頁內例外回淺底）；描邊 `.my-button-white-border`、無框 `.my-button-transparent-borderless`（預設黑字黑無框；黑底分頁列內例外淺字）；`.rounded-pill`（勿用 `.btn-sm`）；內距置末：小 `.px-3 .py-1`＋`my-font-sm-400`；中／大 `.px-3 .py-2`／`.px-4 .py-3`＋`my-font-md-400`；`.btn.my-btn-circle`（32×32 圓、併 .my-button-transparent-borderless；DesignPageCopyBtn 一鍵複製同規＋fa-copy、淺底見元件 scoped）；圓形圖示 `.btn` `.btn-link` `.rounded-circle`；表格 .my-table；下拉 .my-dropdown-*
+ * 字階 .my-font-{xl|lg|md|sm}-{400|600}（僅字級字重）；網頁標題 .my-font-xl-400；區塊子標題 .my-font-lg-600 預設字色 --my-color-black（若需次色另併 .my-color-gray-1）；其餘字色另併 .my-color-*；底 .my-bgcolor-*；業務內容區 .my-bgcolor-page-block（同 gray）、rounded-3、p-3 p-lg-4、mb-4；淺灰三階底 .my-bgcolor-gray-2／.my-bgcolor-gray-3／.my-bgcolor-gray-4、mb-4；膠囊填色按鈕併 `.btn`：`.my-button-red`／`.my-button-green`／`.my-button-blue`／`.my-button-black`／`.my-button-gray-2`／`.my-button-gray-3`／`.my-button-white`（填色白＝黑底白字，與 black 同階；黑底稿頁內例外回淺底）；描邊 `.my-button-white-border`、無框 `.my-button-transparent-borderless`（預設黑字黑無框；黑底分頁列內例外淺字）；`.rounded-pill`（勿用 `.btn-sm`）；內距置末：小 `.px-3 .py-1`＋`my-font-sm-400`；中／大 `.px-3 .py-2`／`.px-4 .py-3`＋`my-font-md-400`；`.btn.my-btn-circle`（32×32 圓、併 .my-button-transparent-borderless；DesignPageCopyBtn 一鍵複製同規＋fa-copy、淺底見元件 scoped）；圓形圖示 `.btn` `.btn-link` `.rounded-circle`；表格 .my-table；下拉 .my-dropdown-*
  * Design 頁：.my-design-swatch-row my-bgcolor-black＝黑底白字 class 示範（字級 --my-font-size-sm；內距同中型輸入 px-3 py-2）；08 下拉 class 列同黑底（併 .my-design-swatch-row my-bgcolor-black、複製鈕 on-light-bg false）；08 外層 .my-design-08-dropdown（觸發 rounded-2 同 my-input-md；白底 my-button-white 邊 gray-2；透明 my-button-transparent-borderless 無邊；選單 .dropdown-menu Bootstrap 預設）；其它區可併 .my-design-swatch-row--light（淺灰底）；02／03 加 .my-design-swatch-cell（單一色圓）＋ .my-design-swatch-rows 兩黑框橫向同一排（底／字分區、無中點）
- * 原生 select：.my-form-select-wrap 包 .my-form-select ＋ <i class="fa-solid fa-chevron-down my-form-select-caret">（箭頭勿用 data URI）；文字輸入 .form-control.my-input-md（白底、邊線 --my-color-gray-2；與中型膠囊同字級／px-3 py-2；單行／textarea 併 .rounded-2）；欄位標題／label 併 .my-color-gray-1（variables --my-color-gray-1）；標題與輸入／下拉間距見檔內「欄位標題與控件」規則（等同 Bootstrap mt-1）；.my-input-md--on-dark 僅相容舊 class、與預設同視覺；唯讀或 div 仿輸入併 .my-form-control-static（與 :read-only 同視覺，Design 06「輸入（停用）」）
+ * 原生 select：.my-form-select-wrap 包 .my-form-select ＋ <i class="fa-solid fa-chevron-down my-form-select-caret">（箭頭勿用 data URI）；文字輸入 .form-control.my-input-md（白底、邊線 --my-color-gray-2；與中型膠囊同字級／px-3 py-2；單行／textarea 併 .rounded-2）；欄位標題／label 併 .my-color-gray-1（variables --my-color-gray-1）；標題與輸入／下拉間距見檔內「欄位標題與控件」規則（等同 Bootstrap mt-1）；.my-input-md--on-dark 僅相容舊 class、與預設同視覺；唯讀或 div 仿輸入併 .my-form-control-static（與 :read-only 同視覺，Design 06「輸入（停用）」；字色同 disabled 為 --my-color-black）
  * textarea／符合條件之 input／div.form-control：寬度撐滿父層（同 Bootstrap .w-100，見檔內「輸入／多行」規則）
  * 權杖下拉：選單項目用 Bootstrap `.dropdown-menu` 預設；`.my-dropdown-caret` 隱藏 ::after，箭頭 FA `.my-dropdown-toggle-caret`
  * .my-page-block-spacing：多個業務頁主要區塊（非權杖對照）
@@ -63,6 +63,7 @@ code {
 .my-font-lg-600 {
   font-size: var(--my-font-size-lg);
   font-weight: var(--my-font-weight-semibold);
+  color: var(--my-color-black);
 }
 .my-font-md-400 {
   font-size: var(--my-font-size-md);
@@ -665,6 +666,14 @@ code {
 .my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link:not(.active),
 .my-rag-tabs-bar.my-bgcolor-gray-4 .nav-tabs .nav-link:not(.active) {
   border-bottom-color: transparent !important;
+  /* 同 .my-color-gray-4：未選勿用 Bootstrap 主色藍 */
+  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white)) !important;
+}
+.my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link:not(.active):focus,
+.my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link:not(.active):focus-visible,
+.my-rag-tabs-bar.my-bgcolor-gray-4 .nav-tabs .nav-link:not(.active):focus,
+.my-rag-tabs-bar.my-bgcolor-gray-4 .nav-tabs .nav-link:not(.active):focus-visible {
+  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white)) !important;
 }
 .my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link.active,
 .my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link.active:hover,
@@ -682,6 +691,7 @@ code {
   border-left-color: transparent !important;
   border-right-color: transparent !important;
   border-bottom-color: var(--my-color-black) !important;
+  color: var(--my-color-black) !important;
 }
 .my-rag-tabs-bar--design .nav-tabs .nav-link {
   color: var(--my-color-gray-4);
@@ -730,15 +740,16 @@ code {
 .my-rag-tabs-bar--design .nav-tabs .nav-link.active:hover {
   background-color: color-mix(in srgb, var(--my-color-white) 8%, transparent) !important;
 }
-/* 淺底分頁列（surface／gray-4）：未選 hover */
+/* 淺底分頁列（surface／gray-4）：未選 hover（仍勿用藍字；略加深於預設 gray-4 字色） */
 .my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link:not(.active):hover,
 .my-rag-tabs-bar.my-bgcolor-gray-4 .nav-tabs .nav-link:not(.active):hover {
-  color: var(--my-color-blue) !important;
+  color: var(--my-color-gray-1) !important;
   background-color: color-mix(in srgb, var(--my-color-black) 4%, var(--my-color-white)) !important;
 }
 /* 淺底分頁列：當前分頁 hover */
 .my-rag-tabs-bar.my-bgcolor-surface .nav-tabs .nav-link.active:hover,
 .my-rag-tabs-bar.my-bgcolor-gray-4 .nav-tabs .nav-link.active:hover {
+  color: var(--my-color-black) !important;
   background-color: color-mix(in srgb, var(--my-color-black) 5%, var(--my-color-white)) !important;
 }
 /* 淺底分頁列：圓形「+」等透明無框鈕為深字（勿沿用深底淺字） */
@@ -813,12 +824,20 @@ code {
 }
 .my-create-rag-stepper-label {
   margin-top: 0.5rem;
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
 }
 .my-create-rag-stepper-label--current {
   color: var(--my-color-black);
 }
 .my-create-rag-stepper-label--inactive {
-  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white));
+  color: var(--my-color-black);
+}
+
+/* 建立測驗題庫：「測試問題」區塊外主標題（兩側線中間）固定黑字 */
+.my-test-section-heading-title {
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
 }
 
 .my-callout-primary-soft {
@@ -935,9 +954,11 @@ code {
 
 .my-form-select:disabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--my-color-black) 68%, var(--my-color-white));
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
   background-color: color-mix(in srgb, var(--my-color-white) 92%, var(--my-color-gray-4));
   border-color: color-mix(in srgb, var(--my-color-gray-2) 72%, var(--my-color-white));
+  opacity: 1;
 }
 
 /* Design 02／03：每組單一 32×32 色圓在黑框外；底／字 class 併 .my-design-swatch-rows 兩黑框橫向同一排；字級 sm；複製鈕父層併 .my-bgcolor-black */
@@ -1045,22 +1066,26 @@ div.form-label + * {
 .form-control.my-input-md:disabled,
 .form-control.my-input-md.my-input-md--on-dark:disabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white));
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
   background-color: var(--my-color-gray-4);
   border-color: var(--my-input-md-border);
+  opacity: 1;
 }
 .form-control.my-input-md.my-input-md--on-dark {
   color: var(--my-color-black);
   background-color: var(--my-color-white);
   border-color: var(--my-input-md-border);
 }
-/* 與 Design 06「輸入（停用）」同視覺：readonly 或 div 仿輸入併 .my-form-control-static（勿用 disabled 做純展示） */
+/* 與 Design 06「輸入（停用）」：readonly 或 div 仿輸入併 .my-form-control-static；字色與 disabled 同為 --my-color-black（勿用 disabled 做純展示） */
 .form-control.my-input-md:read-only,
 .form-control.my-input-md.my-form-control-static {
   cursor: text;
-  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white));
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
   background-color: var(--my-color-gray-4);
   border-color: var(--my-input-md-border);
+  opacity: 1;
 }
 
 /* 輸入／仿輸入區塊內文一律 md；併 .my-font-sm-* 時仍維持字級（避免與字階工具類順序／覆寫造成小階） */
@@ -1104,7 +1129,8 @@ div.form-label + * {
 }
 .my-zip-drop-zone-disabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--my-color-black) 46%, var(--my-color-white));
+  color: var(--my-color-black);
+  -webkit-text-fill-color: var(--my-color-black);
   background-color: var(--my-color-gray-4);
   border-color: var(--my-color-gray-2);
 }

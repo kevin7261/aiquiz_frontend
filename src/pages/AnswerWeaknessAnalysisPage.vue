@@ -157,7 +157,7 @@ onMounted(() => {
 
       <template v-else>
         <div v-if="weaknessReport" class="my-callout-primary-soft rounded-3 text-start my-page-block-spacing p-3 p-lg-4">
-          <div class="my-font-lg-600 my-color-gray-1 mb-4">學習弱點分析報告</div>
+          <div class="my-font-lg-600 my-color-black mb-4">學習弱點分析報告</div>
           <template v-if="weaknessReportParsed">
             <div
               v-for="sectionKey in weaknessReportSections"
@@ -178,7 +178,7 @@ onMounted(() => {
         <!-- 作答紀錄摘要表：題號 / 單元 / 難度 / 分數 / 時間（每題一筆作答） -->
         <div class="text-start my-page-block-spacing">
           <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4">
-          <div class="my-font-lg-600 my-color-gray-1 mb-4">作答紀錄摘要</div>
+          <div class="my-font-lg-600 my-color-black mb-4">作答紀錄摘要</div>
           <div class="table-responsive">
             <table class="table table-bordered table-sm my-font-sm-400 mb-0">
               <thead class="my-table-thead">
@@ -219,7 +219,7 @@ onMounted(() => {
           :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx"
           class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4"
         >
-          <div class="my-font-lg-600 my-color-gray-1 mb-3">第 {{ idx + 1 }} 題</div>
+          <div class="my-font-lg-600 my-color-black mb-3">第 {{ idx + 1 }} 題</div>
           <div class="text-start">
             <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
               <div>

@@ -97,10 +97,16 @@ function onSave() {
             </button>
             <button
               type="button"
-              class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-white px-3 py-2"
+              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
               :disabled="saving"
+              :aria-busy="saving"
               @click="onSave"
             >
+              <i
+                v-if="saving"
+                class="fa-solid fa-spinner fa-spin"
+                aria-hidden="true"
+              />
               {{ saving ? '儲存中…' : '確定' }}
             </button>
           </div>

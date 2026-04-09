@@ -42,10 +42,16 @@ export function useRagList(options = {}) {
   /** 載入失敗時的錯誤訊息 */
   const ragListError = ref('');
 
-  /** 拉取 RAG 列表並更新 ragList / ragListLoading / ragListError */
-  async function fetchRagList() {
+  /**
+   * 拉取 RAG 列表並更新 ragList / ragListLoading / ragListError
+   * @param {{ silent?: boolean }} [opts] — silent: true 時不變更 ragListLoading（避免全螢幕遮罩；供「設為測驗用」等已另有按鈕 loading 的情境）
+   */
+  async function fetchRagList(opts = {}) {
     if (!isFetchEnabled()) return;
-    ragListLoading.value = true;
+    const silent = opts.silent === true;
+    if (!silent) {
+      ragListLoading.value = true;
+    }
     ragListError.value = '';
     try {
       const listParams = new URLSearchParams();
@@ -58,7 +64,9 @@ export function useRagList(options = {}) {
       ragListError.value = err.message || '無法載入 RAG 列表';
       ragList.value = [];
     } finally {
-      ragListLoading.value = false;
+      if (!silent) {
+        ragListLoading.value = false;
+      }
     }
   }
 

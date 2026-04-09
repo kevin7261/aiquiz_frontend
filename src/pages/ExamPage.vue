@@ -630,27 +630,23 @@ async function addNewTab() {
 
 /** 刪除測驗：POST /exam/tab/delete/{exam_tab_id}（不需 X-Person-Id），成功後從列表移除並切到其他 tab */
 const deleteExamLoading = ref(false);
-const gradingLoading = ref(false);
+/** 正在送出批改的題卡 id（按鈕顯示「批改中」、結果區待回傳；不觸發全螢幕 LoadingOverlay） */
+const gradingSubmittingCardId = ref(null);
 
-/** 任一 slot 的產生題目是否 loading */
-const anySlotLoading = computed(() => {
-  const state = currentState.value;
-  const count = state.quizSlotsCount || 0;
-  for (let i = 1; i <= count; i++) {
-    const slot = state.slotFormState?.[i];
-    if (slot?.loading) return true;
-  }
-  return false;
-});
+function examCardGradeSubmitting(card) {
+  if (!card) return false;
+  return (
+    gradingSubmittingCardId.value != null &&
+    String(gradingSubmittingCardId.value) === String(card.id)
+  );
+}
 
-/** 任一非同步載入或處理進行中時為 true，用於全螢幕遮罩 */
+/** 任一非同步載入或處理進行中時為 true，用於全螢幕遮罩（產生題目、確定批改僅按鈕狀態，不佔全畫面） */
 const isAnyLoading = computed(() =>
   forExamLoading.value ||
   examListLoading.value ||
   createExamLoading.value ||
-  deleteExamLoading.value ||
-  gradingLoading.value ||
-  anySlotLoading.value
+  deleteExamLoading.value
 );
 const deleteExamError = ref('');
 async function deleteExam(examTabId) {
@@ -889,7 +885,7 @@ async function confirmAnswer(item) {
     item.gradingResult = '無法送出批改，請重新整理頁面或切換測驗後再試。';
     return;
   }
-  gradingLoading.value = true;
+  gradingSubmittingCardId.value = item.id;
   try {
     await submitGrade(
       item,
@@ -901,7 +897,7 @@ async function confirmAnswer(item) {
       }
     );
   } finally {
-    gradingLoading.value = false;
+    gradingSubmittingCardId.value = null;
   }
 }
 
@@ -931,7 +927,7 @@ onMounted(() => {
       </div>
     </div>
     <!-- 固定 tab 頁籤列（與建立 RAG 頁一致，僅內容區可上下滑） -->
-    <div class="flex-shrink-0 my-bgcolor-surface">
+    <div class="flex-shrink-0 my-rag-tabs-bar my-bgcolor-surface">
       <div class="d-flex justify-content-center align-items-center w-100 px-4">
         <template v-if="examListLoading || forExamLoading">
           <span class="my-font-sm-400 my-color-gray-4">—</span>
@@ -1044,7 +1040,7 @@ onMounted(() => {
               <template v-if="currentState.cardList[slotIndex - 1]">
                 <!-- 已有卡片：顯示完整題目區塊 -->
                 <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4" :class="{ 'mt-4': slotIndex > 1 }">
-                  <div class="my-font-lg-600 my-color-gray-1 mb-3">第 {{ slotIndex }} 題</div>
+                  <div class="my-font-lg-600 my-color-black mb-3">第 {{ slotIndex }} 題</div>
                   <div class="text-start">
                     <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
                       <div>
@@ -1116,7 +1112,10 @@ onMounted(() => {
                           :id="`quiz-answer-${currentState.cardList[slotIndex - 1].id}`"
                           v-model="currentState.cardList[slotIndex - 1].quiz_answer"
                           class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 px-3 py-2"
-                          :readonly="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])"
+                          :readonly="
+                            examCardAnswerDisabled(currentState.cardList[slotIndex - 1]) ||
+                            examCardGradeSubmitting(currentState.cardList[slotIndex - 1])
+                          "
                           rows="4"
                           placeholder="請輸入您的答案..."
                           maxlength="2000"
@@ -1127,11 +1126,29 @@ onMounted(() => {
                         <div class="d-flex justify-content-end mt-2">
                           <button
                             type="button"
-                            class="btn rounded-pill d-flex justify-content-center align-items-center flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
-                            :disabled="examCardAnswerDisabled(currentState.cardList[slotIndex - 1])"
+                            class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
+                            :disabled="
+                              examCardAnswerDisabled(currentState.cardList[slotIndex - 1]) ||
+                              examCardGradeSubmitting(currentState.cardList[slotIndex - 1])
+                            "
+                            :aria-busy="examCardGradeSubmitting(currentState.cardList[slotIndex - 1])"
+                            :aria-label="
+                              examCardGradeSubmitting(currentState.cardList[slotIndex - 1])
+                                ? '批改中'
+                                : '確定批改'
+                            "
                             @click="confirmAnswer(currentState.cardList[slotIndex - 1])"
                           >
-                            確定批改
+                            <i
+                              v-if="examCardGradeSubmitting(currentState.cardList[slotIndex - 1])"
+                              class="fa-solid fa-spinner fa-spin"
+                              aria-hidden="true"
+                            />
+                            {{
+                              examCardGradeSubmitting(currentState.cardList[slotIndex - 1])
+                                ? '批改中'
+                                : '確定批改'
+                            }}
                           </button>
                         </div>
                       </template>
@@ -1139,9 +1156,18 @@ onMounted(() => {
                         <div class="rounded my-bgcolor-gray-3 my-font-sm-400 p-2 mb-2">{{ currentState.cardList[slotIndex - 1].quiz_answer }}</div>
                       </template>
                     </div>
-                    <div class="mb-3">
+                    <div
+                      v-if="
+                        !examCardGradeSubmitting(currentState.cardList[slotIndex - 1]) &&
+                        String(currentState.cardList[slotIndex - 1].gradingResult || '').trim() !== ''
+                      "
+                      class="mb-3"
+                    >
                       <div class="form-label my-font-sm-600 my-color-gray-1 mb-0">批改結果</div>
-                      <div class="rounded my-bgcolor-gray-3 my-border-gray-2 my-font-sm-400 p-2" style="white-space: pre-wrap;">{{ currentState.cardList[slotIndex - 1].gradingResult || '尚未批改' }}</div>
+                      <div
+                        class="rounded my-bgcolor-gray-3 my-border-gray-2 my-font-sm-400 p-2"
+                        style="white-space: pre-wrap;"
+                      >{{ currentState.cardList[slotIndex - 1].gradingResult }}</div>
                     </div>
                   </div>
                 </div>
@@ -1149,7 +1175,7 @@ onMounted(() => {
               <template v-else>
                 <!-- 尚未產生：顯示產生題目表單（第 slotIndex 題，每題獨立不連動） -->
                 <div class="my-bgcolor-page-block rounded-3 p-3 p-lg-4 mb-4" :class="{ 'mt-4': slotIndex > 1 }">
-                  <div class="my-font-lg-600 my-color-gray-1 mb-3">第 {{ slotIndex }} 題</div>
+                  <div class="my-font-lg-600 my-color-black mb-3">第 {{ slotIndex }} 題</div>
                   <div class="text-start pt-3">
                     <div class="d-flex flex-wrap align-items-end gap-3">
                       <div class="flex-grow-1 min-w-0" style="min-width: 10rem">
@@ -1158,6 +1184,7 @@ onMounted(() => {
                           v-model="getSlotFormState(slotIndex).generateQuizTabId"
                           :options="generateQuizUnits"
                           :menu-id="`exam-quiz-unit-${slotIndex}`"
+                          :disabled="getSlotFormState(slotIndex).loading"
                         />
                       </div>
                       <div class="d-flex flex-column gap-1 flex-shrink-0">
@@ -1177,6 +1204,7 @@ onMounted(() => {
                             class="btn d-flex justify-content-center align-items-center my-font-md-400 px-3 py-2"
                             :class="filterDifficulty === opt ? 'my-button-white' : 'my-button-gray-3'"
                             :aria-pressed="filterDifficulty === opt"
+                            :disabled="getSlotFormState(slotIndex).loading"
                             @click="filterDifficulty = opt"
                           >
                             {{ opt }}
@@ -1185,10 +1213,19 @@ onMounted(() => {
                       </div>
                       <button
                         type="button"
-                        class="btn my-button-blue ms-auto"
+                        class="btn my-button-blue ms-auto d-flex justify-content-center align-items-center gap-2"
                         :disabled="getSlotFormState(slotIndex).loading || generateQuizBlocked || !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()"
+                        :aria-busy="getSlotFormState(slotIndex).loading"
+                        :aria-label="
+                          getSlotFormState(slotIndex).loading ? '產生題目中，請稍候' : '產生題目'
+                        "
                         @click="generateQuiz(slotIndex)"
                       >
+                        <i
+                          v-if="getSlotFormState(slotIndex).loading"
+                          class="fa-solid fa-spinner fa-spin"
+                          aria-hidden="true"
+                        />
                         產生題目
                       </button>
                     </div>

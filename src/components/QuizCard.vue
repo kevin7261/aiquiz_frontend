@@ -28,6 +28,8 @@ const props = defineProps({
   designUi: { type: Boolean, default: false },
   /** 稿頁「測試問題」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
   designEmbedded: { type: Boolean, default: false },
+  /** 正在送出「確定批改」（按鈕顯示 spinner＋「批改中」；批改結果區塊於回傳後才出現；不佔全畫面） */
+  gradeSubmitting: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer']);
@@ -51,6 +53,13 @@ const answerInputDisabled = computed(() => {
   if (!cur || !q) return false;
   return cur !== q;
 });
+
+/** 有後端／驗證回傳文字且非送出中時才顯示「批改結果」區塊（不預留空白、不顯示尚未批改） */
+const showGradingResultSection = computed(
+  () =>
+    !props.gradeSubmitting &&
+    String(props.card?.gradingResult ?? '').trim() !== ''
+);
 </script>
 
 <template>
@@ -67,7 +76,7 @@ const answerInputDisabled = computed(() => {
       :class="designUi ? 'd-flex flex-column gap-4' : ''"
     >
       <div
-        class="my-font-lg-600 my-color-gray-1"
+        class="my-font-lg-600 my-color-black"
         :class="designUi ? 'mb-0' : 'mb-3'"
       >第 {{ slotIndex }} 題</div>
       <!-- 單元與難度（唯讀）；designUi：單元視覺同 Design 08 白底 rounded-2＋ gray-2 邊＋箭頭；難度同 Design 兩鍵群組（my-btn-group-pill · rounded-2／外框 gray-2 · 選中 white · 未選 gray-3） -->
@@ -194,7 +203,7 @@ const answerInputDisabled = computed(() => {
             :id="`quiz-answer-${card.id}`"
             :value="card.quiz_answer"
             class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-            :readonly="answerInputDisabled"
+            :readonly="answerInputDisabled || gradeSubmitting"
             @input="emit('update:quiz_answer', $event.target.value)"
             rows="4"
             placeholder="請輸入您的答案..."
@@ -207,10 +216,19 @@ const answerInputDisabled = computed(() => {
           <div :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'">
             <button
               type="button"
-              class="btn rounded-pill d-flex justify-content-center align-items-center flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
-              :disabled="answerInputDisabled"
+              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
+              :disabled="answerInputDisabled || gradeSubmitting"
+              :aria-busy="gradeSubmitting"
+              :aria-label="gradeSubmitting ? '批改中' : '確定批改'"
               @click="emit('confirm-answer', card)"
-            >確定批改</button>
+            >
+              <i
+                v-if="gradeSubmitting"
+                class="fa-solid fa-spinner fa-spin"
+                aria-hidden="true"
+              />
+              {{ gradeSubmitting ? '批改中' : '確定批改' }}
+            </button>
           </div>
         </template>
         <template v-else>
@@ -254,8 +272,9 @@ const answerInputDisabled = computed(() => {
           "quiz_comments": str[] }<br>
         </div>
       </div>
-      <!-- 批改結果區（由 useQuizGrading 格式化後顯示） -->
+      <!-- 批改結果區：僅在回傳後有內容時顯示（送出中不占位） -->
       <div
+        v-if="showGradingResultSection"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
@@ -266,7 +285,7 @@ const answerInputDisabled = computed(() => {
           class="my-font-sm-400"
           style="white-space: pre-wrap;"
           :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
-        >{{ card.gradingResult || '尚未批改' }}</div>
+        >{{ card.gradingResult }}</div>
       </div>
     </div>
   </div>
