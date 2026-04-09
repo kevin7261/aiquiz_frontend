@@ -591,7 +591,7 @@ async function onExamRenameSave(name) {
   }
 }
 
-/** 按「＋」新增測驗分頁：POST /exam/tab/create，body 含 exam_tab_id、person_id、tab_name、local（與 RAG tab/create 一致） */
+/** 按「＋」新增試卷分頁：POST /exam/tab/create，body 含 exam_tab_id、person_id、tab_name、local（與 RAG tab/create 一致） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -686,7 +686,7 @@ const examLoadingOverlayText = computed(() => {
   if (deleteExamLoading.value) return '刪除中...';
   if (examRenameSaving.value) return '儲存中...';
   if (createExamLoading.value) return '建立中...';
-  if (examListLoading.value) return '載入測驗列表中';
+  if (examListLoading.value) return '載入試卷中';
   if (forExamLoading.value) return '載入試卷用題庫中...';
   return '處理中...';
 });
@@ -1017,8 +1017,8 @@ onActivated(() => {
               <button
                 type="button"
                 class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle mb-2"
-                title="新增測驗分頁"
-                aria-label="新增測驗分頁"
+                title="新增試卷分頁"
+                aria-label="新增試卷分頁"
                 :aria-busy="createExamLoading"
                 :disabled="createExamLoading"
                 @click="addNewTab"
@@ -1052,14 +1052,14 @@ onActivated(() => {
           v-if="!examListLoading"
           type="button"
           class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
-          title="新增測驗"
-          aria-label="新增測驗"
+          title="新增試卷"
+          aria-label="新增試卷"
           :disabled="createExamLoading"
           :aria-busy="createExamLoading"
           @click="addNewTab"
         >
           <i class="fa-solid fa-plus" aria-hidden="true" />
-          新增測驗
+          新增試卷
         </button>
       </div>
       <div v-else class="container-fluid px-3 px-md-4 py-4">
