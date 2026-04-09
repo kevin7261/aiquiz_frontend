@@ -53,7 +53,6 @@ const excelParseError = ref('');
 
 const batchSaving = ref(false);
 const batchSubmitError = ref('');
-const batchSubmitSummary = ref({ ok: 0, fail: 0 });
 
 const deletingPersonId = ref(null);
 const deleteUserError = ref('');
@@ -320,13 +319,21 @@ function closeSingleModal() {
 
 function openBatchModal() {
   batchSubmitError.value = '';
-  batchSubmitSummary.value = { ok: 0, fail: 0 };
   modalBatchOpen.value = true;
 }
 
 function closeBatchModal() {
   if (batchSaving.value) return;
   modalBatchOpen.value = false;
+}
+
+/** 清空批次 Modal 內檔案與預覽（成功送出後關閉前呼叫，下次開啟為乾淨狀態） */
+function resetBatchModalContent() {
+  excelFileName.value = '';
+  excelPreviewRows.value = [];
+  excelParseError.value = '';
+  batchSubmitError.value = '';
+  clearExcelFileInput();
 }
 
 /**
@@ -433,49 +440,11 @@ async function submitSingleUser() {
   }
 }
 
-/**
- * 依後端回傳盡量顯示成功／失敗筆數（常見欄位：created、failed、failed_count、success_count）
- * @param {unknown} data
- * @param {number} sentCount
- */
-function batchResultCounts(data, sentCount) {
-  if (!data || typeof data !== 'object') {
-    return { ok: sentCount, fail: 0 };
-  }
-  const d = /** @type {Record<string, unknown>} */ (data);
-  if (Array.isArray(d.failed)) {
-    const fail = d.failed.length;
-    const ok =
-      typeof d.created === 'number'
-        ? d.created
-        : typeof d.success_count === 'number'
-          ? d.success_count
-          : Math.max(0, sentCount - fail);
-    return { ok, fail };
-  }
-  if (typeof d.created === 'number') {
-    const ok = d.created;
-    const fail =
-      typeof d.failed_count === 'number'
-        ? d.failed_count
-        : Math.max(0, sentCount - ok);
-    return { ok, fail };
-  }
-  if (typeof d.success_count === 'number') {
-    return {
-      ok: d.success_count,
-      fail: typeof d.failed_count === 'number' ? d.failed_count : Math.max(0, sentCount - d.success_count),
-    };
-  }
-  return { ok: sentCount, fail: 0 };
-}
-
 async function submitBatchUsers() {
   if (!batchSubmitEnabled.value) return;
   const payload = batchPayloadNormalized.value;
   batchSaving.value = true;
   batchSubmitError.value = '';
-  batchSubmitSummary.value = { ok: 0, fail: 0 };
   try {
     const res = await loggedFetch(`${API_BASE}${API_USER_BATCH}`, {
       method: 'POST',
@@ -487,13 +456,8 @@ async function submitBatchUsers() {
       batchSubmitError.value = formatApiError(res, text);
       return;
     }
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = null;
-    }
-    batchSubmitSummary.value = batchResultCounts(data, payload.length);
+    modalBatchOpen.value = false;
+    resetBatchModalContent();
     await fetchUsers();
   } catch (e) {
     batchSubmitError.value = e.message || '批次新增失敗';
@@ -777,9 +741,6 @@ onMounted(() => {
                 role="alert"
               >
                 以下登入 ID 已存在於系統：{{ batchIdsClashingExisting.join('、') }}，請從檔案移除後再試。
-              </div>
-              <div v-if="batchSubmitSummary.ok > 0 || batchSubmitSummary.fail > 0" class="my-font-sm-400 my-color-gray-4 mt-3">
-                本次結果：成功 {{ batchSubmitSummary.ok }} 筆，失敗 {{ batchSubmitSummary.fail }} 筆
               </div>
               <div v-if="batchSubmitError" class="my-color-red my-font-sm-400 mt-2 mb-0">
                 {{ batchSubmitError }}
