@@ -601,7 +601,7 @@ async function addNewTab() {
   createExamError.value = '';
   createExamLoading.value = true;
   const examTabId = generateTabId(personId);
-  const tabName = '未命名測驗';
+  const tabName = '未命名試卷';
   const local = isFrontendLocalHost();
   try {
     const res = await loggedFetch(`${API_BASE}${API_CREATE_EXAM}`, {
