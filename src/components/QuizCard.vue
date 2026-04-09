@@ -77,7 +77,7 @@ const showGradingResultSection = computed(
       class="text-start w-100 min-w-0"
       :class="designUi ? 'd-flex flex-column gap-4' : ''"
     >
-      <div :class="designUi ? 'd-flex flex-column gap-5 w-100 min-w-0' : ''">
+      <div :class="designUi ? 'd-flex flex-column gap-3 w-100 min-w-0' : ''">
       <div
         class="my-font-lg-600 my-color-black"
         :class="designUi ? 'mb-0' : 'mb-3'"

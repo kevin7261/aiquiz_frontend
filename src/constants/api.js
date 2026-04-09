@@ -6,8 +6,8 @@
  * 請求時請搭配 API_BASE 組成完整 URL（或由 axios 等 baseURL 設定）。
  */
 
-/** 正式環境後端（MyQuiz.ai_backend 於 Render 之預設網址；非本機開啟前端時使用） */
-const API_BASE_PRODUCTION = 'https://myquiz-ai-backend.onrender.com';
+/** 正式環境後端（MyQuiz.ai_backend 於 Render；非本機開啟前端時使用） */
+const API_BASE_PRODUCTION = 'https://myquiz-ai.onrender.com';
 /** 本機直連後端（生產建置在本機開啟、或未走 vue 代理時） */
 const API_BASE_LOCAL = 'http://127.0.0.1:8000';
 

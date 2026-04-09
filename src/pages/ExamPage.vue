@@ -428,13 +428,16 @@ function syncExamItemToTabState(exam) {
   }
 }
 
-/** 目前選中測驗或列表／試題 RAG 巢狀更新時，重新自伺服器資料灌入卡片（deep 與 CreateExamQuizBankPage 由 fetch 觸發更新一致） */
+/** 僅在切換測驗分頁時自 GET /exam/tabs 灌入卡片；勿 deep 監聽 forExamRag／列表物件替換，以免 refetch 覆寫未同步畫面 */
 watch(
-  [currentExamItem, forExamRag],
-  () => {
-    syncExamItemToTabState(currentExamItem.value);
+  activeTabId,
+  (id) => {
+    if (id == null || id === '') return;
+    const idStr = String(id);
+    const exam = examList.value.find((e) => getExamTabId(e) === idStr);
+    if (exam) syncExamItemToTabState(exam);
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 );
 
 /** 取得當前使用者的 person_id（與 RAG 頁一致；後端若只回傳 user_id 則用 user_id 當 person_id） */
@@ -1076,7 +1079,7 @@ onMounted(() => {
                   </template>
                   <template v-else>
                     <div
-                      class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-5"
+                      class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-3"
                     >
                       <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 題</div>
                       <div class="text-start w-100 min-w-0">

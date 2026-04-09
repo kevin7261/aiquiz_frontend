@@ -4,7 +4,9 @@
    *
    * 職責：
    * - 依 currentView 渲染對應頁面：測驗、作答弱點分析、建立測驗題庫、學生作答分析等
+   * - 使用 KeepAlive + 動態元件：切換左側選單時保留各頁 DOM／狀態（捲動、表單、分頁內容），避免 v-if 卸載導致重設
   */
+  import { markRaw } from 'vue';
   import ExamPage from '../pages/ExamPage.vue';
   import AnswerWeaknessAnalysisPage from '../pages/AnswerWeaknessAnalysisPage.vue';
   import StudentAnswerAnalysisPage from '../pages/StudentAnswerAnalysisPage.vue';
@@ -16,6 +18,27 @@
   import SystemSettingsPage from '../pages/SystemSettingsPage.vue';
   import LogListPage from '../pages/LogListPage.vue';
 
+  /** 與 HomeView currentView 鍵一致；markRaw 避免把元件選項做成深度 reactive */
+  const VIEW_COMPONENTS = {
+    work: markRaw(ExamPage),
+    studentWeaknessAnalysis: markRaw(AnswerWeaknessAnalysisPage),
+    studentAnswerAnalysis: markRaw(StudentAnswerAnalysisPage),
+    profile: markRaw(ProfilePage),
+    createExamQuizBank: markRaw(CreateExamQuizBankPage),
+    createExamQuizBankDesign: markRaw(CreateExamQuizBankDesignPage),
+    designPage: markRaw(DesignPage),
+    userManagement: markRaw(UserManagementPage),
+    systemSettings: markRaw(SystemSettingsPage),
+    logList: markRaw(LogListPage),
+  };
+
+  const VIEWS_WITH_WORK_TAB_ID = new Set([
+    'work',
+    'createExamQuizBank',
+    'createExamQuizBankDesign',
+    'designPage',
+  ]);
+
   export default {
     name: 'RightView',
     components: { ExamPage, AnswerWeaknessAnalysisPage, StudentAnswerAnalysisPage, ProfilePage, CreateExamQuizBankPage, CreateExamQuizBankDesignPage, DesignPage, UserManagementPage, SystemSettingsPage, LogListPage },
@@ -23,21 +46,29 @@
       currentView: { type: String, required: true },
       tabId: { type: String, required: true },
     },
+    computed: {
+      activePageComponent() {
+        return VIEW_COMPONENTS[this.currentView] ?? ExamPage;
+      },
+      activePageProps() {
+        if (VIEWS_WITH_WORK_TAB_ID.has(this.currentView)) {
+          return { tabId: this.tabId };
+        }
+        return {};
+      },
+    },
   };
 </script>
 
 <template>
   <main class="my-right-view flex-grow-1 overflow-hidden d-flex flex-column">
-    <ExamPage v-if="currentView === 'work'" :tabId="tabId" />
-    <AnswerWeaknessAnalysisPage v-else-if="currentView === 'studentWeaknessAnalysis'" />
-    <StudentAnswerAnalysisPage v-else-if="currentView === 'studentAnswerAnalysis'" />
-    <ProfilePage v-else-if="currentView === 'profile'" />
-    <CreateExamQuizBankPage v-else-if="currentView === 'createExamQuizBank'" :tabId="tabId" />
-    <CreateExamQuizBankDesignPage v-else-if="currentView === 'createExamQuizBankDesign'" :tabId="tabId" />
-    <DesignPage v-else-if="currentView === 'designPage'" :tab-id="tabId" />
-    <UserManagementPage v-else-if="currentView === 'userManagement'" />
-    <SystemSettingsPage v-else-if="currentView === 'systemSettings'" />
-    <LogListPage v-else-if="currentView === 'logList'" />
+    <KeepAlive :max="12">
+      <component
+        :is="activePageComponent"
+        :key="currentView"
+        v-bind="activePageProps"
+      />
+    </KeepAlive>
   </main>
 </template>
 

@@ -580,7 +580,19 @@ function syncRagItemToState(rag, state) {
   }
 }
 
-watch(currentRagItem, (rag) => syncRagItemToState(rag, currentState.value), { immediate: true });
+/** 僅在切換 RAG 分頁時自列表灌入狀態；勿綁 currentRagItem（列表 refetch 會換物件參考而覆寫未存回後端的畫面） */
+watch(
+  activeTabId,
+  (id) => {
+    if (!id || isNewTabId(id)) return;
+    const rag = ragList.value.find(
+      (r) => String(r.rag_tab_id ?? r.id ?? r) === String(id)
+    );
+    if (!rag) return;
+    syncRagItemToState(rag, getTabState(id));
+  },
+  { immediate: true }
+);
 
 /** mockWithoutApi：本機示範 RAG 同步後多開一題槽，同時顯示題卡與「產生題目」表單 */
 watch(
@@ -1955,7 +1967,7 @@ function applyMockGradingPreview(item) {
               </template>
               <template v-else>
                 <div
-                  class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-5"
+                  class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-3"
                 >
                   <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 題</div>
                   <div class="text-start w-100 min-w-0">
