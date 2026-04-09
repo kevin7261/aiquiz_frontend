@@ -115,7 +115,7 @@ const showCreateBankMainForm = computed(
 );
 const showStepperSection = computed(() => props.mockWithoutApi || !!activeTabId.value);
 
-/** /create-test-bank_design：可編輯與唯讀出題設定、測試問題等一併展開，不以 hasRagMetadata 互斥隱藏 */
+/** /create-test-bank_design：可編輯與唯讀出題設定、測試題目等一併展開，不以 hasRagMetadata 互斥隱藏 */
 const designUiExpandAll = computed(() => props.mockWithoutApi);
 
 /** 供 /create-test-bank_design：與正式頁相同資料結構的單筆 RAG（純前端，無 API） */
@@ -172,7 +172,7 @@ function checkRagHasList(rag) {
   return getRagUnitListString(rag) !== '';
 }
 
-/** 至少一個出題單元，且每個出題單元至少一個單元（與出題群組區「確定」按鈕啟用條件一致） */
+/** 至少一個出題單元，且每個出題單元至少一個單元（與出題設定「開始建立題庫」按鈕啟用條件一致） */
 function isPackTasksListReady(list) {
   if (!Array.isArray(list) || list.length < 1) return false;
   return list.every((g) => Array.isArray(g) && g.length >= 1);
@@ -331,13 +331,11 @@ watch(
   { immediate: true }
 );
 
-/** 任一非同步載入或處理進行中時為 true，於內容區顯示 spinner＋文案（產生題目、確定批改僅按鈕狀態，不觸發此狀態） */
+/** 任一非同步載入或處理進行中時為 true，於內容區顯示 spinner＋文案。ZIP 上傳／開始建立題庫（pack）僅用區塊內按鈕與欄位狀態，勿整頁覆蓋；產生題目、確定批改僅按鈕狀態，不觸發此狀態 */
 const isAnyLoading = computed(() =>
   ragListLoading.value ||
   createRagLoading.value ||
-  deleteRagLoading.value ||
-  currentState.value.zipLoading ||
-  currentState.value.packLoading
+  deleteRagLoading.value
 );
 
 /** 內容區載入文案：刪除分頁 → 刪除中；GET /rag/tabs → 載入測驗題庫中；其餘 → 處理中... */
@@ -378,7 +376,7 @@ const showUploadFileSection = computed(
   () => props.mockWithoutApi || (!!activeTabId.value && !hasUploadedFileMetadata.value)
 );
 
-/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試問題 */
+/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目 */
 const createRagStepperPhase = computed(() => {
   if (hasRagMetadata.value) return 3;
   if (hasUploadedFileMetadata.value) return 2;
@@ -430,6 +428,7 @@ const {
   removeFromRagList,
   removeRagListGroup,
   addRagListGroup,
+  clearAllRagListGroups,
   addAllSecondFoldersAsGroups,
   setAllSecondFoldersAsSingleGroup,
 } = usePackTasks(currentState, fileMetadataToShow, packGroupsEditBlocked);
@@ -581,7 +580,7 @@ watch(
   { flush: 'post', immediate: true }
 );
 
-/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試問題區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試題目區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -907,7 +906,7 @@ function setZipFileFromFile(state, tabId, file) {
   }
   if (!fileHasAllowedUploadExtension(file)) {
     resetZipState(state, tabId);
-    state.zipError = '請選擇允許的檔案：.zip、.pdf、.doc、.docx、.ppt、.pptx';
+    state.zipError = '請選擇允許的檔案：.pdf、.doc、.docx、.ppt、.pptx';
     return;
   }
   resetZipState(state, tabId);
@@ -1027,7 +1026,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** 出題群組確定：tab/build-rag-zip（按鈕文案「確定」） */
+/** 出題設定建立題庫：tab/build-rag-zip（按鈕文案「開始建立題庫」） */
 async function confirmPack() {
   if (props.mockWithoutApi) {
     const state = currentState.value;
@@ -1214,7 +1213,7 @@ async function generateQuiz(slotIndex) {
     return;
   }
   if (!generateQuizUnits.value.length) {
-    slotState.error = '請先在「出題單元」區按「確定」完成題庫建立，或重新整理頁面';
+    slotState.error = '請先在「出題設定」按「開始建立題庫」完成題庫建立，或重新整理頁面';
     return;
   }
   slotState.loading = true;
@@ -1327,23 +1326,7 @@ function applyMockGradingPreview(item) {
           <div class="w-100 py-2" aria-busy="true" />
         </template>
         <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
-          <div class="w-100 d-flex justify-content-center py-2">
-            <button
-              type="button"
-              class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle"
-              title="新增分頁"
-              :aria-label="createRagLoading ? '建立中' : '新增分頁'"
-              :aria-busy="createRagLoading"
-              :disabled="createRagLoading"
-              @click="addNewTab"
-            >
-              <i
-                class="fa-solid"
-                :class="createRagLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+          <div class="w-100 py-2" aria-hidden="true" />
         </template>
         <template v-else>
           <ul class="nav nav-tabs w-100">
@@ -1415,9 +1398,15 @@ function applyMockGradingPreview(item) {
                 :disabled="createRagLoading"
                 @click="addNewTab"
               >
+                <span
+                  v-if="createRagLoading"
+                  class="spinner-border my-app-spinner my-app-spinner--sm"
+                  role="status"
+                  aria-hidden="true"
+                />
                 <i
-                  class="fa-solid"
-                  :class="createRagLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+                  v-else
+                  class="fa-solid fa-plus"
                   aria-hidden="true"
                 />
               </button>
@@ -1441,15 +1430,38 @@ function applyMockGradingPreview(item) {
         aria-live="polite"
         aria-busy="true"
       >
-        <div class="spinner-border my-create-bank-inline-spinner" role="status">
+        <div class="spinner-border my-app-spinner" role="status">
           <span class="visually-hidden">{{ pageLoadingBannerText }}</span>
         </div>
         <p class="mb-0 my-font-lg-400 my-color-black text-center">{{ pageLoadingBannerText }}</p>
       </div>
+      <div
+        v-else-if="!showCreateBankMainForm"
+        class="flex-grow-1 d-flex align-items-center justify-content-center px-3 py-5 min-h-0"
+      >
+        <button
+          type="button"
+          class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
+          title="新增測驗題庫"
+          :aria-label="createRagLoading ? '建立中' : '新增測驗題庫'"
+          :disabled="createRagLoading"
+          :aria-busy="createRagLoading"
+          @click="addNewTab"
+        >
+          <span
+            v-if="createRagLoading"
+            class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+            role="status"
+            aria-hidden="true"
+          />
+          <i v-else class="fa-solid fa-plus" aria-hidden="true" />
+          {{ createRagLoading ? '建立中' : '新增測驗題庫' }}
+        </button>
+      </div>
       <div v-else class="container-fluid px-3 px-md-4 py-4">
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-      <!-- 無資料時不顯示表單，點「+」後才顯示；mockWithoutApi 時仍顯示示範表單 -->
+      <!-- 有資料、本機示範或已點新增後顯示表單；mockWithoutApi 時仍顯示示範表單 -->
       <template v-if="showCreateBankMainForm">
       <!-- 建立流程 stepper：依 file_metadata / rag_metadata 亮起 1～3 步 -->
       <section v-if="showStepperSection" class="my-page-block-spacing">
@@ -1493,7 +1505,7 @@ function applyMockGradingPreview(item) {
             <span
               class="my-create-rag-stepper-label"
               :class="createRagStepperPhase >= 3 ? 'my-create-rag-stepper-label--current my-font-sm-600' : 'my-create-rag-stepper-label--inactive my-font-sm-400'"
-            >測試問題</span>
+            >測試題目</span>
           </div>
           </div>
         </div>
@@ -1528,7 +1540,7 @@ function applyMockGradingPreview(item) {
               </template>
               <span v-else class="my-font-sm-400 my-color-gray-4">拖曳檔案到這裡，或點擊選擇檔案</span>
               <div class="my-font-sm-400 my-color-gray-4 mt-2">
-                可解析的檔案副檔名：.zip、.pdf、.doc、.docx、.ppt、.pptx
+                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
               </div>
             </template>
           </div>
@@ -1543,9 +1555,10 @@ function applyMockGradingPreview(item) {
               :aria-busy="currentState.zipLoading"
               @click.stop="confirmUploadZip"
             >
-              <i
+              <span
                 v-if="currentState.zipLoading"
-                class="fa-solid fa-spinner fa-spin"
+                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                role="status"
                 aria-hidden="true"
               />
               確定上傳
@@ -1611,7 +1624,7 @@ function applyMockGradingPreview(item) {
           </div>
 
           <!-- 出題單元：可放置課程標籤（與其他 input 同 form-control + px-3 py-2） -->
-          <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
+          <div class="mb-3 d-flex flex-column gap-2 w-100 min-w-0">
             <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題單元</div>
             <div
               class="d-flex flex-wrap align-items-stretch justify-content-start gap-2 w-100 min-w-0"
@@ -1658,37 +1671,52 @@ function applyMockGradingPreview(item) {
                   </button>
                 </div>
               </template>
-              <button
-                type="button"
-                class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1 my-pack-drop-target"
-                style="flex: 0 0 auto;"
-                @dragover.prevent="onDragOver($event)"
-                @dragenter.prevent="onDragEnter($event)"
-                @dragleave="onDragLeave($event)"
-                @drop.prevent="onDropRagList($event, (currentState.packTasksList || []).length)"
-                @click="addRagListGroup"
-              >
-                + 新增出題單元
-              </button>
-              <button
-                type="button"
-                class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
-                style="flex: 0 0 auto;"
-                :disabled="!secondFoldersFull.length"
-                @click="addAllSecondFoldersAsGroups"
-              >
-                每個資料夾獨立單元
-              </button>
-              <button
-                type="button"
-                class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
-                style="flex: 0 0 auto;"
-                :disabled="!secondFoldersFull.length"
-                title="在現有出題單元之後追加一組，內含全部資料夾；打包時檔名以 + 連接"
-                @click="setAllSecondFoldersAsSingleGroup"
-              >
-                每個資料夾合併單元
-              </button>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100 min-w-0">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <button
+                  type="button"
+                  class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1 my-pack-drop-target"
+                  style="flex: 0 0 auto;"
+                  @dragover.prevent="onDragOver($event)"
+                  @dragenter.prevent="onDragEnter($event)"
+                  @dragleave="onDragLeave($event)"
+                  @drop.prevent="onDropRagList($event, (currentState.packTasksList || []).length)"
+                  @click="addRagListGroup"
+                >
+                  + 新增出題單元
+                </button>
+                <button
+                  type="button"
+                  class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
+                  style="flex: 0 0 auto;"
+                  :disabled="!(currentState.packTasksList || []).length"
+                  aria-label="刪除所有出題單元"
+                  title="清空所有出題單元（含空位）"
+                  @click="clearAllRagListGroups"
+                >
+                  刪除所有單元
+                </button>
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <button
+                  type="button"
+                  class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-sm-400 my-button-gray-4 px-3 py-1"
+                  :disabled="!secondFoldersFull.length"
+                  @click="addAllSecondFoldersAsGroups"
+                >
+                  每個資料夾獨立單元
+                </button>
+                <button
+                  type="button"
+                  class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-sm-400 my-button-gray-4 px-3 py-1"
+                  :disabled="!secondFoldersFull.length"
+                  title="在現有出題單元之後追加一組，內含全部資料夾；打包時檔名以 + 連接"
+                  @click="setAllSecondFoldersAsSingleGroup"
+                >
+                  每個資料夾合併單元
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1768,14 +1796,16 @@ function applyMockGradingPreview(item) {
                 currentState.packLoading
               "
               :aria-busy="currentState.packLoading"
+              :aria-label="currentState.packLoading ? '建立題庫中' : '開始建立題庫'"
               @click="confirmPack"
             >
-              <i
+              <span
                 v-if="currentState.packLoading"
-                class="fa-solid fa-spinner fa-spin"
+                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                role="status"
                 aria-hidden="true"
               />
-              確定
+              {{ currentState.packLoading ? '建立題庫中' : '開始建立題庫' }}
             </button>
           </div>
           <div v-if="currentState.packError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-2">
@@ -1885,9 +1915,10 @@ function applyMockGradingPreview(item) {
                   :aria-busy="currentState.forExamLoading"
                   @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
                 >
-                  <i
+                  <span
                     v-if="currentState.forExamLoading"
-                    class="fa-solid fa-spinner fa-spin"
+                    class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                    role="status"
                     aria-hidden="true"
                   />
                   {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
@@ -1907,7 +1938,7 @@ function applyMockGradingPreview(item) {
           </section>
         </div>
       </template>
-      <!-- 測試問題：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
+      <!-- 測試題目：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
       <div
         v-if="designUiExpandAll || (currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== '')"
         class="text-start my-page-block-spacing"
@@ -1918,7 +1949,7 @@ function applyMockGradingPreview(item) {
             aria-level="2"
           >
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
-            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測試問題</span>
+            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測試題目</span>
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
           </div>
           <div
@@ -1945,7 +1976,7 @@ function applyMockGradingPreview(item) {
               </template>
               <template v-else>
                 <div
-                  class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-4"
+                  class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-5"
                 >
                   <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 題</div>
                   <div class="text-start w-100 min-w-0">
@@ -2000,9 +2031,10 @@ function applyMockGradingPreview(item) {
                       "
                       @click="generateQuiz(slotIndex)"
                     >
-                      <i
+                      <span
                         v-if="getSlotFormState(slotIndex).loading"
-                        class="fa-solid fa-spinner fa-spin"
+                        class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                        role="status"
                         aria-hidden="true"
                       />
                       產生題目
@@ -2037,14 +2069,7 @@ function applyMockGradingPreview(item) {
 </template>
 
 <style scoped>
-/* 內容區載入 spinner（與 LoadingOverlay 同色） */
-.my-create-bank-inline-spinner {
-  width: 2rem;
-  height: 2rem;
-  color: var(--my-color-blue);
-}
-
-/* 區塊外標題：────── 測試問題 ────── */
+/* 區塊外標題：────── 測試題目 ────── */
 .my-test-section-heading-line {
   display: block;
   border: 0;

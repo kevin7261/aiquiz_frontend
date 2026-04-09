@@ -47,6 +47,18 @@ code {
   flex-direction: column;
 }
 
+/* 全站統一載入圓環：併 Bootstrap .spinner-border；色與尺寸與 LoadingOverlay 一致 */
+.spinner-border.my-app-spinner {
+  width: 2rem;
+  height: 2rem;
+  color: var(--my-color-blue);
+}
+.spinner-border.my-app-spinner--sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.2em;
+}
+
 /* —— 字階：五級 × 字重 400／600；class 第三段為字重數字（勿用 regular／semibold 等別名） —— */
 .my-font-xl-400 {
   font-size: var(--my-font-size-xl);
@@ -115,6 +127,9 @@ code {
 /* —— 背景色（值同 --my-color-*） —— */
 .my-bgcolor-black {
   background-color: var(--my-color-black);
+}
+.my-bgcolor-gray-1 {
+  background-color: var(--my-color-gray-1);
 }
 .my-bgcolor-gray-2 {
   background-color: var(--my-color-gray-2);
@@ -337,6 +352,23 @@ code {
   opacity: 0.55;
 }
 
+/* 中灰填色膠囊（併 .btn）：底 --my-color-gray-1、白字、無邊；出題單元操作列等 */
+.btn.my-button-gray-1 {
+  background-color: var(--my-color-gray-1);
+  color: var(--my-color-white);
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn.my-button-gray-1:hover,
+.btn.my-button-gray-1:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--my-color-black) 14%, var(--my-color-gray-1));
+  color: var(--my-color-white);
+  box-shadow: none;
+}
+.btn.my-button-gray-1:disabled {
+  opacity: 0.55;
+}
+
 /* 淺灰填色膠囊（併 .btn）：未選／非 highlight；底同 my-bgcolor-gray-2（字面 --my-color-gray-2）、字 --my-color-black。併 my-btn-group-pill（分段群組、rounded-2）時分段線見該段 inset */
 .btn.my-button-gray-2 {
   background-color: var(--my-color-gray-2);
@@ -368,6 +400,23 @@ code {
   box-shadow: none;
 }
 .btn.my-button-gray-3:disabled {
+  opacity: 0.55;
+}
+
+/* 最淺填色膠囊（併 .btn）：底同 my-bgcolor-gray-4；字 --my-color-gray-1；無邊（出題單元資料夾批次按鈕等） */
+.btn.my-button-gray-4 {
+  background-color: var(--my-color-gray-4);
+  color: var(--my-color-gray-1);
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn.my-button-gray-4:hover,
+.btn.my-button-gray-4:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--my-color-black) 4%, var(--my-color-gray-4));
+  color: var(--my-color-gray-1);
+  box-shadow: none;
+}
+.btn.my-button-gray-4:disabled {
   opacity: 0.55;
 }
 
@@ -834,7 +883,7 @@ code {
   color: var(--my-color-black);
 }
 
-/* 建立測驗題庫：「測試問題」區塊外主標題（兩側線中間）固定黑字 */
+/* 建立測驗題庫：「測試題目」區塊外主標題（兩側線中間）固定黑字 */
 .my-test-section-heading-title {
   color: var(--my-color-black);
   -webkit-text-fill-color: var(--my-color-black);

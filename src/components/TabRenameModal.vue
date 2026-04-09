@@ -102,9 +102,10 @@ function onSave() {
               :aria-busy="saving"
               @click="onSave"
             >
-              <i
+              <span
                 v-if="saving"
-                class="fa-solid fa-spinner fa-spin"
+                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                role="status"
                 aria-hidden="true"
               />
               {{ saving ? '儲存中…' : '確定' }}

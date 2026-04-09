@@ -11,7 +11,7 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試問題」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -26,7 +26,7 @@ const props = defineProps({
   skipRagMismatchGuard: { type: Boolean, default: false },
   /** 與 UI 元件參考按鈕／字色一致（建立測驗題庫設計稿用） */
   designUi: { type: Boolean, default: false },
-  /** 稿頁「測試問題」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
+  /** 稿頁「測試題目」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
   designEmbedded: { type: Boolean, default: false },
   /** 正在送出「確定批改」（按鈕顯示 spinner＋「批改中」；批改結果區塊於回傳後才出現；不佔全畫面） */
   gradeSubmitting: { type: Boolean, default: false },
@@ -77,6 +77,7 @@ const showGradingResultSection = computed(
       class="text-start w-100 min-w-0"
       :class="designUi ? 'd-flex flex-column gap-4' : ''"
     >
+      <div :class="designUi ? 'd-flex flex-column gap-5 w-100 min-w-0' : ''">
       <div
         class="my-font-lg-600 my-color-black"
         :class="designUi ? 'mb-0' : 'mb-3'"
@@ -138,6 +139,7 @@ const showGradingResultSection = computed(
             :style="{ minHeight: '31px' }"
           >{{ card.generateLevel || '—' }}</div>
         </div>
+      </div>
       </div>
       <div
         class="w-100 min-w-0"
@@ -285,9 +287,10 @@ const showGradingResultSection = computed(
               :aria-label="gradeSubmitting ? '批改中' : '確定批改'"
               @click="emit('confirm-answer', card)"
             >
-              <i
+              <span
                 v-if="gradeSubmitting"
-                class="fa-solid fa-spinner fa-spin"
+                class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                role="status"
                 aria-hidden="true"
               />
               {{ gradeSubmitting ? '批改中' : '確定批改' }}

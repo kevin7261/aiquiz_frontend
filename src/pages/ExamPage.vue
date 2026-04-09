@@ -937,23 +937,7 @@ onMounted(() => {
           <div class="w-100 py-2" aria-busy="true" />
         </template>
         <template v-else-if="examList.length === 0">
-          <div class="w-100 d-flex justify-content-center py-2">
-            <button
-              type="button"
-              class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle"
-              title="新增測驗分頁"
-              :aria-label="createExamLoading ? '建立中' : '新增測驗分頁'"
-              :aria-busy="createExamLoading"
-              :disabled="createExamLoading"
-              @click="addNewTab"
-            >
-              <i
-                class="fa-solid"
-                :class="createExamLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+          <div class="w-100 py-2" aria-hidden="true" />
         </template>
         <template v-else>
           <ul class="nav nav-tabs w-100">
@@ -1003,9 +987,15 @@ onMounted(() => {
                 :disabled="createExamLoading"
                 @click="addNewTab"
               >
+                <span
+                  v-if="createExamLoading"
+                  class="spinner-border my-app-spinner my-app-spinner--sm"
+                  role="status"
+                  aria-hidden="true"
+                />
                 <i
-                  class="fa-solid"
-                  :class="createExamLoading ? 'fa-spinner fa-spin' : 'fa-plus'"
+                  v-else
+                  class="fa-solid fa-plus"
                   aria-hidden="true"
                 />
               </button>
@@ -1028,7 +1018,39 @@ onMounted(() => {
     </div>
 
     <div class="flex-grow-1 overflow-auto my-bgcolor-gray-4 d-flex flex-column min-h-0">
-      <div v-if="examList.length > 0" class="container-fluid px-3 px-md-4 py-4">
+      <div
+        v-if="!examListLoading && examList.length === 0"
+        class="flex-grow-1 d-flex align-items-center justify-content-center px-3 py-5 min-h-0"
+      >
+        <button
+          type="button"
+          class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
+          title="新增測驗"
+          :aria-label="createExamLoading ? '建立中' : '新增測驗'"
+          :disabled="createExamLoading"
+          :aria-busy="createExamLoading"
+          @click="addNewTab"
+        >
+          <span
+            v-if="createExamLoading"
+            class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+            role="status"
+            aria-hidden="true"
+          />
+          <i v-else class="fa-solid fa-plus" aria-hidden="true" />
+          {{ createExamLoading ? '建立中' : '新增測驗' }}
+        </button>
+      </div>
+      <div
+        v-else-if="examListLoading && examList.length === 0"
+        class="flex-grow-1 d-flex flex-column align-items-center justify-content-center gap-3 px-3 py-5"
+        aria-busy="true"
+      >
+        <div class="spinner-border my-app-spinner" role="status">
+          <span class="visually-hidden">載入測驗列表中</span>
+        </div>
+      </div>
+      <div v-else-if="examList.length > 0" class="container-fluid px-3 px-md-4 py-4">
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
             <div
@@ -1056,7 +1078,7 @@ onMounted(() => {
                   </template>
                   <template v-else>
                     <div
-                      class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-4"
+                      class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-5"
                     >
                       <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 題</div>
                       <div class="text-start w-100 min-w-0">
@@ -1115,9 +1137,10 @@ onMounted(() => {
                             "
                             @click="generateQuiz(slotIndex)"
                           >
-                            <i
+                            <span
                               v-if="getSlotFormState(slotIndex).loading"
-                              class="fa-solid fa-spinner fa-spin"
+                              class="spinner-border my-app-spinner my-app-spinner--sm flex-shrink-0"
+                              role="status"
                               aria-hidden="true"
                             />
                             產生題目
@@ -1158,3 +1181,4 @@ onMounted(() => {
     </div>
   </div>
 </template>
+

@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 建立測驗題庫（僅前端示範）— 與 CreateExamQuizBankPage 同一元件，不呼叫 API。
- * mockWithoutApi 時出題設定可編輯／唯讀與測試問題區會一併展開（供介面稿截圖，不互斥隱藏）。
+ * mockWithoutApi 時出題設定可編輯／唯讀與測試題目區會一併展開（供介面稿截圖，不互斥隱藏）。
  */
 import CreateExamQuizBankPage from './CreateExamQuizBankPage.vue';
 

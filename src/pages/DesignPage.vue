@@ -903,7 +903,7 @@ const designSampleChoiceWhite = ref('選項一');
                     </div>
                   </div>
                   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 gap-md-3 w-100">
-                    <span class="my-color-gray-4 flex-shrink-0 my-font-sm-400">新增分頁（32×32 rounded-circle · my-btn-circle · fa-plus／建立中 fa-spinner）</span>
+                    <span class="my-color-gray-4 flex-shrink-0 my-font-sm-400">新增分頁（32×32 rounded-circle · my-btn-circle · fa-plus／建立中 spinner-border my-app-spinner--sm）</span>
                     <div class="my-design-swatch-row my-bgcolor-black min-w-0 flex-grow-1">
                       <code
                         class="user-select-all my-font-sm-400 font-monospace text-break flex-grow-1 min-w-0 px-1 my-color-white"

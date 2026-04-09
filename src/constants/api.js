@@ -94,7 +94,7 @@ export const API_RAG_QUIZ_GRADE_RESULT = '/rag/tab/quiz/grade-result';
 export const API_CREATE_UNIT = '/rag/tab/create';
 /** 列出 RAG：GET /rag/tabs；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam、file_size〔MB〕、file_metadata、rag_metadata）、quizzes（每題含 answers）、頂層 answers */
 export const API_RAG_LIST = '/rag/tabs';
-/** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .zip、.pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata（內含 file_size〔MB〕等）並寫入 DB */
+/** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata（內含 file_size〔MB〕等）並寫入 DB */
 export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
 /** 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}；不需 X-Person-Id */
 export const API_RAG_DELETE = '/rag/tab/delete';

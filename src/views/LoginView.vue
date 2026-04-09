@@ -5,17 +5,15 @@
    * 以 person_id（使用者 ID）與 password 呼叫 POST /user/login。
    * 成功時：解析回傳的 user 物件、寫入 authStore.setUser、導向 /exam。
    * 失敗時：顯示後端 detail 或錯誤訊息於 error。
-   * 載入中顯示 LoadingOverlay。
+   * 載入中：按鈕顯示「登入中」與 spinner，並停用送出。
    */
   import { ref, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore.js';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
-  import LoadingOverlay from '../components/LoadingOverlay.vue';
   import { loggedFetch } from '../utils/loggedFetch.js';
 
   export default {
-    components: { LoadingOverlay },
     name: 'LoginView',
     setup() {
       const router = useRouter();
@@ -84,20 +82,14 @@
 
 <template>
   <div class="d-flex flex-column h-100 overflow-hidden my-bgcolor-gray-4 position-relative">
-    <LoadingOverlay
-      :is-visible="loading"
-      loading-text="登入中..."
-    />
-    <header class="flex-shrink-0 my-bgcolor-gray-4 p-4">
-      <div class="container-fluid px-0 text-center">
-        <p class="my-font-xl-400 my-color-black text-break mb-0">{{ courseName }} 登入</p>
-      </div>
-    </header>
     <div class="flex-grow-1 overflow-auto my-bgcolor-gray-4 d-flex flex-column min-h-0">
       <div
         class="container-fluid px-3 px-md-4 py-4 flex-grow-1 d-flex align-items-center justify-content-center"
       >
         <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 my-login-view-card my-color-black">
+          <p class="my-font-xl-600 my-color-black text-break text-center mb-4 mb-md-3">
+            {{ courseName }} 登入
+          </p>
           <form @submit.prevent="onLogin">
             <div class="mb-3 d-flex flex-column gap-0">
               <label class="form-label my-font-sm-400 my-color-gray-1 mb-0" for="login-person-id">使用者 ID</label>
@@ -108,6 +100,7 @@
                 class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 px-3 py-2"
                 placeholder="請輸入使用者 ID"
                 autocomplete="username"
+                :disabled="loading"
               />
             </div>
             <div class="mb-3 d-flex flex-column gap-0">
@@ -119,6 +112,7 @@
                 class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 px-3 py-2"
                 placeholder="請輸入密碼"
                 autocomplete="current-password"
+                :disabled="loading"
               />
             </div>
             <div v-if="error" class="my-alert-danger-soft py-2 mb-3" role="alert">{{ error }}</div>
@@ -126,8 +120,15 @@
               type="submit"
               class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-blue px-4 py-2 w-100"
               :disabled="loading"
+              :aria-busy="loading"
             >
-              登入
+              <span
+                v-if="loading"
+                class="spinner-border my-app-spinner my-app-spinner--sm me-2"
+                role="status"
+                aria-hidden="true"
+              />
+              {{ loading ? '登入中' : '登入' }}
             </button>
           </form>
         </div>

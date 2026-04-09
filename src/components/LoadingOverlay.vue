@@ -32,7 +32,7 @@
     class="my-loading-overlay d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100"
   >
     <div class="text-center my-bgcolor-white rounded shadow my-loading-overlay-panel p-4">
-      <div class="spinner-border my-loading-overlay-spinner mb-3" role="status">
+      <div class="spinner-border my-app-spinner mb-3" role="status">
         <span class="visually-hidden">{{ loadingText }}</span>
       </div>
       <div class="my-font-xl-400 my-color-black">{{ loadingText }}</div>
@@ -66,12 +66,6 @@
 .my-loading-overlay-panel {
   min-width: 300px;
   max-width: 400px;
-}
-
-.my-loading-overlay-spinner {
-  width: 2rem;
-  height: 2rem;
-  color: var(--my-color-blue);
 }
 
 .my-loading-overlay-progress {
