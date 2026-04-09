@@ -2,11 +2,11 @@
 /**
  * UserManagementPage - 使用者管理頁面
  *
- * 列表：GET /user/users（依 user_id 升冪）。「新增一筆」「批次新增學生」以按鈕開啟 Modal。
+ * 列表：GET /user/users（依 user_id 升冪）。「新增一筆」「批次新增學生」並列於列表區塊下方，以按鈕開啟 Modal。
  * 單筆：POST /user/users；body person_id、name、user_type；query person_id 與 body.person_id 一致（loggedFetch personId）。
  * 批次：POST /user/users/batch；body 為 [{ person_id, name }]；query 為呼叫者 person_id（loggedFetch 預設）。
  * Excel 匯入後即檢查檔內重複與與列表重複；有則禁用「批次新增學生」按鈕。單筆送出前亦會檢查重複。
- * 單筆 Modal：輸入 ID 時即時比對列表；須 ID、姓名、類型皆填且未重複才可按「新增使用者」。
+ * 單筆 Modal：輸入 ID 時即時比對列表；須 ID、姓名、類型皆填且未重複才可按「新增使用者」。類型為 Bootstrap 5 dropdown（同 Design 08／UnitSelectDropdown）。
  * 刪除：POST /user/users/delete，body 為被刪 person_id；query 為呼叫者（loggedFetch 預設）。
  */
 import { ref, computed, onMounted } from 'vue';
@@ -137,6 +137,18 @@ const singleSubmitEnabled = computed(() => {
   if (singlePersonIdDuplicate.value) return false;
   return true;
 });
+
+/** 單筆 Modal：類型下拉觸發鈕顯示文字 */
+const singleUserTypeLabel = computed(() => {
+  const ut = Number(singleUserType.value);
+  const opt = userTypeOptions.find((o) => Number(o.value) === ut);
+  return opt?.label ?? USER_TYPE_LABELS[RESTRICTED_USER_TYPE];
+});
+
+function setSingleUserType(value) {
+  singleUserType.value = Number(value);
+  clearSingleSubmitError();
+}
 
 function clearSingleSubmitError() {
   singleSubmitError.value = '';
@@ -492,26 +504,10 @@ onMounted(() => {
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
             <div class="text-start my-page-block-spacing">
               <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
-            <div class="mb-4">
-              <p class="my-font-sm-400 my-color-gray-4 text-center mb-3">
+            <div class="mb-3">
+              <p class="my-font-sm-400 my-color-gray-4 text-center mb-0">
                 共 {{ count }} 筆使用者
               </p>
-              <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
-                <button
-                  type="button"
-                  class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-black px-4 py-2"
-                  @click="openSingleModal"
-                >
-                  新增一筆使用者
-                </button>
-                <button
-                  type="button"
-                  class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-black px-4 py-2"
-                  @click="openBatchModal"
-                >
-                  批次新增學生
-                </button>
-              </div>
             </div>
             <div v-if="loading" class="my-color-gray-4 my-font-sm-400" />
             <div v-else class="table-responsive">
@@ -550,6 +546,22 @@ onMounted(() => {
                 </tbody>
               </table>
             </div>
+              </div>
+              <div class="d-flex flex-wrap justify-content-center align-items-center gap-2 mt-3">
+                <button
+                  type="button"
+                  class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-black px-4 py-2"
+                  @click="openSingleModal"
+                >
+                  新增一筆使用者
+                </button>
+                <button
+                  type="button"
+                  class="btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-black px-4 py-2"
+                  @click="openBatchModal"
+                >
+                  批次新增學生
+                </button>
               </div>
             </div>
           </div>
@@ -613,18 +625,32 @@ onMounted(() => {
                 >
               </div>
               <div class="mb-0">
-                <label for="user-single-type" class="form-label my-font-sm-400 my-color-gray-1 mb-0">類型</label>
-                <select
-                  id="user-single-type"
-                  v-model.number="singleUserType"
-                  class="form-select form-select-sm"
-                  :disabled="singleSaving"
-                  @change="clearSingleSubmitError"
-                >
-                  <option v-for="opt in userTypeOptions" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
+                <label for="user-single-type-dd-btn" class="form-label my-font-sm-400 my-color-gray-1 mb-0">類型</label>
+                <div class="dropdown w-100 min-w-0 my-design-08-dropdown" data-bs-popper="static">
+                  <button
+                    id="user-single-type-dd-btn"
+                    type="button"
+                    class="btn rounded-2 d-flex justify-content-between align-items-center dropdown-toggle my-dropdown-caret my-font-md-400 my-button-white w-100 min-w-0 px-3 py-2 text-start"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    :disabled="singleSaving"
+                  >
+                    <span class="flex-grow-1 overflow-hidden text-truncate text-start pe-2">{{ singleUserTypeLabel }}</span>
+                    <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0" aria-hidden="true" />
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-start w-100" aria-labelledby="user-single-type-dd-btn">
+                    <li v-for="opt in userTypeOptions" :key="opt.value">
+                      <button
+                        type="button"
+                        class="dropdown-item"
+                        :class="{ active: Number(singleUserType) === Number(opt.value) }"
+                        @click="setSingleUserType(opt.value)"
+                      >
+                        {{ opt.label }}
+                      </button>
+                    </li>
+                  </ul>
+                </div>
               </div>
               <div v-if="singleSubmitError" class="my-color-red my-font-sm-400 mt-3 mb-0">
                 {{ singleSubmitError }}
@@ -672,9 +698,6 @@ onMounted(() => {
               />
             </div>
             <div class="modal-body pt-2">
-              <p class="my-font-sm-400 my-color-gray-4 mb-2">
-                Excel 第一行為表頭，須含 <strong>ID</strong>、<strong>姓名</strong>。若檔內 <strong>登入 ID 重複</strong>或<strong>與現有使用者重複</strong>，將無法送出；匯入的每位將新增為「{{ USER_TYPE_LABELS[RESTRICTED_USER_TYPE] }}」。
-              </p>
               <input
                 ref="excelFileInputRef"
                 type="file"
@@ -698,7 +721,6 @@ onMounted(() => {
                 </template>
                 <template v-else>
                   <span class="my-font-sm-400 my-color-gray-4">拖曳 Excel 到這裡，或點擊選擇檔案</span>
-                  <div class="my-font-sm-400 my-color-gray-4 mt-2">格式：表頭須含 ID、姓名 欄（ID 不分大小寫）</div>
                 </template>
               </div>
               <div v-if="excelParseError" class="my-alert-warning-soft rounded my-font-sm-400 py-2 mt-2 mb-0" role="alert">
