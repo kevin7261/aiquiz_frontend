@@ -4,7 +4,7 @@
    *
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、主要導覽（測驗、作答弱點分析）
-   * - 左下角使用者名下拉：Design 08 同款（my-design-08-dropdown、rounded-2 my-button-white、無箭頭）；出題／學生作答分析／使用者管理／系統設定、分隔線、設定、登出（/design、/create-test-bank_design 不列於選單，僅網址進入）
+   * - 左下角使用者名下拉：Design 08 同款（my-design-08-dropdown、rounded-2 my-button-white、無箭頭）；出題／學生作答分析／使用者管理／系統設定、分隔線、設定、登出（/design 不列於選單，僅網址進入）
    * - 依 user_type 顯示允許的項目（canSeeNavLink）
    */
   import { ref, computed, onMounted } from 'vue';

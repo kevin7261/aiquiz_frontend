@@ -25,7 +25,7 @@ function listReloadKeyFromUser(user) {
 
 /**
  * @param {object} [options]
- * @param {import('vue').Ref<boolean> | import('vue').ComputedRef<boolean> | boolean} [options.fetchEnabled=true] — 為 false 時不呼叫 GET /rag/tabs（介面稿頁傳入 computed(() => false) 並由父層灌入列表）
+ * @param {import('vue').Ref<boolean> | import('vue').ComputedRef<boolean> | boolean} [options.fetchEnabled=true] — 為 false 時不呼叫 GET /rag/tabs（由父層灌入列表時使用）
  */
 export function useRagList(options = {}) {
   const authStore = useAuthStore();

@@ -14,7 +14,7 @@
  * - 出題：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""，空 unit_name 後端用 outputs 第一筆）；評分：POST /rag/tab/quiz/grade、GET /rag/tab/quiz/grade-result/{job_id}，ready 時 result: { quiz_score, quiz_comments, rag_answer_id }
  * 上述 API 不需 llm_api_key。
  */
-import { ref, computed, watch, onMounted, onActivated, reactive, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import {
   API_BASE,
@@ -63,10 +63,8 @@ import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 
-const props = defineProps({
+defineProps({
   tabId: { type: String, required: true },
-  /** 本機示範：不呼叫後端 API，畫面與 /create-test-bank 相同；由 CreateExamQuizBankDesignPage 傳入 */
-  mockWithoutApi: { type: Boolean, default: false },
 });
 
 let cardIdSeq = 0;
@@ -85,10 +83,7 @@ function fileHasAllowedUploadExtension(file) {
 
 const authStore = useAuthStore();
 
-const ragListFetchEnabled = computed(() => !props.mockWithoutApi);
-const { ragList, ragListLoading, ragListError, fetchRagList } = useRagList({
-  fetchEnabled: ragListFetchEnabled,
-});
+const { ragList, ragListLoading, ragListError, fetchRagList } = useRagList();
 const createRagLoading = ref(false);
 const createRagError = ref('');
 const renameRagTabModalOpen = ref(false);
@@ -108,60 +103,10 @@ const newTabIds = ref([]);
 
 const { getTabState, currentState, isNewTabId } = useRagTabState(activeTabId, newTabIds, ragList, authStore, { defaultSystemInstruction: DEFAULT_SYSTEM_INSTRUCTION });
 
-/** 本機示範用分頁 id（不呼叫 GET /rag/tabs；由 mockWithoutApi 灌入單筆假 RAG） */
-const STATIC_MOCK_TAB_ID = 'static-mock-tab';
-
 const showCreateBankMainForm = computed(
-  () => ragList.value.length > 0 || showFormWhenNoData.value || props.mockWithoutApi
+  () => ragList.value.length > 0 || showFormWhenNoData.value
 );
-const showStepperSection = computed(() => props.mockWithoutApi || !!activeTabId.value);
-
-/** /create-test-bank_design：可編輯與唯讀出題設定、測試題目等一併展開，不以 hasRagMetadata 互斥隱藏 */
-const designUiExpandAll = computed(() => props.mockWithoutApi);
-
-/** 供 /create-test-bank_design：與正式頁相同資料結構的單筆 RAG（純前端，無 API） */
-function buildStaticMockRag() {
-  return {
-    rag_tab_id: STATIC_MOCK_TAB_ID,
-    rag_id: 999001,
-    tab_name: '示範測驗題庫',
-    unit_list: '第一章+第二章',
-    file_metadata: {
-      filename: '範例教材.zip',
-      file_size: 2.5,
-      second_folders: ['第一章', '第二章'],
-    },
-    rag_metadata: '{"demo":true}',
-    chunk_size: 1000,
-    chunk_overlap: 200,
-    outputs: [
-      { rag_tab_id: STATIC_MOCK_TAB_ID, rag_name: '示範單元甲', unit_name: '示範單元甲', filename: '甲.zip' },
-      { rag_tab_id: STATIC_MOCK_TAB_ID, rag_name: '示範單元乙', unit_name: '示範單元乙', filename: '乙.zip' },
-    ],
-    quizzes: [
-      {
-        quiz_content: '（示範）請說明本單元的學習目標。',
-        quiz_hint: '可參考教材章節開頭的學習重點。',
-        quiz_answer_reference: '能簡要說出該單元欲培養的核心概念或能力。',
-        rag_name: '示範單元甲',
-        rag_id: 999001,
-        quiz_level: '基礎',
-      },
-    ],
-    answers: [],
-    for_exam: false,
-  };
-}
-
-watch(
-  () => props.mockWithoutApi,
-  (useMock) => {
-    if (useMock) {
-      ragList.value = [buildStaticMockRag()];
-    }
-  },
-  { immediate: true }
-);
+const showStepperSection = computed(() => !!activeTabId.value);
 
 function checkRagHasMetadata(rag) {
   if (!rag || typeof rag !== 'object') return false;
@@ -324,7 +269,6 @@ const currentRagIdAndTabId = computed(() => {
 watch(
   currentRagIdAndTabId,
   (v) => {
-    if (props.mockWithoutApi) return;
     // 畫面不顯示 rag_id／rag_tab_id，改由此處輸出供除錯
     // eslint-disable-next-line no-console -- 依需求於開發者工具查看
     console.log('[CreateExamQuizBankPage] rag_id:', v.rag_id, 'rag_tab_id:', v.rag_tab_id);
@@ -398,9 +342,8 @@ const fileMetadataToShow = computed(() => {
 /** 是否已上傳過 ZIP（file_metadata 僅在上傳後才會有） */
 const hasUploadedFileMetadata = computed(() => fileMetadataToShow.value != null);
 
-/** mockWithoutApi 時仍顯示上傳區（與下方「已上傳」區塊並列，與正式頁相同元件） */
 const showUploadFileSection = computed(
-  () => props.mockWithoutApi || (!!activeTabId.value && !hasUploadedFileMetadata.value)
+  () => !!activeTabId.value && !hasUploadedFileMetadata.value
 );
 
 /** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目 */
@@ -597,31 +540,6 @@ watch(
   { immediate: true }
 );
 
-/** mockWithoutApi：本機示範 RAG 同步後多開一題槽，同時顯示題卡與「產生題目」表單 */
-watch(
-  () => [
-    props.mockWithoutApi,
-    currentRagItem.value?.rag_tab_id,
-    activeTabId.value,
-    currentState.value?.quizSlotsCount,
-  ],
-  async () => {
-    if (!props.mockWithoutApi) return;
-    const rag = currentRagItem.value;
-    if (!rag || String(rag.rag_tab_id ?? '') !== STATIC_MOCK_TAB_ID) return;
-    await nextTick();
-    const id = activeTabId.value;
-    if (!id) return;
-    const st = getTabState(id);
-    const target = Math.max(Number(st.quizSlotsCount) || 0, 2);
-    st.quizSlotsCount = target;
-    while (st.cardList.length < target) st.cardList.push(null);
-    if (st.cardList.length >= 2) st.cardList[1] = null;
-    getSlotFormState(2);
-  },
-  { flush: 'post', immediate: true }
-);
-
 /** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試題目區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
@@ -697,7 +615,6 @@ watch(chunkOverlap, (v) => {
 }, { flush: 'post' });
 
 async function refreshRagForExamSetting() {
-  if (props.mockWithoutApi) return;
   try {
     const data = await apiGetRagForExamSetting();
     ragForExamSettingRagId.value = parseRagIdFromRagForExamSettingPayload(data);
@@ -723,7 +640,6 @@ async function fetchCourseNameForPrompt() {
 /** GET /rag/tabs 由 useRagList 內 watch(immediate) 首次載入；每次從側欄再進入本頁（KeepAlive onActivated）再抓 GET /rag/tabs */
 const createBankActivatedOnce = ref(false);
 onActivated(() => {
-  if (props.mockWithoutApi) return;
   if (!createBankActivatedOnce.value) {
     createBankActivatedOnce.value = true;
     return;
@@ -740,7 +656,6 @@ onMounted(() => {
 
 /** 設為測驗用（PUT system-settings rag-for-exam-*） */
 async function setRagForExam() {
-  if (props.mockWithoutApi) return;
   const rag = currentRagItem.value;
   if (!rag || isNewTabId(activeTabId.value)) return;
   const ragId = rag.rag_id ?? rag.id;
@@ -770,7 +685,6 @@ async function setRagForExam() {
 
 /** 取消測驗用（PUT rag_id 空字串） */
 async function clearRagForExam() {
-  if (props.mockWithoutApi) return;
   if (!currentRagIsExamRag.value || isNewTabId(activeTabId.value)) return;
   const personId = getPersonId(authStore);
   if (!personId) {
@@ -793,7 +707,6 @@ async function clearRagForExam() {
 
 /** 刪除 RAG */
 async function deleteRag(rag, e) {
-  if (props.mockWithoutApi) return;
   if (e) e.stopPropagation();
   const fileId = rag?.rag_tab_id ?? rag?.id ?? rag;
   if (fileId == null || fileId === '') return;
@@ -836,19 +749,6 @@ const ragCreatedAtMap = ref({});
 
 /** 點「新增」：建立 RAG，成功後重整列表並切到新 tab */
 async function addNewTab() {
-  if (props.mockWithoutApi) {
-    createRagError.value = '';
-    createRagLoading.value = false;
-    const personId = getPersonId(authStore);
-    const ragTabId = personId ? generateTabId(personId) : `new-design-${Date.now()}`;
-    if (!newTabIds.value.includes(ragTabId)) {
-      newTabIds.value = [...newTabIds.value, ragTabId];
-    }
-    activeTabId.value = ragTabId;
-    clearZipFileInput();
-    showFormWhenNoData.value = true;
-    return;
-  }
   const personId = getPersonId(authStore);
   if (!personId) {
     createRagError.value = '請先登入';
@@ -913,16 +813,6 @@ function openRenameRagTab(tabId) {
 async function onRenameRagTabSave(name) {
   if (!name) {
     renameRagTabError.value = '請輸入名稱';
-    return;
-  }
-  if (props.mockWithoutApi) {
-    const rid = renameRagTabDraftRagId.value;
-    const rag = ragList.value.find(
-      (x) => x != null && Number(x.rag_id) === Number(rid)
-    );
-    if (rag && typeof rag === 'object') rag.tab_name = String(name).trim();
-    renameRagTabModalOpen.value = false;
-    renameRagTabError.value = '';
     return;
   }
   const rid = renameRagTabDraftRagId.value;
@@ -1008,38 +898,6 @@ function openZipFileDialog() {
 /** 上傳 ZIP */
 async function confirmUploadZip() {
   if (currentState.value.zipLoading) return;
-  if (props.mockWithoutApi) {
-    const state = currentState.value;
-    if (!state.uploadedZipFile) {
-      state.zipError = '請先選擇要上傳的檔案';
-      return;
-    }
-    const tabId = activeTabId.value;
-    if (isNewTabId(tabId) || !tabId) {
-      state.zipError = '請先按「＋」建立測驗題庫分頁，再上傳檔案';
-      return;
-    }
-    state.zipLoading = true;
-    state.zipError = '';
-    try {
-      const name = state.uploadedZipFile?.name || '本機檔案.zip';
-      const rag = currentRagItem.value;
-      const rid = rag?.rag_id ?? rag?.id ?? 999001;
-      state.zipResponseJson = {
-        filename: name,
-        file_size: 0.5,
-        second_folders: ['示範章節甲', '示範章節乙'],
-        rag_id: rid,
-        rag_tab_id: tabId,
-      };
-      state.zipTabId = String(tabId);
-      state.zipFileName = name;
-      state.zipSecondFolders = state.zipResponseJson.second_folders;
-    } finally {
-      state.zipLoading = false;
-    }
-    return;
-  }
   const state = currentState.value;
   if (!state.uploadedZipFile) {
     state.zipError = '請先選擇要上傳的檔案';
@@ -1085,39 +943,6 @@ async function confirmUploadZip() {
 
 /** 出題設定建立題庫：tab/build-rag-zip（按鈕文案「開始建立題庫」） */
 async function confirmPack() {
-  if (props.mockWithoutApi) {
-    const state = currentState.value;
-    const fileId = String(state.zipTabId ?? '').trim();
-    const unitList = state.packTasks?.trim();
-    if (!fileId) {
-      state.packError = '請先上傳教材檔，完成後再建立題庫';
-      return;
-    }
-    if (!isPackTasksListReady(state.packTasksList ?? [])) {
-      state.packError = '請至少建立一個出題單元，且每個出題單元至少包含一個單元';
-      return;
-    }
-    if (!unitList) {
-      state.packError = '請輸入單元清單（例：220222+220301 或 220222,220301+220302）';
-      return;
-    }
-    state.packLoading = true;
-    state.packError = '';
-    try {
-      const mock = buildStaticMockRag();
-      state.packResponseJson = {
-        rag_tab_id: fileId,
-        outputs: mock.outputs,
-      };
-      state.ragMetadata =
-        typeof state.packResponseJson === 'string'
-          ? state.packResponseJson
-          : JSON.stringify(state.packResponseJson, null, 2);
-    } finally {
-      state.packLoading = false;
-    }
-    return;
-  }
   const state = currentState.value;
   const fileId = String(state.zipTabId ?? '').trim();
   const unitList = state.packTasks?.trim();
@@ -1217,38 +1042,6 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
 
 /** 產生題目 */
 async function generateQuiz(slotIndex) {
-  if (props.mockWithoutApi) {
-    const state = currentState.value;
-    const slotState = getSlotFormState(slotIndex);
-    const selectedUnit = findQuizUnitBySlotSelection(generateQuizUnits.value, slotState.generateQuizTabId);
-    if (!selectedUnit) {
-      slotState.error = '請先選擇單元';
-      return;
-    }
-    const unitName = String(selectedUnit.unit_name ?? selectedUnit.rag_name ?? '').trim();
-    const ragName = selectedUnit.rag_name?.trim() || unitName;
-    const ragId = currentRagItem.value?.rag_id ?? currentRagItem.value?.id ?? state?.zipResponseJson?.rag_id ?? 999001;
-    slotState.loading = true;
-    slotState.error = '';
-    try {
-      setCardAtSlot(
-        slotIndex,
-        '（示範）本機預覽題目，不會呼叫後端出題 API。',
-        '可參考教材中與「' + unitName + '」相關的段落。',
-        selectedUnit?.filename ?? '',
-        '（示範參考答案）',
-        ragName,
-        { demo: true },
-        filterDifficulty.value,
-        (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION,
-        ragId,
-        null
-      );
-    } finally {
-      slotState.loading = false;
-    }
-    return;
-  }
   const state = currentState.value;
   const slotState = getSlotFormState(slotIndex);
   const rag = currentRagItem.value;
@@ -1314,10 +1107,6 @@ function toggleHint(item) {
 /** 評分：POST /rag/tab/quiz/grade；body: rag_id、rag_tab_id、rag_quiz_id、quiz_content、quiz_answer、quiz_answer_reference（皆 string，選填可 ""）；回傳 202 + job_id；輪詢 GET /rag/tab/quiz/grade-result/{job_id}；ready 時 result: { quiz_score, quiz_comments, rag_answer_id }。 */
 async function confirmAnswer(item) {
   if (!item.quiz_answer.trim()) return;
-  if (props.mockWithoutApi) {
-    applyMockGradingPreview(item);
-    return;
-  }
   const state = currentState.value;
   const rag = currentRagItem.value;
   const activeRagId = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
@@ -1349,16 +1138,6 @@ async function confirmAnswer(item) {
   } finally {
     gradingSubmittingCardId.value = null;
   }
-}
-
-/** 本機示範：預覽批改結果（不呼叫評分 API） */
-function applyMockGradingPreview(item) {
-  const preview = JSON.stringify({
-    quiz_score: 4,
-    quiz_comments: ['示範：本機預覽不連後端。', '內容大致正確，可再補充例證。'],
-  });
-  item.confirmed = true;
-  item.gradingResult = formatGradingResult(preview) || preview;
 }
 </script>
 
@@ -1494,7 +1273,7 @@ function applyMockGradingPreview(item) {
       <div v-else class="container-fluid px-3 px-md-4 py-4">
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-      <!-- 有資料、本機示範或已點新增後顯示表單；mockWithoutApi 時仍顯示示範表單 -->
+      <!-- 有資料或已點新增後顯示表單 -->
       <template v-if="showCreateBankMainForm">
       <!-- 建立流程 stepper：依 file_metadata / rag_metadata 亮起 1～3 步 -->
       <section v-if="showStepperSection" class="my-page-block-spacing">
@@ -1588,14 +1367,14 @@ function applyMockGradingPreview(item) {
         </div>
       </section>
       <!-- 建立 RAG：要有 file_metadata 才顯示；未建置時僅可編輯「出題設定」卡，建置完成後另顯唯讀摘要卡（rounded-4 深灰） -->
-      <template v-if="fileMetadataToShow != null || designUiExpandAll">
+      <template v-if="fileMetadataToShow != null">
         <div
           class="w-100"
           :class="{ 'pe-none my-color-gray-4': !hasRagMetadata && packGroupsEditBlocked }"
         >
           <!-- 建置完成後（hasRagMetadata）僅保留下方唯讀「出題設定」卡，不重複檔名／已套用提示 -->
           <section
-            v-if="!hasRagMetadata || designUiExpandAll"
+            v-if="!hasRagMetadata"
             class="text-start my-page-block-spacing"
           >
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
@@ -1830,7 +1609,7 @@ function applyMockGradingPreview(item) {
           </section>
           <!-- 唯讀摘要：僅在已建置題庫（hasRagMetadata）後顯示；上傳後尚未建置時上方可編輯卡已含檔名，勿再重複一張卡 -->
           <section
-            v-if="hasRagMetadata || designUiExpandAll"
+            v-if="hasRagMetadata"
             class="text-start my-page-block-spacing"
           >
             <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
@@ -1919,7 +1698,7 @@ function applyMockGradingPreview(item) {
                 </div>
               </div>
               <div
-                v-if="designUiExpandAll || (!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id))"
+                v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
                 class="d-flex flex-wrap justify-content-center align-items-center gap-2"
               >
                 <button
@@ -1945,7 +1724,7 @@ function applyMockGradingPreview(item) {
       </template>
       <!-- 測試題目：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
       <div
-        v-if="designUiExpandAll || (currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== '')"
+        v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
         class="text-start my-page-block-spacing"
       >
           <div
@@ -1968,7 +1747,6 @@ function applyMockGradingPreview(item) {
                   :slot-index="slotIndex"
                   :course-name="courseNameForPrompt"
                   :current-rag-id="currentRagIdForQuizCards"
-                  :skip-rag-mismatch-guard="mockWithoutApi"
                   :grade-submitting="
                     gradingSubmittingCardId != null &&
                     String(gradingSubmittingCardId) === String(currentState.cardList[slotIndex - 1].id)
