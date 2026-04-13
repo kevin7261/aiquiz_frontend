@@ -316,20 +316,28 @@ const loadingOverlayText = computed(() => {
   return '處理中...';
 });
 
+/** 建題庫串流進度（僅 LoadingOverlay subText：筆數、目前序號、儲存 repack／RAG；不含工作檔名） */
+const packBuildOverlayLines = computed(() => {
+  const st = currentState.value;
+  if (!st?.packLoading) return [];
+  const total = Number(st.packBuildTotal) || 0;
+  if (total <= 0) return [];
+  const done = Number(st.packBuildDone) || 0;
+  const cur = Number(st.packBuildCurrent) || 0;
+  const repackKey = String(st.packBuildRepackFilename ?? '').trim();
+  const ragKey = String(st.packBuildRagFilename ?? '').trim();
+  const lines = [`共 ${total} 個 RAG ZIP，已完成 ${done} 個`];
+  if (cur > 0) lines.push(`目前建置：第 ${cur} / ${total} 個`);
+  if (repackKey) lines.push(`儲存 repack：${repackKey}`);
+  if (ragKey) lines.push(`儲存 RAG：${ragKey}`);
+  return lines;
+});
+
 /** 建題庫串流進度（LoadingOverlay subText；全螢幕遮罩會蓋住表單下方進度區） */
 const loadingOverlaySubText = computed(() => {
   const st = currentState.value;
   if (!st?.packLoading) return '';
-  const total = Number(st.packBuildTotal) || 0;
-  const done = Number(st.packBuildDone) || 0;
-  const cur = Number(st.packBuildCurrent) || 0;
-  const fn = String(st.packBuildFilename ?? '').trim();
-  if (total > 0) {
-    const lines = [`共 ${total} 個 RAG ZIP，已完成 ${done} 個`];
-    if (fn) lines.push(`目前建置：第 ${cur} / ${total} 個\n${fn}`);
-    else if (cur > 0) lines.push(`目前建置：第 ${cur} / ${total} 個`);
-    return lines.join('\n');
-  }
+  if (packBuildOverlayLines.value.length) return packBuildOverlayLines.value.join('\n');
   return '正在連線並準備建置…';
 });
 
@@ -987,6 +995,8 @@ async function confirmPack() {
   state.packBuildDone = 0;
   state.packBuildCurrent = 0;
   state.packBuildFilename = '';
+  state.packBuildRepackFilename = '';
+  state.packBuildRagFilename = '';
   try {
     state.packResponseJson = await apiBuildRagZip(
       {
@@ -1004,14 +1014,34 @@ async function confirmPack() {
           state.packBuildDone = 0;
           state.packBuildCurrent = 0;
           state.packBuildFilename = '';
+          state.packBuildRepackFilename = '';
+          state.packBuildRagFilename = '';
         } else if (ev.type === 'building') {
           state.packBuildTotal = Number(ev.total) || state.packBuildTotal;
           state.packBuildCurrent = Number(ev.index) || 0;
           state.packBuildDone = Number(ev.completed_before) || 0;
           state.packBuildFilename = ev.filename != null ? String(ev.filename) : '';
+          state.packBuildRepackFilename = '';
+          state.packBuildRagFilename = '';
         } else if (ev.type === 'unit') {
           state.packBuildTotal = Number(ev.total) || state.packBuildTotal;
           state.packBuildDone = Number(ev.index) || state.packBuildDone;
+          const out = ev.output;
+          if (out && typeof out === 'object') {
+            if (out.filename != null && String(out.filename).trim() !== '') {
+              state.packBuildFilename = String(out.filename).trim();
+            }
+            if (out.repack_filename != null && String(out.repack_filename).trim() !== '') {
+              state.packBuildRepackFilename = String(out.repack_filename).trim();
+            } else {
+              state.packBuildRepackFilename = '';
+            }
+            if (out.rag_filename != null && String(out.rag_filename).trim() !== '') {
+              state.packBuildRagFilename = String(out.rag_filename).trim();
+            } else {
+              state.packBuildRagFilename = '';
+            }
+          }
         } else if (ev.type === 'complete') {
           state.packBuildTotal = Number(ev.total) || state.packBuildTotal;
           if (ev.built_ok != null) state.packBuildDone = Number(ev.built_ok) || 0;
@@ -1031,6 +1061,8 @@ async function confirmPack() {
     state.packBuildDone = 0;
     state.packBuildCurrent = 0;
     state.packBuildFilename = '';
+    state.packBuildRepackFilename = '';
+    state.packBuildRagFilename = '';
   }
 }
 
@@ -1660,10 +1692,7 @@ async function confirmAnswer(item) {
           >
             <template v-if="currentState.packBuildTotal > 0">
               <div>共 {{ currentState.packBuildTotal }} 個 RAG ZIP；已完成 {{ currentState.packBuildDone }} 個</div>
-              <div v-if="currentState.packBuildFilename" class="mt-1">
-                建置中 {{ currentState.packBuildCurrent }} / {{ currentState.packBuildTotal }}：{{ currentState.packBuildFilename }}
-              </div>
-              <div v-else-if="currentState.packBuildCurrent > 0" class="mt-1">
+              <div v-if="currentState.packBuildCurrent > 0" class="mt-1">
                 建置中 {{ currentState.packBuildCurrent }} / {{ currentState.packBuildTotal }}
               </div>
             </template>

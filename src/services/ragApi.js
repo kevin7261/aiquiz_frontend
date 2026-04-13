@@ -185,7 +185,7 @@ export async function apiSetRagForExam(ragId) {
  * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson 串流；勿用 response.json() 讀 200 本文）
  *
  * @param {object} body - 含 rag_tab_id, person_id, unit_list, chunk_size, chunk_overlap, system_prompt_instruction 等（person_id 須與 query 一致）
- * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫；type 為 start | building | unit | complete
+ * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫（start｜building.filename repack 工作檔｜unit.output 含 filename、repack_filename、rag_filename、file_size、rag_error｜complete）
  * @returns {Promise<object>} 成功時回傳與舊版 JSON 相容之物件（outputs、rag_tab_id、unit_list、built_ok 等）
  */
 export async function apiBuildRagZip(body, onStreamEvent) {
