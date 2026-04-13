@@ -978,7 +978,9 @@ async function confirmPack() {
     state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
     await fetchRagList();
   } catch (err) {
-    state.packError = err.message || '壓縮失敗';
+    state.packError = is504OrNetworkError(err)
+      ? '服務正在啟動（約需一分鐘），請稍後再試'
+      : err.message || '壓縮失敗';
     state.packResponseJson = null;
   } finally {
     state.packLoading = false;
@@ -1602,7 +1604,11 @@ async function confirmAnswer(item) {
               開始建立題庫
             </button>
           </div>
-          <div v-if="currentState.packError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-2">
+          <div
+            v-if="currentState.packError"
+            class="my-alert-danger-soft my-font-sm-400 py-2 mb-2 text-break"
+            style="white-space: pre-wrap"
+          >
             {{ currentState.packError }}
           </div>
           </div>

@@ -16,7 +16,7 @@ import {
   API_PUT_RAG_FOR_EXAM_LOCALHOST,
   isFrontendLocalHost,
 } from '../constants/api.js';
-import { parseFetchError } from '../utils/apiError.js';
+import { parseBuildRagZipError, parseFetchError } from '../utils/apiError.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import { quizLevelStringForApi } from '../utils/rag.js';
 
@@ -191,7 +191,7 @@ export async function apiBuildRagZip(body) {
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(parseFetchError(res, text));
+  if (!res.ok) throw new Error(parseBuildRagZipError(res, text));
   try {
     return text ? JSON.parse(text) : null;
   } catch {
