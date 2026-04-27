@@ -78,6 +78,9 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         englishSourceInputLocked: false,
         englishLockedMp3Display: '',
         englishLockedYoutubeDisplay: '',
+        /** 測驗階段：產生題目區由「新增題目」展開前之狀態在 slotFormState（showEnglishGenerateQuizForm 等） */
+        englishTabPhasesLoading: false,
+        englishTabPhasesFetchError: '',
       });
     } else {
       const s = tabStateMap[id];
@@ -100,6 +103,8 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
       if (s.englishSourceInputLocked === undefined) s.englishSourceInputLocked = false;
       if (s.englishLockedMp3Display === undefined) s.englishLockedMp3Display = '';
       if (s.englishLockedYoutubeDisplay === undefined) s.englishLockedYoutubeDisplay = '';
+      if (s.englishTabPhasesLoading === undefined) s.englishTabPhasesLoading = false;
+      if (s.englishTabPhasesFetchError === undefined) s.englishTabPhasesFetchError = '';
       if (s.testPhaseOrder === undefined) {
         s.testPhaseOrder = [];
         s.activeTestPhaseId = null;

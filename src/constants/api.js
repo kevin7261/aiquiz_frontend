@@ -136,8 +136,12 @@ export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
 export const API_ENGLISH_SYSTEM_TAB_CREATE = '/english_system/tab/create';
 /** English System：POST /english_system/tab/build-system；query person_id；JSON body：system_tab_id、person_id、quiz_type（未傳預設 0）、quiz_text、quiz_mp3_filename、quiz_youtube_url；更新 English_System；「開始建立題庫」呼叫；不建 RAG、不串流 */
 export const API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM = '/english_system/tab/build-system';
-/** English_System_Phase：POST /english_system/tab/phase/create；query person_id；body：english_system_id、english_system_tab_id、person_id、quiz_phase_name、quiz_user_prompt_instruction、critique_user_prompt_instruction、quiz_metadata；回傳 english_system_quiz_phase_id 等 */
+/** English_System_Phase：POST /english_system/tab/phase/create；query person_id；body：english_system_id、english_system_tab_id、person_id、quiz_phase_name；回傳 english_system_quiz_phase_id、created_at 等 */
 export const API_ENGLISH_SYSTEM_TAB_PHASE_CREATE = '/english_system/tab/phase/create';
+/** English_System_Phase 列表：GET /english_system/tab/phases；query system_tab_id、person_id；回傳該 tab 下 Phase（依 created_at 舊→新；須已存在 English_System 且非 deleted、person 一致） */
+export const API_ENGLISH_SYSTEM_TAB_PHASES = '/english_system/tab/phases';
+/** English_System Phase 出題：POST /english_system/tab/phase/quiz/create；query person_id；body：system_id、system_tab_id、system_quiz_phase_id、person_id、quiz_phase_name、quiz_text、quiz_user_prompt_instruction；回傳 quiz_content、quiz_answer_reference、english_system_quiz_phase_id 等（與 generate_quiz 同模型；LLM Key 依 person_id） */
+export const API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_CREATE = '/english_system/tab/phase/quiz/create';
 /**
  * English System 音訊轉逐字稿：POST /english_system/transcript/audio
  * multipart：file、system_tab_id；query person_id。後端寫入 SUPABASE_ENGLISH_BUCKET 並以 Deepgram 轉逐字稿（DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）；無對應 English_System 列時可依 system_tab_id 與檔名自動建立。

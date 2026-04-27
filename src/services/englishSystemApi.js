@@ -6,6 +6,8 @@ import {
   API_ENGLISH_SYSTEM_TAB_CREATE,
   API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM,
   API_ENGLISH_SYSTEM_TAB_PHASE_CREATE,
+  API_ENGLISH_SYSTEM_TAB_PHASES,
+  API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_CREATE,
   API_ENGLISH_TRANSCRIPT_AUDIO,
   API_ENGLISH_TRANSCRIPT_YOUTUBE,
   isFrontendLocalHost,
@@ -105,12 +107,6 @@ export async function apiEnglishSystemTabBuildSystem(body, opts = {}) {
   return parseJson(text);
 }
 
-function nullIfEmptyString(val) {
-  if (val == null) return null;
-  const s = String(val).trim();
-  return s === '' ? null : s;
-}
-
 /**
  * POST /english_system/tab/phase/create — 建立一筆 English_System_Phase（須已存在 English_System、person_id 一致；建議先 build-system 再以回傳 system_id 帶入 english_system_id）
  *
@@ -119,9 +115,6 @@ function nullIfEmptyString(val) {
  *   english_system_tab_id: string,
  *   person_id: string,
  *   quiz_phase_name?: string | null,
- *   quiz_user_prompt_instruction?: string | null,
- *   critique_user_prompt_instruction?: string | null,
- *   quiz_metadata?: object | null,
  * }} body
  * @param {{ personId?: string | null }} [opts]
  * @returns {Promise<object>}
@@ -136,6 +129,10 @@ export async function apiCreateEnglishSystemPhase(body, opts = {}) {
   if (!person_id) {
     throw new Error('缺少 person_id');
   }
+  const quiz_phase_name =
+    body.quiz_phase_name != null && String(body.quiz_phase_name).trim() !== ''
+      ? String(body.quiz_phase_name).trim()
+      : '';
   const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_PHASE_CREATE}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -143,10 +140,89 @@ export async function apiCreateEnglishSystemPhase(body, opts = {}) {
       english_system_id,
       english_system_tab_id,
       person_id,
-      quiz_phase_name: nullIfEmptyString(body.quiz_phase_name),
-      quiz_user_prompt_instruction: nullIfEmptyString(body.quiz_user_prompt_instruction),
-      critique_user_prompt_instruction: nullIfEmptyString(body.critique_user_prompt_instruction),
-      quiz_metadata: body.quiz_metadata == null || body.quiz_metadata === '' ? null : body.quiz_metadata,
+      quiz_phase_name,
+    }),
+  }, { personId: opts.personId });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * GET /english_system/tab/phases
+ * 以 system_tab_id 取得該單元之所有 Phase；query person_id 由 loggedFetch 併入（或 opts.personId）
+ *
+ * @param {{ system_tab_id: string }} params
+ * @param {{ personId?: string | null }} [opts]
+ * @returns {Promise<{ system_tab_id?: string, phases?: object[], count?: number }>}
+ */
+export async function apiListEnglishSystemTabPhases(params, opts = {}) {
+  const system_tab_id = String(params?.system_tab_id ?? '').trim();
+  if (!system_tab_id) {
+    throw new Error('缺少 system_tab_id');
+  }
+  const q = new URLSearchParams();
+  q.set('system_tab_id', system_tab_id);
+  const res = await loggedFetch(
+    `${API_BASE}${API_ENGLISH_SYSTEM_TAB_PHASES}?${q.toString()}`,
+    { method: 'GET' },
+    { personId: opts.personId }
+  );
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * POST /english_system/tab/phase/quiz/create — 驗證 English_System 與 Phase 後以 LLM 產題（quiz_text 為 system、quiz_user_prompt_instruction 為 user；空則後端預設一句）
+ *
+ * @param {{
+ *   system_id: number,
+ *   system_tab_id: string,
+ *   system_quiz_phase_id: number,
+ *   person_id: string,
+ *   quiz_phase_name?: string,
+ *   quiz_text: string,
+ *   quiz_user_prompt_instruction?: string,
+ * }} body
+ * @param {{ personId?: string | null }} [opts]
+ * @returns {Promise<{ quiz_content?: string, quiz_answer_reference?: string, quiz_hint?: string, english_system_quiz_phase_id?: number }>}
+ */
+export async function apiCreateEnglishSystemPhaseQuiz(body, opts = {}) {
+  const system_id = Number(body.system_id);
+  if (!Number.isFinite(system_id) || system_id < 1) {
+    throw new Error('缺少或無效的 system_id');
+  }
+  const system_tab_id = String(body.system_tab_id ?? '').trim();
+  const system_quiz_phase_id = Number(body.system_quiz_phase_id);
+  if (!system_tab_id) {
+    throw new Error('缺少 system_tab_id');
+  }
+  if (!Number.isFinite(system_quiz_phase_id) || system_quiz_phase_id < 1) {
+    throw new Error('缺少或無效的 system_quiz_phase_id');
+  }
+  const person_id = String(body.person_id ?? '').trim();
+  if (!person_id) {
+    throw new Error('缺少 person_id');
+  }
+  const quiz_phase_name =
+    body.quiz_phase_name != null && String(body.quiz_phase_name).trim() !== ''
+      ? String(body.quiz_phase_name).trim()
+      : '';
+  const quiz_text = body.quiz_text != null ? String(body.quiz_text) : '';
+  const quiz_user_prompt_instruction =
+    body.quiz_user_prompt_instruction != null ? String(body.quiz_user_prompt_instruction) : '';
+  const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_CREATE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_id,
+      system_tab_id,
+      system_quiz_phase_id,
+      person_id,
+      quiz_phase_name,
+      quiz_text,
+      quiz_user_prompt_instruction,
     }),
   }, { personId: opts.personId });
   const text = await res.text();
