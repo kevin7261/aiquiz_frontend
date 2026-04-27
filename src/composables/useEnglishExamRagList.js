@@ -1,15 +1,23 @@
 /**
- * 建立「英文測驗題庫」專用：RAG 列表 Composable（與 `useRagList.js` 分離）
+ * 建立「英文測驗題庫」專用：列表 Composable（與 `useRagList.js` 分離）
  *
- * 職責：呼叫 GET /rag/tabs?local=（與 Rag.local / POST /rag/tab/create 一致）、維護 ragList / ragListLoading / ragListError，
- * 並以 normalizeRagListResponse 正規化後端回傳格式。供 CreateEnglishExamQuizBankPage 使用。
+ * 清單來源為 GET /english_system/tabs?local=（與 Rag.local 一致）；並平行呼叫 GET /rag/tabs 以合併 file_metadata、unit_list 等同 rag_tab_id 的 RAG 欄位。
+ * 若 English_System 表無列，側欄為空（不再僅依 RAG＋前端 registry 顯示）。
  *
- * 以 watch（immediate）依登入身分載入列表：Pinia 還原較晚時 loggedFetch 會在 user 就緒後再帶 person_id query；
- * 頁面 onMounted 勿再呼叫 fetchRagList，以免與 immediate 重複一次。
+ * 以 watch（immediate）依登入身分載入；Pinia 還原較晚時 loggedFetch 會在 user 就緒後再帶 person_id query。
  */
 import { ref, watch, unref } from 'vue';
-import { API_BASE, API_RAG_LIST, isFrontendLocalHost } from '../constants/api.js';
+import { API_BASE, API_RAG_LIST, API_ENGLISH_SYSTEM_TABS, isFrontendLocalHost } from '../constants/api.js';
 import { normalizeRagListResponse } from '../utils/englishExamRag.js';
+import {
+  registerEnglishSystemTabIds,
+  syncEnglishRagTabRegistryFromList,
+} from '../utils/englishRagRegistry.js';
+import {
+  mergeEnglishSystemTabWithRag,
+  normalizeEnglishSystemTabsResponse,
+  getEnglishSystemTabRowId,
+} from '../utils/englishSystem.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import { useAuthStore } from '../stores/authStore.js';
 
@@ -43,7 +51,7 @@ export function useEnglishExamRagList(options = {}) {
   const ragListError = ref('');
 
   /**
-   * 拉取 RAG 列表並更新 ragList / ragListLoading / ragListError
+   * 拉取 English System 清單（及 RAG 合併）並更新 ragList / ragListLoading / ragListError
    * @param {{ silent?: boolean }} [opts] — silent: true 時不變更 ragListLoading（避免全螢幕遮罩；供「設為測驗用」等已另有按鈕 loading 的情境）
    */
   async function fetchRagList(opts = {}) {
@@ -56,12 +64,37 @@ export function useEnglishExamRagList(options = {}) {
     try {
       const listParams = new URLSearchParams();
       listParams.set('local', String(isFrontendLocalHost()));
-      const res = await loggedFetch(`${API_BASE}${API_RAG_LIST}?${listParams}`, { method: 'GET' });
-      if (!res.ok) throw new Error(res.statusText);
-      const data = await res.json();
-      ragList.value = normalizeRagListResponse(data);
+      const qs = listParams.toString();
+      const [resRag, resEs] = await Promise.all([
+        loggedFetch(`${API_BASE}${API_RAG_LIST}?${qs}`, { method: 'GET' }),
+        loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TABS}?${qs}`, { method: 'GET' }),
+      ]);
+      if (!resEs.ok) throw new Error(resEs.statusText || '無法載入英文測驗題庫列表');
+      const dataEs = await resEs.json();
+      const englishRows = normalizeEnglishSystemTabsResponse(dataEs);
+      let allRags = [];
+      if (resRag.ok) {
+        const dataRag = await resRag.json();
+        allRags = normalizeRagListResponse(dataRag);
+      }
+      syncEnglishRagTabRegistryFromList(allRags);
+      registerEnglishSystemTabIds(englishRows);
+      const byTabId = new Map(
+        allRags.map((r) => [String(r.rag_tab_id ?? r.id ?? '').trim(), r]).filter(([k]) => k)
+      );
+      const seen = new Set();
+      const merged = [];
+      for (const es of englishRows) {
+        const tid = getEnglishSystemTabRowId(es);
+        if (!tid || seen.has(tid)) continue;
+        seen.add(tid);
+        const rag = byTabId.get(tid);
+        const row = mergeEnglishSystemTabWithRag(es, rag);
+        if (row) merged.push(row);
+      }
+      ragList.value = merged;
     } catch (err) {
-      ragListError.value = err.message || '無法載入 RAG 列表';
+      ragListError.value = err.message || '無法載入英文測驗題庫列表';
       ragList.value = [];
     } finally {
       if (!silent) {

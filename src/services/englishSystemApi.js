@@ -4,8 +4,10 @@
 import {
   API_BASE,
   API_ENGLISH_SYSTEM_TAB_CREATE,
+  API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM,
   API_ENGLISH_TRANSCRIPT_AUDIO,
   API_ENGLISH_TRANSCRIPT_YOUTUBE,
+  isFrontendLocalHost,
 } from '../constants/api.js';
 import { parseFetchError } from '../utils/apiError.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
@@ -19,25 +21,84 @@ function parseJson(text) {
 }
 
 /**
- * POST /english_system/tab/create
+ * POST /english_system/tab/create（對齊 OpenAPI：建立 English_System；與 POST /rag/tab/create 成對使用）
  *
- * @param {string} personId
- * @param {string} englishSystemTabId
- * @param {string} tabName
- * @param {number} englishSystemId
+ * @param {{ personId: string, system_tab_id: string, tab_name: string, local?: boolean }} params
+ * @param {{ personId?: string | null }} [opts] - loggedFetch query person_id
  * @returns {Promise<object>}
  */
-export async function apiCreateEnglishSystemTab(personId, englishSystemTabId, tabName, englishSystemId) {
+export async function apiCreateEnglishSystemTab(params, opts = {}) {
+  const personId = String(params.personId ?? '').trim();
+  const system_tab_id = String(params.system_tab_id ?? '').trim();
+  const tab_name = String(params.tab_name ?? '').trim() || system_tab_id;
+  if (!personId || !system_tab_id) {
+    throw new Error('缺少 person_id 或 system_tab_id');
+  }
+  const body = {
+    system_tab_id,
+    tab_name,
+    person_id: personId,
+    local: params.local !== undefined && params.local !== null ? !!params.local : isFrontendLocalHost(),
+  };
   const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_CREATE}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }, { personId: opts.personId ?? personId });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * rag/tab/create 成功後呼叫 english_system/tab/create；列已存在時忽略重複類錯誤（避免重試或雙重建立時整段失敗）。
+ *
+ * @param {{ personId: string, system_tab_id: string, tab_name: string, local?: boolean }} params
+ * @param {{ personId?: string | null }} [opts]
+ */
+export async function ensureEnglishSystemTab(params, opts = {}) {
+  try {
+    await apiCreateEnglishSystemTab(params, opts);
+  } catch (err) {
+    const msg = String(err?.message ?? err);
+    if (
+      /已存在|already exists|duplicate|unique|conflict|409|重複/i.test(msg) ||
+      /English_System.*存在|無須重複|same.*tab/i.test(msg)
+    ) {
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
+ * POST /english_system/tab/build-system
+ * 更新 English_System：quiz_type、quiz_text、quiz_mp3_filename、quiz_youtube_url（query person_id 由 loggedFetch 附加）。
+ *
+ * @param {{
+ *   system_tab_id: string,
+ *   person_id: string,
+ *   quiz_type: number,
+ *   quiz_text: string,
+ *   quiz_mp3_filename: string,
+ *   quiz_youtube_url: string,
+ * }} body
+ * @param {{ personId?: string | null }} [opts]
+ * @returns {Promise<object>}
+ */
+export async function apiEnglishSystemTabBuildSystem(body, opts = {}) {
+  const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      english_system_tab_id: englishSystemTabId,
-      tab_name: tabName,
-      person_id: personId,
-      english_system_id: englishSystemId,
+      system_tab_id: String(body.system_tab_id ?? '').trim(),
+      person_id: String(body.person_id ?? '').trim(),
+      quiz_type: Number(body.quiz_type),
+      quiz_text: body.quiz_text != null ? String(body.quiz_text) : '',
+      quiz_mp3_filename: body.quiz_mp3_filename != null ? String(body.quiz_mp3_filename) : '',
+      quiz_youtube_url: body.quiz_youtube_url != null ? String(body.quiz_youtube_url) : '',
     }),
-  });
+  }, { personId: opts.personId });
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);

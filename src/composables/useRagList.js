@@ -10,6 +10,10 @@
 import { ref, watch, unref } from 'vue';
 import { API_BASE, API_RAG_LIST, isFrontendLocalHost } from '../constants/api.js';
 import { normalizeRagListResponse } from '../utils/rag.js';
+import {
+  isEnglishRagByRegistry,
+  syncEnglishRagTabRegistryFromList,
+} from '../utils/englishRagRegistry.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import { useAuthStore } from '../stores/authStore.js';
 
@@ -59,7 +63,9 @@ export function useRagList(options = {}) {
       const res = await loggedFetch(`${API_BASE}${API_RAG_LIST}?${listParams}`, { method: 'GET' });
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
-      ragList.value = normalizeRagListResponse(data);
+      const allRags = normalizeRagListResponse(data);
+      const englishRegistry = syncEnglishRagTabRegistryFromList(allRags);
+      ragList.value = allRags.filter((row) => !isEnglishRagByRegistry(row, englishRegistry));
     } catch (err) {
       ragListError.value = err.message || '無法載入 RAG 列表';
       ragList.value = [];

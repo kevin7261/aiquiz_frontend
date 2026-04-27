@@ -79,6 +79,12 @@ function nextCardId() {
 /** POST /rag/tab/upload-zip 允許的副檔名（與後端可解析格式一致） */
 const UPLOAD_ALLOWED_EXTENSIONS = ['.zip', '.pdf', '.doc', '.docx', '.ppt', '.pptx'];
 const UPLOAD_ACCEPT_ATTR = UPLOAD_ALLOWED_EXTENSIONS.join(',');
+/** 教材上傳單檔大小上限（位元組）：與檔案總管／Finder 顯示的「MB」一致（50×10⁶），非 50×1024² */
+const UPLOAD_MAX_FILE_BYTES = 50 * 1000 * 1000;
+function uploadFileExceedsMaxSize(file) {
+  if (!file || typeof file.size !== 'number' || !Number.isFinite(file.size)) return false;
+  return file.size > UPLOAD_MAX_FILE_BYTES;
+}
 function fileHasAllowedUploadExtension(file) {
   if (!file?.name) return false;
   const lower = file.name.toLowerCase();
@@ -376,6 +382,15 @@ const hasUploadedFileMetadata = computed(() => fileMetadataToShow.value != null)
 const showUploadFileSection = computed(
   () => !!activeTabId.value && !hasUploadedFileMetadata.value
 );
+
+/** 「確定上傳」：須有本機選取的 File，且未超過 50 MB、非上傳中（不可僅依 zipFileName，避免列表同步檔名後誤啟用） */
+const examZipConfirmUploadDisabled = computed(() => {
+  const st = currentState.value;
+  if (st.zipLoading) return true;
+  const f = st.uploadedZipFile;
+  if (!f) return true;
+  return uploadFileExceedsMaxSize(f);
+});
 
 /** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目 */
 const createRagStepperPhase = computed(() => {
@@ -884,6 +899,11 @@ function setZipFileFromFile(state, tabId, file) {
     state.zipError = '請選擇允許的檔案：.pdf、.doc、.docx、.ppt、.pptx';
     return;
   }
+  if (uploadFileExceedsMaxSize(file)) {
+    resetZipState(state, tabId);
+    state.zipError = '檔案大小不可超過 50 MB，請選擇較小的檔案';
+    return;
+  }
   resetZipState(state, tabId);
   state.uploadedZipFile = file;
   state.zipFileName = file.name;
@@ -933,6 +953,10 @@ async function confirmUploadZip() {
   const state = currentState.value;
   if (!state.uploadedZipFile) {
     state.zipError = '請先選擇要上傳的檔案';
+    return;
+  }
+  if (uploadFileExceedsMaxSize(state.uploadedZipFile)) {
+    state.zipError = '檔案大小不可超過 50 MB，請選擇較小的檔案';
     return;
   }
   const tabId = activeTabId.value;
@@ -1438,10 +1462,10 @@ async function confirmAnswer(item) {
               </template>
               <span v-else class="my-font-sm-400 my-color-gray-4">拖曳.zip檔到這裡，或點擊選擇檔案</span>
               <div class="my-font-sm-400 my-color-gray-4 mt-2">
-                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+                單檔不可超過 50 MB
               </div>
               <div class="my-font-sm-400 my-color-gray-4 mt-1">
-                .zip檔大小上限 50 MB
+                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
               </div>
             </div>
             <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
@@ -1451,7 +1475,7 @@ async function confirmAnswer(item) {
               <button
                 type="button"
                 class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2"
-                :disabled="!currentState.zipFileName"
+                :disabled="examZipConfirmUploadDisabled"
                 @click.stop="confirmUploadZip"
               >
                 確定上傳

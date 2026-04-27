@@ -2,8 +2,9 @@
 /**
  * CreateEnglishExamQuizBankPage - 建立英文測驗題庫（獨立頁面；RAG／列表／Pack／題卡／批改等皆走 `englishExam*` 專用模組，不與一般建立題庫共用 import 路徑）
  *
- * 分頁與 RAG 流程與後端契約同一般建立題庫；教材來源為文字／MP3／YouTube。
+ * 側欄分頁清單：GET /english_system/tabs（合併同 system_tab_id 之 GET /rag/tabs 詳情）；教材來源為文字／MP3／YouTube。
  * MP3 轉逐字稿：POST /english_system/transcript/audio（Deepgram，見 englishSystemApi）。YouTube：GET /english_system/transcript/youtube。
+ * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create（system_tab_id = rag_tab_id、tab_name 與 RAG 一致、local 與 rag 相同），對齊「新增測驗題庫」先有 tab 再寫教材。「開始建立題庫」POST /english_system/tab/build-system。
  */
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -13,11 +14,15 @@ import {
   API_RESPONSE_QUIZ_CONTENT,
   API_RESPONSE_QUIZ_LEGACY,
 } from '../constants/api.js';
-import { apiEnglishTranscriptAudio, apiEnglishTranscriptYoutube } from '../services/englishSystemApi.js';
+import {
+  apiEnglishTranscriptAudio,
+  apiEnglishTranscriptYoutube,
+  apiEnglishSystemTabBuildSystem,
+  ensureEnglishSystemTab,
+} from '../services/englishSystemApi.js';
 import {
   getPersonId,
   apiCreateUnit,
-  apiUploadZip,
   apiDeleteRag,
   apiUpdateRagTabName,
   apiGetRagForExamSetting,
@@ -46,11 +51,16 @@ import {
   examOrRagQuizRowKey,
   examOrRagAnswerRowKey,
 } from '../utils/englishExamRag.js';
+import {
+  englishSystemRowHasBuiltQuizBank,
+  mapEnglishQuizTypeToSourceKind,
+} from '../utils/englishSystem.js';
 import { useEnglishExamRagList } from '../composables/useEnglishExamRagList.js';
 import { useEnglishRagTabState } from '../composables/useEnglishRagTabState.js';
 import { useEnglishExamPackTasks } from '../composables/useEnglishExamPackTasks.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import EnglishExamQuizCard from '../components/EnglishExamQuizCard.vue';
+import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
 import EnglishExamUnitSelectDropdown from '../components/EnglishExamUnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
@@ -70,6 +80,12 @@ function nextCardId() {
 /** POST /rag/tab/upload-zip 允許的副檔名（與後端可解析格式一致） */
 const UPLOAD_ALLOWED_EXTENSIONS = ['.zip', '.pdf', '.doc', '.docx', '.ppt', '.pptx'];
 const UPLOAD_ACCEPT_ATTR = UPLOAD_ALLOWED_EXTENSIONS.join(',');
+/** 教材上傳單檔大小上限（位元組）：與檔案總管／Finder「MB」一致（50×10⁶） */
+const UPLOAD_MAX_FILE_BYTES = 50 * 1000 * 1000;
+function uploadFileExceedsMaxSize(file) {
+  if (!file || typeof file.size !== 'number' || !Number.isFinite(file.size)) return false;
+  return file.size > UPLOAD_MAX_FILE_BYTES;
+}
 function fileHasAllowedUploadExtension(file) {
   if (!file?.name) return false;
   const lower = file.name.toLowerCase();
@@ -210,6 +226,7 @@ const ragListReadonlyInlineText = computed(() =>
 /** 尚無法編輯出題單元（未上傳 ZIP 等）；與拖放、區塊鎖定一致，不包含「群組是否已填滿」 */
 const packGroupsEditBlocked = computed(() => {
   if (hasRagMetadata.value) return true;
+  if (currentState.value.englishSystemBuildSucceeded) return true;
   if (hasRagListOrMetadata.value) return false;
   const id = activeTabId.value;
   if (!id) return true;
@@ -217,9 +234,10 @@ const packGroupsEditBlocked = computed(() => {
   return false;
 });
 
-/** 尚未完成建立 RAG 壓縮時，產生題目區塊 disable（需有 packResponseJson）；若有 rag_metadata 則 enable */
+/** 尚未完成建立 RAG 壓縮時，產生題目區塊 disable（需有 packResponseJson）；若有 rag_metadata 或英文 build-system 成功則 enable */
 const ragGenerateDisabled = computed(() => {
   if (hasRagMetadata.value) return false;
+  if (currentState.value.englishSystemBuildSucceeded) return false;
   return packGroupsEditBlocked.value || currentState.value.packResponseJson == null;
 });
 
@@ -276,7 +294,7 @@ const filterDifficulty = ref('基礎');
 const chunkSize = ref(1000);
 const chunkOverlap = ref(200);
 
-/** 當前 tab 對應的 RAG 項目（來自 GET /rag/tabs），僅在非「新增」tab 時有值 */
+/** 當前 tab 對應項目（清單來自 GET /english_system/tabs 合併同 id 之 GET /rag/tabs），僅在非「新增」tab 時有值 */
 const currentRagItem = computed(() => {
   const id = activeTabId.value;
   if (!id || isNewTabId(id)) return null;
@@ -350,14 +368,14 @@ const hasAnySlotGenerating = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／測驗用設定／產生題目／批改／英文 MP3 Deepgram 轉逐字稿／YouTube 字幕 */
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／English build-system／建題庫／測驗用設定／產生題目／批改／英文 MP3 Deepgram 轉逐字稿／YouTube 字幕 */
 const loadingOverlayVisible = computed(
   () =>
     ragListLoading.value ||
     createRagLoading.value ||
     deleteRagLoading.value ||
     renameRagTabSaving.value ||
-    !!currentState.value?.zipLoading ||
+    !!currentState.value?.englishBuildSystemLoading ||
     !!currentState.value?.packLoading ||
     !!currentState.value?.forExamLoading ||
     !!currentState.value?.englishTranscriptAudioLoading ||
@@ -372,7 +390,7 @@ const loadingOverlayText = computed(() => {
   const st = currentState.value;
   if (st?.englishTranscriptAudioLoading) return '轉換逐字稿中...';
   if (st?.englishTranscriptYoutubeLoading) return '擷取字幕中...';
-  if (st?.zipLoading) return '上傳中...';
+  if (st?.englishBuildSystemLoading) return '建立題庫中...';
   if (st?.packLoading) return '建立題庫中...';
   if (st?.forExamLoading) return '設定中...';
   if (deleteRagLoading.value) return '刪除中...';
@@ -408,7 +426,7 @@ const loadingOverlaySubText = computed(() => {
       ? performance.now() - englishTranscriptOverlayStartedAt
       : 0;
     const elapsed = formatTranscribeDurationMs(ms) || '0 秒';
-    return `已執行 ${elapsed}\n上傳至伺服器並以 Deepgram 轉成逐字稿…`;
+    return `已執行 ${elapsed}`;
   }
   if (st?.englishTranscriptYoutubeLoading) {
     void englishTranscriptOverlayTick.value;
@@ -416,7 +434,7 @@ const loadingOverlaySubText = computed(() => {
       ? performance.now() - englishTranscriptOverlayStartedAt
       : 0;
     const elapsed = formatTranscribeDurationMs(ms) || '0 秒';
-    return `已執行 ${elapsed}\n向伺服器取得 YouTube 公開字幕…`;
+    return `已執行 ${elapsed}`;
   }
   if (!st?.packLoading) return '';
   if (packBuildOverlayLines.value.length) return packBuildOverlayLines.value.join('\n');
@@ -478,13 +496,37 @@ const fileMetadataToShow = computed(() => {
 /** 是否已上傳過 ZIP（file_metadata 僅在上傳後才會有） */
 const hasUploadedFileMetadata = computed(() => fileMetadataToShow.value != null);
 
+/** 無 file_metadata 時顯示英文教材區；build-system 成功後同區改唯讀（對齊建立測驗題庫「出題設定」） */
 const showUploadFileSection = computed(
   () => !!activeTabId.value && !hasUploadedFileMetadata.value
 );
 
-/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目 */
+/** 英文教材欄位唯讀（POST /english_system/tab/build-system 成功後） */
+const englishMaterialReadOnly = computed(() => !!currentState.value.englishSystemBuildSucceeded);
+
+const englishSourceKindReadonlyLabel = computed(() => {
+  const k = currentState.value?.englishSourceKind;
+  if (k === 'mp3') return 'MP3';
+  if (k === 'youtube') return 'YouTube 連結';
+  return '文字';
+});
+
+/** 「開始建立題庫」：已選教材類型且「文字內容」非空即可（另需已登入、實體分頁、非送出中） */
+const englishBuildSystemCanSubmit = computed(() => {
+  const st = currentState.value;
+  const tabId = activeTabId.value;
+  if (!getPersonId(authStore)) return false;
+  if (!tabId || isNewTabId(tabId)) return false;
+  if (st?.englishBuildSystemLoading) return false;
+  const kind = st?.englishSourceKind;
+  if (kind !== 'text' && kind !== 'mp3' && kind !== 'youtube') return false;
+  if (kind === 'mp3' && st.uploadedZipFile && uploadFileExceedsMaxSize(st.uploadedZipFile)) return false;
+  return (st.englishPasteText || '').trim() !== '';
+});
+
+/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目（含英文 build-system 成功） */
 const createRagStepperPhase = computed(() => {
-  if (hasRagMetadata.value) return 3;
+  if (hasRagMetadata.value || currentState.value.englishSystemBuildSucceeded) return 3;
   if (hasUploadedFileMetadata.value) return 2;
   return 1;
 });
@@ -612,6 +654,69 @@ const generateQuizUnitsFromRag = computed(() => {
     });
 });
 
+/**
+ * GET /english_system/tabs 合併後之列：quiz_text／quiz_type／檔名／YouTube → 表單與「已建置」狀態（無 RAG rag_metadata 時與前端 build-system 成功一致）
+ */
+function applyEnglishSystemListRowToTabState(rag, state) {
+  if (!rag || typeof rag !== 'object') return;
+  const hasRagMeta =
+    rag.rag_metadata != null &&
+    (typeof rag.rag_metadata === 'string' ? String(rag.rag_metadata).trim() !== '' : true);
+
+  if (rag.quiz_text != null) {
+    state.englishPasteText = String(rag.quiz_text);
+  }
+  if (rag.quiz_type !== undefined && rag.quiz_type !== null && `${rag.quiz_type}`.trim() !== '') {
+    state.englishSourceKind = mapEnglishQuizTypeToSourceKind(rag.quiz_type);
+  }
+
+  const yt = String(rag.quiz_youtube_url ?? '').trim();
+  const mp3fn = String(rag.quiz_mp3_filename ?? '').trim();
+  const qn = Number(rag.quiz_type);
+  if (qn === 3 && yt) {
+    state.englishYoutubeUrl = yt;
+    state.englishLockedYoutubeDisplay = yt;
+    state.englishSourceInputLocked = true;
+  } else if (qn === 2 && mp3fn) {
+    state.zipFileName = mp3fn;
+    state.englishLockedMp3Display = mp3fn;
+    state.englishSourceInputLocked = true;
+  } else {
+    state.englishSourceInputLocked = false;
+    state.englishLockedMp3Display = '';
+    state.englishLockedYoutubeDisplay = '';
+  }
+
+  if (hasRagMeta) return;
+
+  if (englishSystemRowHasBuiltQuizBank(rag)) {
+    state.englishSystemBuildSucceeded = true;
+    const tid = String(rag.rag_tab_id ?? '').trim();
+    const rid = rag.rag_id != null ? rag.rag_id : null;
+    state.packResponseJson = {
+      rag_tab_id: tid,
+      rag_id: rid,
+      outputs: [
+        {
+          rag_tab_id: tid,
+          rag_name: 'English',
+          unit_name: 'English',
+          filename: 'english_system',
+        },
+      ],
+    };
+    state.ragMetadata = JSON.stringify(
+      {
+        from_english_system_tabs: true,
+        system_tab_id: tid,
+        quiz_type: rag.quiz_type,
+      },
+      null,
+      2
+    );
+  }
+}
+
 /** 從 Rag 項目同步到 tab state（packTasks、ragMetadata、chunk、quizzes 等） */
 function syncRagItemToState(rag, state) {
   if (!rag || typeof rag !== 'object') return;
@@ -657,13 +762,30 @@ function syncRagItemToState(rag, state) {
     state.quizSlotsCount = 0;
     state.cardList = [];
   }
+  applyEnglishSystemListRowToTabState(rag, state);
   state._synced = true;
 }
 
-/** 僅在首次切換到該 RAG 分頁時自列表灌入狀態；已同步過的 tab 不再覆寫，保留使用者輸入 */
+/**
+ * 首次灌入列表列到分頁狀態（含 GET /english_system/tabs 合併欄位）；須同時依賴 ragList，
+ * 避免 activeTabId 先就緒、列表稍後才載入時永遠不同步。
+ */
 watch(
-  activeTabId,
-  (id) => {
+  () => {
+    const id = activeTabId.value;
+    const rows = ragList.value;
+    const sig = rows
+      .map((r) => {
+        const tid = String(r.rag_tab_id ?? r.id ?? '');
+        const qt = r.quiz_type != null ? String(r.quiz_type) : '';
+        const tx = r.quiz_text != null ? String(r.quiz_text).length : 0;
+        return `${tid}:${qt}:${tx}`;
+      })
+      .join(';');
+    return `${id ?? ''}|${rows.length}|${sig}`;
+  },
+  () => {
+    const id = activeTabId.value;
     if (!id || isNewTabId(id)) return;
     const state = getTabState(id);
     if (state._synced) return;
@@ -752,6 +874,12 @@ watch(
     state.englishTranscriptStorageBucket = '';
     state.englishTranscriptStoragePath = '';
     state.englishTranscriptYoutubeError = '';
+    state.englishBuildSystemError = '';
+    if (state.englishSystemBuildSucceeded) {
+      state.englishSystemBuildSucceeded = false;
+      state.ragMetadata = '';
+      state.packResponseJson = null;
+    }
     clearZipFileInput();
   }
 );
@@ -789,7 +917,7 @@ async function fetchCourseNameForPrompt() {
   }
 }
 
-/** GET /rag/tabs 由 useEnglishExamRagList 內 watch(immediate) 首次載入；每次從側欄再進入本頁（KeepAlive onActivated）再抓 GET /rag/tabs */
+/** GET /english_system/tabs（及 /rag/tabs 合併）由 useEnglishExamRagList 內 watch(immediate) 首次載入；onActivated 再抓一次 */
 const createBankActivatedOnce = ref(false);
 onActivated(() => {
   if (!createBankActivatedOnce.value) {
@@ -919,6 +1047,16 @@ async function addNewTab() {
     if (data?.rag_id != null && data?.created_at != null) {
       ragCreatedAtMap.value = { ...ragCreatedAtMap.value, [String(data.rag_id)]: data.created_at };
     }
+    if (data?.rag_tab_id != null && String(data.rag_tab_id).trim() !== '') {
+      await ensureEnglishSystemTab(
+        {
+          personId,
+          system_tab_id: String(data.rag_tab_id).trim(),
+          tab_name: tabName,
+        },
+        { personId }
+      );
+    }
     ragListError.value = '';
     await fetchRagList();
     if (data?.rag_tab_id != null) activeTabId.value = String(data.rag_tab_id);
@@ -995,6 +1133,10 @@ function resetZipState(state, tabId) {
   state.zipSecondFolders = [];
   state.zipResponseJson = null;
   state.zipTabId = isNewTabId(tabId) ? '' : tabId;
+  state.englishSourceInputLocked = false;
+  state.englishLockedMp3Display = '';
+  state.englishLockedYoutubeDisplay = '';
+  state.englishBuildSystemError = '';
 }
 
 function setZipFileFromFile(state, tabId, file) {
@@ -1012,6 +1154,11 @@ function setZipFileFromFile(state, tabId, file) {
       : '請選擇允許的檔案：.pdf、.doc、.docx、.ppt、.pptx';
     return;
   }
+  if (uploadFileExceedsMaxSize(file)) {
+    resetZipState(state, tabId);
+    state.zipError = '檔案大小不可超過 50 MB，請選擇較小的檔案';
+    return;
+  }
   resetZipState(state, tabId);
   state.uploadedZipFile = file;
   state.zipFileName = file.name;
@@ -1020,7 +1167,7 @@ function setZipFileFromFile(state, tabId, file) {
 
 function onZipChange(e) {
   const state = currentState.value;
-  if (state.zipLoading) return;
+  if (state.englishBuildSystemLoading) return;
   const file = e.target.files?.[0];
   const tabId = activeTabId.value;
   setZipFileFromFile(state, tabId, file);
@@ -1045,60 +1192,103 @@ function onZipDrop(e) {
   const file = e.dataTransfer.files?.[0];
   if (!file) return;
   const state = currentState.value;
-  if (state.zipLoading) return;
+  if (state.englishBuildSystemLoading) return;
   const tabId = activeTabId.value;
   setZipFileFromFile(state, tabId, file);
   clearZipFileInput();
 }
 function openZipFileDialog() {
-  if (currentState.value.zipLoading) return;
+  if (currentState.value.englishBuildSystemLoading) return;
   if (currentState.value.englishSourceKind !== 'mp3') return;
+  if (currentState.value.englishSourceInputLocked) return;
   if (zipFileInputRef.value) zipFileInputRef.value.click();
 }
 
-/** 上傳 ZIP */
-async function confirmUploadZip() {
-  if (currentState.value.zipLoading) return;
+/** English System：POST /english_system/tab/build-system（quiz_type 1 文字／2 MP3／3 YouTube） */
+async function confirmEnglishSystemBuild() {
   const state = currentState.value;
-  if (!state.uploadedZipFile) {
-    state.zipError = '請先選擇要上傳的檔案';
+  if (state.englishBuildSystemLoading) return;
+  const personId = getPersonId(authStore);
+  if (!personId) {
+    state.englishBuildSystemError = '請先登入';
     return;
   }
   const tabId = activeTabId.value;
   if (isNewTabId(tabId) || !tabId) {
-    state.zipError = `請先按「＋」建立${quizBankNoun}分頁，再上傳檔案`;
+    state.englishBuildSystemError = `請先按「＋」建立${quizBankNoun}分頁`;
     return;
   }
-  const personId = getPersonId(authStore);
-  if (!personId) {
-    state.zipError = '請先登入';
+  const systemTabId = String(tabId).trim();
+  const kind = state.englishSourceKind;
+  const quiz_text = String(state.englishPasteText ?? '').trim();
+  if (!quiz_text) {
+    state.englishBuildSystemError = '請輸入文字內容';
     return;
   }
-  state.zipLoading = true;
-  state.zipError = '';
-  state.zipSecondFolders = [];
-  state.zipResponseJson = null;
-  try {
-    const data = await apiUploadZip(state.uploadedZipFile, tabId, personId);
-    const meta = data?.file_metadata ?? data;
-    state.zipResponseJson = meta ?? data;
-    state.zipTabId = String(tabId);
-    if (meta && typeof meta === 'object') {
-      if (meta.filename != null) state.zipFileName = meta.filename;
-      state.zipSecondFolders = Array.isArray(meta.second_folders) ? meta.second_folders : [];
-    } else if (data?.filename != null) {
-      state.zipFileName = data.filename;
-      state.zipSecondFolders = Array.isArray(data?.second_folders) ? data.second_folders : [];
+  /** @type {number} */
+  let quiz_type = 1;
+  let quiz_mp3_filename = '';
+  let quiz_youtube_url = '';
+  if (kind === 'text') {
+    quiz_type = 1;
+  } else if (kind === 'mp3') {
+    quiz_type = 2;
+    quiz_mp3_filename = String(state.uploadedZipFile?.name ?? state.zipFileName ?? '').trim();
+    if (state.uploadedZipFile && uploadFileExceedsMaxSize(state.uploadedZipFile)) {
+      state.englishBuildSystemError = '檔案大小不可超過 50 MB，請選擇較小的檔案';
+      return;
     }
+  } else if (kind === 'youtube') {
+    quiz_type = 3;
+    quiz_youtube_url = String(
+      state.englishSourceInputLocked ? state.englishLockedYoutubeDisplay : state.englishYoutubeUrl ?? ''
+    ).trim();
+  } else {
+    state.englishBuildSystemError = '請選擇教材類型';
+    return;
+  }
+  state.englishBuildSystemLoading = true;
+  state.englishBuildSystemError = '';
+  try {
+    const buildRes = await apiEnglishSystemTabBuildSystem(
+      {
+        system_tab_id: systemTabId,
+        person_id: personId,
+        quiz_type,
+        quiz_text,
+        quiz_mp3_filename,
+        quiz_youtube_url,
+      },
+      { personId }
+    );
     await fetchRagList();
+    const rag = ragList.value.find(
+      (r) => String(r.rag_tab_id ?? r.id ?? '') === systemTabId
+    );
+    const rid = rag?.rag_id ?? rag?.id ?? null;
+    state.packResponseJson = {
+      rag_tab_id: systemTabId,
+      rag_id: rid,
+      outputs: [
+        {
+          rag_tab_id: systemTabId,
+          rag_name: 'English',
+          unit_name: 'English',
+          filename: 'english_system',
+        },
+      ],
+    };
+    state.ragMetadata =
+      typeof buildRes === 'string'
+        ? buildRes
+        : JSON.stringify(buildRes && typeof buildRes === 'object' ? buildRes : { ok: true }, null, 2);
+    state.englishSystemBuildSucceeded = true;
   } catch (err) {
-    state.zipError = is504OrNetworkError(err)
+    state.englishBuildSystemError = is504OrNetworkError(err)
       ? '服務正在啟動（約需一分鐘），請稍後再試'
-      : err.message || '上傳失敗';
-    state.zipSecondFolders = [];
-    state.zipResponseJson = null;
+      : err.message || '建立失敗';
   } finally {
-    state.zipLoading = false;
+    state.englishBuildSystemLoading = false;
   }
 }
 
@@ -1112,6 +1302,10 @@ async function onEnglishTranscriptAudioClick() {
   }
   if (!state.uploadedZipFile) {
     state.englishTranscriptAudioError = '請先選擇音訊檔';
+    return;
+  }
+  if (uploadFileExceedsMaxSize(state.uploadedZipFile)) {
+    state.englishTranscriptAudioError = '檔案大小不可超過 50 MB，請選擇較小的檔案';
     return;
   }
   const tabId = activeTabId.value;
@@ -1143,7 +1337,12 @@ async function onEnglishTranscriptAudioClick() {
     if (data?.storage_path != null && String(data.storage_path).trim() !== '') {
       state.englishTranscriptStoragePath = String(data.storage_path).trim();
     }
-    state.englishSourceKind = 'text';
+    const mp3Name = String(state.uploadedZipFile?.name ?? state.zipFileName ?? '').trim();
+    const mp3Bytes = state.uploadedZipFile?.size;
+    const mp3Sz = mp3Bytes != null ? formatFileSize(mp3Bytes) : '';
+    state.englishLockedMp3Display =
+      mp3Sz && mp3Name ? `${mp3Name}（${mp3Sz}）` : mp3Name || mp3Sz || '—';
+    state.englishSourceInputLocked = true;
   } catch (err) {
     state.englishTranscriptAudioDurationMs = null;
     state.englishTranscriptAudioError = is504OrNetworkError(err)
@@ -1172,10 +1371,8 @@ async function onEnglishTranscriptYoutubeClick() {
   state.englishTranscriptYoutubeDurationMs = null;
   const ytT0 = performance.now();
   try {
-    const lang = String(state.englishYoutubeTranscriptLanguages ?? '').trim();
     const data = await apiEnglishTranscriptYoutube(raw, {
       personId,
-      ...(lang ? { languages: lang } : {}),
     });
     const t = data?.text != null ? String(data.text) : '';
     state.englishPasteText = t;
@@ -1184,7 +1381,8 @@ async function onEnglishTranscriptYoutubeClick() {
       es != null && Number.isFinite(Number(es))
         ? Math.round(Number(es) * 1000)
         : Math.round(performance.now() - ytT0);
-    state.englishSourceKind = 'text';
+    state.englishLockedYoutubeDisplay = raw;
+    state.englishSourceInputLocked = true;
   } catch (err) {
     state.englishTranscriptYoutubeDurationMs = null;
     state.englishTranscriptYoutubeError = is504OrNetworkError(err)
@@ -1430,7 +1628,10 @@ async function confirmAnswer(item) {
   ) {
     return;
   }
-  const sourceTabId = String(state.zipTabId ?? '').trim();
+  const aid = activeTabId.value;
+  const sourceTabId =
+    String(state.zipTabId ?? '').trim() ||
+    (aid && !isNewTabId(aid) ? String(aid).trim() : '');
   const ragId = activeRagId;
   if (!sourceTabId) {
     item.confirmed = true;
@@ -1636,7 +1837,9 @@ async function confirmAnswer(item) {
       <!-- 尚無 file_metadata 時顯示上傳區；DesignPage 同款 rounded-4 my-bgcolor-gray-3 p-4 mb-5 + 區塊標題 -->
       <section v-if="showUploadFileSection" class="text-start my-page-block-spacing">
         <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
-          <div class="my-font-lg-600 my-color-black text-break mb-4" role="heading" aria-level="2">上傳檔案</div>
+          <div class="my-font-lg-600 my-color-black text-break mb-4" role="heading" aria-level="2">
+            {{ englishMaterialReadOnly ? '出題設定' : '上傳檔案' }}
+          </div>
 
           <!-- 教材類型與輸入區 -->
             <div class="mb-3 d-flex flex-column gap-1 w-100 min-w-0">
@@ -1645,6 +1848,7 @@ async function confirmAnswer(item) {
                 class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
               >教材類型</div>
               <div
+                v-if="!englishMaterialReadOnly"
                 class="btn-group my-btn-group-pill w-100"
                 role="group"
                 aria-labelledby="english-bank-source-kind-label"
@@ -1680,163 +1884,132 @@ async function confirmAnswer(item) {
                   YouTube 連結
                 </button>
               </div>
+              <div
+                v-else
+                class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-color-white lh-base text-break"
+              >
+                {{ englishSourceKindReadonlyLabel }}
+              </div>
             </div>
 
-            <!-- 文字 -->
-            <div v-if="currentState.englishSourceKind === 'text'" class="mb-3">
-              <label
-                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1 d-block"
-                for="english-bank-paste-text"
-              >文字內容</label>
-              <textarea
-                id="english-bank-paste-text"
-                v-model="currentState.englishPasteText"
-                class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
-                rows="10"
-                placeholder="貼上或輸入英文教材文字…"
-                autocomplete="off"
-              />
-              <div
-                v-if="currentState.englishTranscriptAudioDurationMs != null"
-                class="my-font-sm-400 my-color-black py-2 px-3 rounded-2 mt-2 mb-0 my-bgcolor-gray-3"
-                role="status"
-              >
-                MP3 逐字稿轉換耗時：{{ formatTranscribeDurationMs(currentState.englishTranscriptAudioDurationMs) }}（上傳與後端 Deepgram 轉錄）
-              </div>
-              <div
-                v-if="currentState.englishTranscriptYoutubeDurationMs != null"
-                class="my-font-sm-400 my-color-black py-2 px-3 rounded-2 mt-2 mb-0 my-bgcolor-gray-3"
-                role="status"
-              >
-                YouTube 字幕擷取耗時：{{ formatTranscribeDurationMs(currentState.englishTranscriptYoutubeDurationMs) }}
-              </div>
-              <div
-                v-if="currentState.englishTranscriptStorageBucket && currentState.englishTranscriptStoragePath"
-                class="my-font-sm-400 my-color-black py-2 px-3 rounded-2 mt-2 mb-0 my-bgcolor-gray-3"
-                role="status"
-              >
-                轉逐字稿成功：音檔已寫入 Supabase—bucket「{{ currentState.englishTranscriptStorageBucket }}」；storage_path「<span class="text-break">{{ currentState.englishTranscriptStoragePath }}</span>」
-              </div>
-              <p class="my-font-sm-400 my-color-gray-4 mt-2 mb-0">
-                送出與建題庫將於後端串接完成後開放；目前請改選 MP3 或改走「建立測驗題庫」上傳教材檔。
-              </p>
-            </div>
-
-            <!-- MP3：與一般題庫相同流程（POST upload-zip） -->
-            <template v-else-if="currentState.englishSourceKind === 'mp3'">
+            <!-- MP3 -->
+            <template v-if="currentState.englishSourceKind === 'mp3'">
               <input
+                v-if="!englishMaterialReadOnly"
                 ref="zipFileInputRef"
                 type="file"
                 :accept="zipFileInputAccept"
                 class="d-none"
                 @change="onZipChange"
               >
-              <div
-                class="my-zip-drop-zone text-center position-relative"
-                :class="{ 'my-zip-drop-zone-over': isZipDragOver }"
-                @dragover="onZipDragOver"
-                @dragenter="onZipDragOver"
-                @dragleave="onZipDragLeave"
-                @drop="onZipDrop"
-                @click="openZipFileDialog()"
-              >
-                <template v-if="currentState.zipFileName">
-                  <span class="my-font-sm-400 my-color-black">{{ currentState.zipFileName }}</span>
-                  <div class="my-font-sm-400 my-color-gray-4 mt-1">點擊可重新選擇檔案</div>
-                </template>
-                <span v-else class="my-font-sm-400 my-color-gray-4">拖曳 MP3 到這裡，或點擊選擇檔案</span>
-                <div class="my-font-sm-400 my-color-gray-4 mt-2">僅接受副檔名：.mp3</div>
-              </div>
-              <div class="d-flex flex-column align-items-center gap-2 mt-3 w-100">
-                <button
-                  type="button"
-                  class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2"
-                  :disabled="!getPersonId(authStore) || !currentState.uploadedZipFile || currentState.englishTranscriptAudioLoading"
-                  :aria-busy="currentState.englishTranscriptAudioLoading"
-                  aria-label="轉換逐字稿"
-                  @click="onEnglishTranscriptAudioClick"
-                >
-                  轉換逐字稿
-                </button>
-                <p
-                  v-if="currentState.englishTranscriptAudioDurationMs != null"
-                  class="my-font-sm-400 my-color-black mb-0 text-center"
-                  role="status"
-                >
-                  轉換耗時：{{ formatTranscribeDurationMs(currentState.englishTranscriptAudioDurationMs) }}
-                </p>
-                <p class="my-font-sm-400 my-color-gray-4 mb-0 text-center">
-                  後端 POST <code class="user-select-all">/english_system/transcript/audio</code>：音檔上傳至 Supabase（english bucket，路徑同 RAG upload），再以 Deepgram 轉成逐字稿（後端需 DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）。不必先呼叫 english tab/create；無列時會依 <code class="user-select-all">system_tab_id</code> 與檔名自動建立。
-                </p>
+              <template v-if="!englishMaterialReadOnly && !currentState.englishSourceInputLocked">
                 <div
-                  v-if="currentState.englishTranscriptAudioError"
-                  class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 w-100 text-start"
-                  role="alert"
+                  class="my-zip-drop-zone text-center position-relative"
+                  :class="{ 'my-zip-drop-zone-over': isZipDragOver }"
+                  @dragover="onZipDragOver"
+                  @dragenter="onZipDragOver"
+                  @dragleave="onZipDragLeave"
+                  @drop="onZipDrop"
+                  @click="openZipFileDialog()"
                 >
-                  {{ currentState.englishTranscriptAudioError }}
+                  <template v-if="currentState.zipFileName">
+                    <span class="my-font-sm-400 my-color-black">{{ currentState.zipFileName }}</span>
+                    <div class="my-font-sm-400 my-color-gray-4 mt-1">點擊可重新選擇檔案</div>
+                  </template>
+                  <span v-else class="my-font-sm-400 my-color-gray-4">拖曳檔案到這裡，或點擊選擇檔案</span>
+                  <div class="my-font-sm-400 my-color-gray-4 mt-2">
+                    單檔不可超過 50 MB
+                  </div>
                 </div>
+                <div class="d-flex flex-column align-items-stretch gap-2 mt-3 w-100">
+                  <button
+                    type="button"
+                    class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2 align-self-center"
+                    :disabled="!getPersonId(authStore) || !currentState.uploadedZipFile || currentState.englishTranscriptAudioLoading"
+                    :aria-busy="currentState.englishTranscriptAudioLoading"
+                    aria-label="轉換逐字稿"
+                    @click="onEnglishTranscriptAudioClick"
+                  >
+                    轉換逐字稿
+                  </button>
+                  <div
+                    v-if="currentState.englishTranscriptAudioError"
+                    class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 w-100 text-start"
+                    role="alert"
+                  >
+                    {{ currentState.englishTranscriptAudioError }}
+                  </div>
+                </div>
+              </template>
+              <div
+                v-else
+                class="mb-0 d-flex flex-column gap-0 w-100 min-w-0"
+              >
+                <label
+                  class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
+                  for="english-bank-mp3-locked-fn"
+                >上傳檔案名稱（檔案大小）</label>
+                <input
+                  id="english-bank-mp3-locked-fn"
+                  type="text"
+                  class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
+                  readonly
+                  :value="currentState.englishLockedMp3Display || currentState.zipFileName"
+                  autocomplete="off"
+                >
               </div>
             </template>
 
-            <!-- YouTube：連結 + 嵌入預覽 -->
-            <div v-else class="mb-1">
-              <label
-                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1 d-block"
-                for="english-bank-youtube-url"
-              >YouTube 連結</label>
-              <input
-                id="english-bank-youtube-url"
-                v-model="currentState.englishYoutubeUrl"
-                type="url"
-                class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
-                placeholder="https://www.youtube.com/watch?v=… 或 youtu.be/…"
-                autocomplete="off"
-              >
-              <label
-                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mt-2 mb-1 d-block"
-                for="english-bank-youtube-langs"
-              >字幕語言優先（選填）</label>
-              <input
-                id="english-bank-youtube-langs"
-                v-model="currentState.englishYoutubeTranscriptLanguages"
-                type="text"
-                class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
-                placeholder="例：en,zh-TW"
-                autocomplete="off"
-                aria-describedby="english-bank-youtube-langs-hint"
-              >
-              <p id="english-bank-youtube-langs-hint" class="my-font-sm-400 my-color-gray-4 mt-1 mb-0">
-                逗號分隔；未填寫則由後端預設為 en。
-              </p>
-              <div class="d-flex flex-column gap-2 mt-2 w-100">
-                <button
-                  type="button"
-                  class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2 align-self-start"
-                  :disabled="!(currentState.englishYoutubeUrl || '').trim() || currentState.englishTranscriptYoutubeLoading"
-                  :aria-busy="currentState.englishTranscriptYoutubeLoading"
-                  aria-label="轉換逐字稿"
-                  @click="onEnglishTranscriptYoutubeClick"
+            <!-- YouTube -->
+            <div v-else-if="currentState.englishSourceKind === 'youtube'" class="mb-1">
+              <template v-if="!englishMaterialReadOnly && !currentState.englishSourceInputLocked">
+                <label
+                  class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1 d-block"
+                  for="english-bank-youtube-url"
+                >YouTube 連結</label>
+                <input
+                  id="english-bank-youtube-url"
+                  v-model="currentState.englishYoutubeUrl"
+                  type="url"
+                  class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
+                  autocomplete="off"
                 >
-                  轉換逐字稿
-                </button>
-                <p
-                  v-if="currentState.englishTranscriptYoutubeDurationMs != null"
-                  class="my-font-sm-400 my-color-black mb-0"
-                  role="status"
-                >
-                  轉換耗時：{{ formatTranscribeDurationMs(currentState.englishTranscriptYoutubeDurationMs) }}
-                </p>
-                <p class="my-font-sm-400 my-color-gray-4 mb-0">
-                  後端 GET <code class="user-select-all">/english_system/transcript/youtube</code>：擷取公開字幕並合併為單一純文字（與 Colab youtube-transcript-api 範例行為一致）；無字幕或無法存取時將顯示錯誤。
-                </p>
-                <div
-                  v-if="currentState.englishTranscriptYoutubeError"
-                  class="my-alert-danger-soft my-font-sm-400 py-2 mb-0"
-                  role="alert"
-                >
-                  {{ currentState.englishTranscriptYoutubeError }}
+                <div class="d-flex flex-column gap-2 mt-2 w-100">
+                  <button
+                    type="button"
+                    class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2 align-self-center"
+                    :disabled="!(currentState.englishYoutubeUrl || '').trim() || currentState.englishTranscriptYoutubeLoading"
+                    :aria-busy="currentState.englishTranscriptYoutubeLoading"
+                    aria-label="轉換逐字稿"
+                    @click="onEnglishTranscriptYoutubeClick"
+                  >
+                    轉換逐字稿
+                  </button>
+                  <div
+                    v-if="currentState.englishTranscriptYoutubeError"
+                    class="my-alert-danger-soft my-font-sm-400 py-2 mb-0"
+                    role="alert"
+                  >
+                    {{ currentState.englishTranscriptYoutubeError }}
+                  </div>
                 </div>
-              </div>
+              </template>
+              <template v-else>
+                <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
+                  <label
+                    class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
+                    for="english-bank-youtube-url-ro"
+                  >YouTube 連結</label>
+                  <input
+                    id="english-bank-youtube-url-ro"
+                    type="text"
+                    class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
+                    readonly
+                    :value="currentState.englishLockedYoutubeDisplay || currentState.englishYoutubeUrl"
+                    autocomplete="off"
+                  >
+                </div>
+              </template>
               <div
                 v-if="englishYoutubeVideoId"
                 class="ratio ratio-16x9 mt-3 rounded-2 overflow-hidden border border-secondary border-opacity-25 bg-black"
@@ -1851,28 +2024,47 @@ async function confirmAnswer(item) {
                 />
               </div>
               <div
-                v-else-if="(currentState.englishYoutubeUrl || '').trim() !== ''"
+                v-else-if="!englishMaterialReadOnly && !currentState.englishSourceInputLocked && (currentState.englishYoutubeUrl || '').trim() !== ''"
                 class="my-alert-warning-soft my-font-sm-400 py-2 mt-3 mb-0"
                 role="status"
               >
                 無法辨識此連結中的影片，請貼上有效的 YouTube 網址。
               </div>
-              <p class="my-font-sm-400 my-color-gray-4 mt-3 mb-0">
-                預覽僅供確認影片；建題庫上傳將於後端串接完成後開放。
-              </p>
             </div>
 
-            <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
+            <!-- 文字內容：三種教材類型共用（手打、或 MP3／YouTube 轉逐字稿寫入後可再編輯） -->
+            <div
+              class="mb-3"
+              :class="currentState.englishSourceKind === 'text' ? '' : 'mt-3'"
+            >
+              <label
+                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1 d-block"
+                for="english-bank-paste-text"
+              >文字內容</label>
+              <EnglishExamMarkdownEditor
+                v-model="currentState.englishPasteText"
+                placeholder="貼上或輸入 Markdown…"
+                textarea-id="english-bank-paste-text"
+                :disabled="!!currentState.englishBuildSystemLoading || englishMaterialReadOnly"
+              />
+            </div>
+
+            <div v-if="!englishMaterialReadOnly && currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
               {{ currentState.zipError }}
             </div>
-            <div v-if="currentState.englishSourceKind === 'mp3'" class="d-flex justify-content-center mt-3">
+            <div v-if="!englishMaterialReadOnly && currentState.englishBuildSystemError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
+              {{ currentState.englishBuildSystemError }}
+            </div>
+            <div v-if="!englishMaterialReadOnly" class="d-flex justify-content-center mt-3">
               <button
                 type="button"
                 class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white flex-shrink-0 px-3 py-2"
-                :disabled="!currentState.zipFileName"
-                @click.stop="confirmUploadZip"
+                :disabled="!englishBuildSystemCanSubmit"
+                :aria-busy="currentState.englishBuildSystemLoading"
+                aria-label="開始建立題庫"
+                @click.stop="confirmEnglishSystemBuild"
               >
-                確定上傳
+                開始建立題庫
               </button>
             </div>
         </div>

@@ -55,7 +55,8 @@ export function examQuizLevelFromRow(quiz) {
 
 /**
  * 產生 RAG tab 用唯一 id
- * 規則：有 person_id 時為 {person_id}_yymmddhhmmss；無則 fallback 為 UUID
+ * 規則：有 person_id 時為 eng_{person_id}_yymmddhhmmss；無則 fallback 為 UUID
+ * （eng_ 前綴供前端隔離英文題庫清單，避免與一般建立題庫混用）
  * @param {string | undefined | null} personId - 目前使用者的 person_id
  * @returns {string}
  */
@@ -68,7 +69,7 @@ export function generateTabId(personId) {
     const hh = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
     const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${String(personId).trim()}_${yy}${mm}${dd}${hh}${min}${ss}`;
+    return `eng_${String(personId).trim()}_${yy}${mm}${dd}${hh}${min}${ss}`;
   }
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -87,8 +88,14 @@ export function generateTabId(personId) {
  */
 export function deriveRagNameFromTabId(ragTabId) {
   if (!ragTabId || typeof ragTabId !== 'string') return '';
-  const idx = String(ragTabId).indexOf('_');
-  return idx >= 0 ? String(ragTabId).slice(idx + 1) : String(ragTabId);
+  const raw = String(ragTabId);
+  if (raw.startsWith('eng_')) {
+    const rest = raw.slice(4);
+    const idx = rest.indexOf('_');
+    return idx >= 0 ? rest.slice(idx + 1) : rest;
+  }
+  const idx = raw.indexOf('_');
+  return idx >= 0 ? raw.slice(idx + 1) : raw;
 }
 
 /**

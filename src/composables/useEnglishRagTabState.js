@@ -60,7 +60,6 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         englishSourceKind: 'text',
         englishPasteText: '',
         englishYoutubeUrl: '',
-        englishYoutubeTranscriptLanguages: '',
         englishTranscriptAudioLoading: false,
         englishTranscriptAudioError: '',
         englishTranscriptAudioDurationMs: null,
@@ -69,6 +68,14 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         englishTranscriptYoutubeLoading: false,
         englishTranscriptYoutubeError: '',
         englishTranscriptYoutubeDurationMs: null,
+        englishBuildSystemLoading: false,
+        englishBuildSystemError: '',
+        /** POST /english_system/tab/build-system 成功後隱藏「開始建立題庫」、顯示測試題目區（與 tab/build-rag-zip 後 hasRagMetadata 對齊） */
+        englishSystemBuildSucceeded: false,
+        /** MP3／YouTube 轉逐字稿成功後，來源輸入改為唯讀顯示 */
+        englishSourceInputLocked: false,
+        englishLockedMp3Display: '',
+        englishLockedYoutubeDisplay: '',
       });
     } else {
       const s = tabStateMap[id];
@@ -77,7 +84,6 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         s.englishPasteText = '';
         s.englishYoutubeUrl = '';
       }
-      if (s.englishYoutubeTranscriptLanguages === undefined) s.englishYoutubeTranscriptLanguages = '';
       if (s.englishTranscriptAudioLoading === undefined) s.englishTranscriptAudioLoading = false;
       if (s.englishTranscriptAudioError === undefined) s.englishTranscriptAudioError = '';
       if (s.englishTranscriptAudioDurationMs === undefined) s.englishTranscriptAudioDurationMs = null;
@@ -86,6 +92,12 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
       if (s.englishTranscriptYoutubeLoading === undefined) s.englishTranscriptYoutubeLoading = false;
       if (s.englishTranscriptYoutubeError === undefined) s.englishTranscriptYoutubeError = '';
       if (s.englishTranscriptYoutubeDurationMs === undefined) s.englishTranscriptYoutubeDurationMs = null;
+      if (s.englishBuildSystemLoading === undefined) s.englishBuildSystemLoading = false;
+      if (s.englishBuildSystemError === undefined) s.englishBuildSystemError = '';
+      if (s.englishSystemBuildSucceeded === undefined) s.englishSystemBuildSucceeded = false;
+      if (s.englishSourceInputLocked === undefined) s.englishSourceInputLocked = false;
+      if (s.englishLockedMp3Display === undefined) s.englishLockedMp3Display = '';
+      if (s.englishLockedYoutubeDisplay === undefined) s.englishLockedYoutubeDisplay = '';
     }
     return tabStateMap[id];
   }

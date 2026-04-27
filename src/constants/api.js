@@ -132,8 +132,10 @@ export const API_PUT_RAG_FOR_EXAM_DEPLOY = '/system-settings/rag-for-exam-deploy
 
 /** English System：GET /english_system/tabs；query person_id（與 GET /rag/tabs 一致）；回傳 english_systems 或 systems、count；列對應表 English_System（system_id、system_tab_id、system_name…） */
 export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
-/** English System：POST /english_system/tab/create；query person_id；body：system_tab_id、system_name、person_id；選填 system_id（正整數）、local；回傳列欄位與 English_System 一致 */
+/** English System：POST /english_system/tab/create；query person_id；body：system_tab_id、tab_name（寫入 system_name）、person_id、local（選填，預設 false；本機前端與 POST /rag/tab/create 一致可傳 true）；回傳 system_id、system_tab_id、tab_name、person_id、local、created_at（對齊 POST /rag/tab/create） */
 export const API_ENGLISH_SYSTEM_TAB_CREATE = '/english_system/tab/create';
+/** English System：POST /english_system/tab/build-system；query person_id；JSON body：system_tab_id、person_id、quiz_type（未傳預設 0）、quiz_text、quiz_mp3_filename、quiz_youtube_url；更新 English_System；「開始建立題庫」呼叫；不建 RAG、不串流 */
+export const API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM = '/english_system/tab/build-system';
 /**
  * English System 音訊轉逐字稿：POST /english_system/transcript/audio
  * multipart：file、system_tab_id；query person_id。後端寫入 SUPABASE_ENGLISH_BUCKET 並以 Deepgram 轉逐字稿（DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）；無對應 English_System 列時可依 system_tab_id 與檔名自動建立。
