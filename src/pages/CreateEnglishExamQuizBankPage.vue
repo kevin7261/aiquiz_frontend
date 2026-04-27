@@ -524,7 +524,7 @@ const englishBuildSystemCanSubmit = computed(() => {
   return (st.englishPasteText || '').trim() !== '';
 });
 
-/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試題目（含英文 build-system 成功） */
+/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試階段（含英文 build-system 成功） */
 const createRagStepperPhase = computed(() => {
   if (hasRagMetadata.value || currentState.value.englishSystemBuildSucceeded) return 3;
   if (hasUploadedFileMetadata.value) return 2;
@@ -798,7 +798,7 @@ watch(
   { immediate: true }
 );
 
-/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試題目區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試階段區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -1510,7 +1510,7 @@ function getSlotFormState(slotIndex) {
   return state.slotFormState[slotIndex];
 }
 
-/** 點「新增題目」：展開一個新的題目區塊（第 n 題）；cardList 與 slot 對齊 */
+/** 點「新增測試階段」：展開一個新的題目區塊（第 n 題）；cardList 與 slot 對齊 */
 function openNextQuizSlot() {
   const state = currentState.value;
   state.showQuizGeneratorBlock = true;
@@ -1829,7 +1829,7 @@ async function confirmAnswer(item) {
             <span
               class="my-create-rag-stepper-label"
               :class="createRagStepperPhase >= 3 ? 'my-create-rag-stepper-label--current my-font-sm-600' : 'my-create-rag-stepper-label--inactive my-font-sm-400'"
-            >測試題目</span>
+            >測試階段</span>
           </div>
           </div>
         </div>
@@ -2443,7 +2443,7 @@ async function confirmAnswer(item) {
           </section>
         </div>
       </template>
-      <!-- 測試題目：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
+      <!-- 測試階段：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
       <div
         v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
         class="text-start my-page-block-spacing"
@@ -2454,7 +2454,7 @@ async function confirmAnswer(item) {
             aria-level="2"
           >
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
-            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測試題目</span>
+            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測試階段</span>
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
           </div>
           <div
@@ -2544,17 +2544,17 @@ async function confirmAnswer(item) {
             </template>
           </template>
 
-            <!-- 新增題目按鈕：固定在最下面；與「新增測驗題庫」同款灰底膠囊＋加號 -->
+            <!-- 新增測試階段按鈕：固定在最下面；與「新增測驗題庫」同款灰底膠囊＋加號 -->
             <div class="d-flex justify-content-center pt-2 mb-0">
               <button
                 type="button"
                 class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
-                title="新增題目"
-                aria-label="新增題目"
+                title="新增測試階段"
+                aria-label="新增測試階段"
                 @click="openNextQuizSlot"
               >
                 <i class="fa-solid fa-plus" aria-hidden="true" />
-                新增題目
+                新增測試階段
               </button>
             </div>
           </div>
@@ -2568,7 +2568,7 @@ async function confirmAnswer(item) {
 </template>
 
 <style scoped>
-/* 區塊外標題：────── 測試題目 ────── */
+/* 區塊外標題：────── 測試階段 ────── */
 .my-test-section-heading-line {
   display: block;
   border: 0;
