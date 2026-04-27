@@ -49,10 +49,12 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         generateQuizLoading: false,
         generateQuizError: '',
         generateQuizResponseJson: null,
-        cardList: [],
+        /** 測驗階段 sub-tab：順序與主分頁 tab 列相同概念，id 字串與 generateTabId 風格獨立 */
+        testPhaseOrder: [],
+        activeTestPhaseId: null,
+        phaseCardById: {},
         slotFormState: {},
         showQuizGeneratorBlock: false,
-        quizSlotsCount: 0,
         _synced: false,
         forExamLoading: false,
         forExamError: '',
@@ -98,6 +100,31 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
       if (s.englishSourceInputLocked === undefined) s.englishSourceInputLocked = false;
       if (s.englishLockedMp3Display === undefined) s.englishLockedMp3Display = '';
       if (s.englishLockedYoutubeDisplay === undefined) s.englishLockedYoutubeDisplay = '';
+      if (s.testPhaseOrder === undefined) {
+        s.testPhaseOrder = [];
+        s.activeTestPhaseId = null;
+        s.phaseCardById = {};
+        const n = Number(s.quizSlotsCount) || 0;
+        if (n > 0) {
+          const list = Array.isArray(s.cardList) ? s.cardList : [];
+          for (let i = 0; i < n; i++) {
+            const pid = `mig-${i}-${s.tabId || 'tab'}`;
+            s.testPhaseOrder.push(pid);
+            s.phaseCardById[pid] = list[i] ?? null;
+          }
+          for (let i = 1; i <= n; i++) {
+            const pid = s.testPhaseOrder[i - 1];
+            if (s.slotFormState && s.slotFormState[i] != null) {
+              s.slotFormState[pid] = s.slotFormState[i];
+              delete s.slotFormState[i];
+            }
+          }
+          s.activeTestPhaseId = s.testPhaseOrder[0] || null;
+        }
+        if (s.quizSlotsCount !== undefined) delete s.quizSlotsCount;
+        if (s.cardList !== undefined) delete s.cardList;
+      }
+      if (s.phaseCardById === undefined) s.phaseCardById = {};
     }
     return tabStateMap[id];
   }
