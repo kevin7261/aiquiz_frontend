@@ -1436,9 +1436,12 @@ async function confirmAnswer(item) {
                 <span class="my-font-sm-400 my-color-black">{{ currentState.zipFileName }}</span>
                 <div class="my-font-sm-400 my-color-gray-4 mt-1">點擊可重新選擇檔案</div>
               </template>
-              <span v-else class="my-font-sm-400 my-color-gray-4">拖曳檔案到這裡，或點擊選擇檔案</span>
+              <span v-else class="my-font-sm-400 my-color-gray-4">拖曳.zip檔到這裡，或點擊選擇檔案</span>
               <div class="my-font-sm-400 my-color-gray-4 mt-2">
                 可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+              </div>
+              <div class="my-font-sm-400 my-color-gray-4 mt-1">
+                .zip檔大小上限 50 MB
               </div>
             </div>
             <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
