@@ -11,7 +11,7 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。questionHintOnly：建立英文測驗題庫用，僅顯示「第 N 題」、題目、提示（與 designUi 相同 class），不顯示單元／難度、參考答案、作答、批改。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -32,6 +32,8 @@ const props = defineProps({
   gradeSubmitting: { type: Boolean, default: false },
   /** 測驗頁：顯示題目讚／差（32×32 my-btn-circle · 透明底；未選 fa-regular my-color-gray-1、選中 fa-solid my-color-black；與 POST /exam/tab/quiz/rate 搭配；需 designUi）；為 true 時不顯示「批改規則（預覽）」 */
   showExamRating: { type: Boolean, default: false },
+  /** 建立英文測驗題庫：僅題目＋提示，版式與本元件 designUi 相同，其餘區塊隱藏 */
+  questionHintOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer', 'rate-quiz']);
@@ -59,6 +61,7 @@ const answerInputDisabled = computed(() => {
 /** 有後端／驗證回傳文字且非送出中時才顯示「批改結果」區塊（不預留空白、不顯示尚未批改） */
 const showGradingResultSection = computed(
   () =>
+    !props.questionHintOnly &&
     !props.gradeSubmitting &&
     String(props.card?.gradingResult ?? '').trim() !== ''
 );
@@ -82,8 +85,9 @@ const showGradingResultSection = computed(
         class="my-font-lg-600 my-color-black"
         :class="designUi ? 'mb-0' : 'mb-3'"
       >第 {{ slotIndex }} 題</div>
-      <!-- 單元與難度（唯讀）；designUi：單元視覺同 Design 08 白底 rounded-2＋ gray-2 邊＋箭頭；難度同 Design 兩鍵群組（my-btn-group-pill · rounded-2／外框 gray-2 · 選中 white · 未選 gray-3） -->
+      <!-- 單元與難度（唯讀）；questionHintOnly 時隱藏 -->
       <div
+        v-if="!questionHintOnly"
         class="d-flex flex-row align-items-end gap-3 w-100 min-w-0"
         :class="[designUi ? 'flex-nowrap mb-0' : 'flex-wrap mb-3']"
       >
@@ -237,7 +241,7 @@ const showGradingResultSection = computed(
         </div>
       </div>
       <div
-        v-if="card.referenceAnswer"
+        v-if="card.referenceAnswer && !questionHintOnly"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
@@ -251,6 +255,7 @@ const showGradingResultSection = computed(
         >{{ card.referenceAnswer }}</div>
       </div>
       <div
+        v-if="!questionHintOnly"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
@@ -299,7 +304,7 @@ const showGradingResultSection = computed(
         </template>
       </div>
       <div
-        v-if="!showExamRating"
+        v-if="!showExamRating && !questionHintOnly"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >

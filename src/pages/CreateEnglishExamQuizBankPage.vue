@@ -1,10 +1,10 @@
 <script setup>
 /**
- * CreateEnglishExamQuizBankPage - 建立英文測驗題庫（獨立頁面；RAG／列表／Pack／題卡／批改等皆走 `englishExam*` 專用模組，不與一般建立題庫共用 import 路徑）
+ * CreateEnglishExamQuizBankPage - 建立英文測驗題庫（獨立頁面；列表／教材等走 `englishExam*`）。產題結果以 **QuizCard** `questionHintOnly` 呈現，與「建立測驗題庫」相同題目／提示版式，不顯示單元、參考答案、作答與批改。
  *
  * 側欄分頁清單：GET /english_system/tabs（合併同 system_tab_id 之 GET /rag/tabs 詳情）；教材來源為文字／MP3／YouTube。
  * MP3 轉逐字稿：POST /english_system/transcript/audio（Deepgram，見 englishSystemApi）。YouTube：GET /english_system/transcript/youtube。
- * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create（system_tab_id = rag_tab_id、tab_name 與 RAG 一致、local 與 rag 相同），對齊「新增測驗題庫」先有 tab 再寫教材。「開始建立題庫」POST /english_system/tab/build-system。教材唯讀（English_System 已有內容）時以 GET /english_system/tab/phases 載入測驗階段；測驗階段產題：POST /english_system/tab/phase/quiz/create（quiz_text、quiz_user_prompt_instruction）。新增測驗階段：POST /english_system/tab/phase/create。
+ * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create。「開始建立題庫」POST /english_system/tab/build-system。測驗階段：新增僅 Phase 用 POST /english_system/tab/phase/quiz/create（無 LLM）；產生題目（LLM）用 POST /english_system/tab/phase/create，帶 content_text（教材）與 quiz_user_prompt_instruction。GET /english_system/tabs 內嵌 phases。
  */
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -18,7 +18,6 @@ import {
   apiEnglishSystemTabBuildSystem,
   apiCreateEnglishSystemPhase,
   apiCreateEnglishSystemPhaseQuiz,
-  apiListEnglishSystemTabPhases,
   ensureEnglishSystemTab,
 } from '../services/englishSystemApi.js';
 import {
@@ -52,6 +51,7 @@ import { useEnglishRagTabState } from '../composables/useEnglishRagTabState.js';
 import { useEnglishExamPackTasks } from '../composables/useEnglishExamPackTasks.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
+import QuizCard from '../components/QuizCard.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 
@@ -168,10 +168,9 @@ function newEnglishTestPhaseId() {
 }
 
 /**
- * 產生題目區「第 n 題」：僅在**當前測驗階段 sub-tab 內**遞增，不隨分頁列順序跨 tab 累加。
- * 目前每階段一組產生區，固定為 1；若日後同階段多筆產生區，可改為依該階段內序號傳入。
+ * 產生題目區「第 n 題」：僅在**當前測驗階段 sub-tab 內**顯示；目前每階段一組產生區，固定為 1。
  */
-function testPhaseLocalQuestionIndexOneBased(_phaseId) {
+function testPhaseLocalQuestionIndexOneBased() {
   return 1;
 }
 
@@ -1471,6 +1470,23 @@ async function confirmPack() {
   }
 }
 
+function createDefaultEnglishPhaseQuizCard() {
+  return reactive({
+    id: '',
+    quiz: '',
+    hint: '',
+    hintVisible: false,
+    quiz_answer: '',
+    confirmed: false,
+    gradingResult: '',
+    referenceAnswer: '',
+    ragName: '',
+    generateLevel: '基礎',
+    rag_id: null,
+    rag_quiz_id: null,
+  });
+}
+
 /**
  * 取得指定 tab state 內、某測驗階段 id 的表單狀態（`getSlotFormState` 為目前 active 分頁的簡寫）
  * @param {object} state
@@ -1487,10 +1503,9 @@ function getSlotFormStateForTabState(state, phaseId) {
       /** false：僅顯示「新增題目」；true：顯示 prompt 與「產生題目」 */
       showEnglishGenerateQuizForm: false,
       englishGeneratePhasePrompt: '',
-      englishPhaseQuizResponseJson: null,
       englishPhaseQuizError: '',
-      /** 與 QuizCard：顯示提示／隱藏提示 */
-      englishPhaseQuizHintVisible: false,
+      /** 與 CreateExamQuizBankPage 相同 QuizCard；questionHintOnly 僅顯示題目／提示 */
+      englishPhaseQuizCard: createDefaultEnglishPhaseQuizCard(),
     });
   } else {
     const s = state.slotFormState[key];
@@ -1500,9 +1515,9 @@ function getSlotFormStateForTabState(state, phaseId) {
     if (s.english_system_quiz_phase_id === undefined) s.english_system_quiz_phase_id = null;
     if (s.showEnglishGenerateQuizForm === undefined) s.showEnglishGenerateQuizForm = false;
     if (s.englishGeneratePhasePrompt === undefined) s.englishGeneratePhasePrompt = '';
-    if (s.englishPhaseQuizResponseJson === undefined) s.englishPhaseQuizResponseJson = null;
     if (s.englishPhaseQuizError === undefined) s.englishPhaseQuizError = '';
-    if (s.englishPhaseQuizHintVisible === undefined) s.englishPhaseQuizHintVisible = false;
+    if (s.englishPhaseQuizCard === undefined) s.englishPhaseQuizCard = createDefaultEnglishPhaseQuizCard();
+    if (s.englishPhaseGeneratedQuiz !== undefined) delete s.englishPhaseGeneratedQuiz;
   }
   return state.slotFormState[key];
 }
@@ -1574,7 +1589,7 @@ function removeTestPhase(phaseId) {
   }
 }
 
-/** 點「新增測驗階段」：新增 sub-tab 並 POST /english_system/tab/phase/create 建立 English_System_Phase */
+/** 點「新增測驗階段」：POST /english_system/tab/phase/quiz/create，body 含 system_quiz_phase_id: 0、題目／教材／prompt 皆空字串，僅建立 Phase */
 async function openNextQuizSlot() {
   const state = currentState.value;
   state.showQuizGeneratorBlock = true;
@@ -1610,7 +1625,6 @@ async function openNextQuizSlot() {
       {
         english_system_id: esId,
         english_system_tab_id: tabId,
-        person_id: personId,
         quiz_phase_name: (st.quiz_phase_name ?? '').trim() || DEFAULT_TEST_PHASE_DISPLAY_NAME,
       },
       { personId }
@@ -1631,7 +1645,7 @@ async function openNextQuizSlot() {
 }
 
 /**
- * GET /english_system/tab/phases 回寫測驗階段 sub-tab（依 created_at 舊→新）
+ * 以 GET /english_system/tabs 每筆之 phases（或併入清單列後之 phases）回寫測驗階段 sub-tab（依 created_at 舊→新）
  * @param {object} state
  * @param {object} data
  */
@@ -1673,7 +1687,7 @@ function applyPhasesFromApiResponse(state, data) {
   state.englishTabPhasesFetchError = '';
 }
 
-/** English_System 教材已就緒（唯讀）時：以 GET /english_system/tab/phases 載入測驗階段 */
+/** English_System 教材已就緒（唯讀）時：以 GET /english_system/tabs 內嵌 phases 載入測驗階段（先 silent 重抓清單以取得最新併入列） */
 async function loadEnglishTabPhases() {
   const tabId = activeTabId.value;
   if (!tabId || isNewTabId(tabId)) return;
@@ -1685,15 +1699,16 @@ async function loadEnglishTabPhases() {
   const readOnly =
     !!state.englishSystemBuildSucceeded || (rag && englishSystemRowHasBuiltQuizBank(rag));
   if (!readOnly) return;
-  const systemTabId = String(rag?.rag_tab_id ?? rag?.id ?? tabId).trim();
-  if (!systemTabId) return;
   const personId = getPersonId(authStore);
   if (!personId) return;
   state.englishTabPhasesLoading = true;
   state.englishTabPhasesFetchError = '';
   try {
-    const data = await apiListEnglishSystemTabPhases({ system_tab_id: systemTabId }, { personId });
-    applyPhasesFromApiResponse(state, data);
+    await fetchRagList({ silent: true });
+    const r = currentRagItem.value;
+    applyPhasesFromApiResponse(state, {
+      phases: Array.isArray(r?.phases) ? r.phases : [],
+    });
   } catch (err) {
     state.englishTabPhasesFetchError = err?.message || '無法載入測驗階段';
   } finally {
@@ -1706,7 +1721,7 @@ function revealEnglishGenerateQuizForm(phaseId) {
   getSlotFormState(String(phaseId)).showEnglishGenerateQuizForm = true;
 }
 
-/** POST /english_system/tab/phase/quiz/create；quiz_text 為教材；quiz_user_prompt_instruction 為表單 prompt */
+/** POST /english_system/tab/phase/create（LLM）；content_text 為教材，quiz_user_prompt_instruction 為表單 prompt */
 async function onEnglishGenerateQuiz() {
   const state = currentState.value;
   const phaseId = state.activeTestPhaseId;
@@ -1743,33 +1758,30 @@ async function onEnglishGenerateQuiz() {
     pst.englishPhaseQuizError = '缺少測驗階段編號，請稍候或重新建立測驗階段';
     return;
   }
-  const quizText =
+  const contentText =
     String(state.englishPasteText ?? '').trim() ||
     String(rag?.quiz_text ?? '').trim();
-  if (!quizText) {
-    pst.englishPhaseQuizError = '教材內容（quiz_text）為空，無法出題';
+  if (!contentText) {
+    pst.englishPhaseQuizError = '教材內容（content_text）為空，無法出題';
     return;
   }
   const quizPhaseName = String(pst.quiz_phase_name ?? '').trim();
 
   state.generateQuizLoading = true;
   pst.englishPhaseQuizError = '';
-  pst.englishPhaseQuizResponseJson = null;
-  pst.englishPhaseQuizHintVisible = false;
   try {
     const data = await apiCreateEnglishSystemPhaseQuiz(
       {
         system_id: esId,
         system_tab_id: systemTabId,
         system_quiz_phase_id: phaseNum,
-        person_id: personId,
         quiz_phase_name: quizPhaseName,
-        quiz_text: quizText,
+        content_text: contentText,
         quiz_user_prompt_instruction: promptText,
       },
       { personId }
     );
-    pst.englishPhaseQuizResponseJson = data;
+    applyEnglishPhaseQuizCardFromApi(pst, data, phaseId);
   } catch (err) {
     pst.englishPhaseQuizError = err?.message || '產生題目失敗';
   } finally {
@@ -1777,48 +1789,37 @@ async function onEnglishGenerateQuiz() {
   }
 }
 
-function englishPhaseQuizResponse(phaseId) {
-  return getSlotFormState(String(phaseId)).englishPhaseQuizResponseJson;
+/**
+ * 產題結果寫入 QuizCard 用 card（僅 quiz／hint 有值；與建立測驗題庫欄位一致）
+ * @param {object} pst
+ * @param {object} data
+ * @param {string} phaseId
+ */
+function applyEnglishPhaseQuizCardFromApi(pst, data, phaseId) {
+  const card = pst.englishPhaseQuizCard;
+  if (!card || typeof data !== 'object') return;
+  const ref = String(data.quiz_answer_reference ?? '').trim();
+  const hint = String(data.quiz_hint ?? data.hint ?? '').trim() || ref;
+  Object.assign(card, {
+    id: `eph-quiz-${String(phaseId)}-${Date.now()}`,
+    quiz: String(data.quiz_content ?? '').trim(),
+    hint,
+    hintVisible: false,
+    quiz_answer: '',
+    confirmed: false,
+    gradingResult: '',
+    referenceAnswer: ref,
+    ragName: '',
+    generateLevel: '基礎',
+    rag_id: null,
+    rag_quiz_id: null,
+  });
 }
 
-function englishPhaseQuizContent(phaseId) {
-  const d = englishPhaseQuizResponse(phaseId);
-  if (!d || typeof d !== 'object') return '';
-  return String(d.quiz_content ?? '').trim();
-}
-
-/** 摺疊「提示」區內容：優先 quiz_hint；無則用 quiz_answer_reference（與目前 Phase API 回傳一致時仍可顯示題目＋提示互動） */
-function englishPhaseQuizCollapseHintText(phaseId) {
-  const d = englishPhaseQuizResponse(phaseId);
-  if (!d || typeof d !== 'object') return '';
-  const h = String(d.quiz_hint ?? d.hint ?? '').trim();
-  if (h) return h;
-  return String(d.quiz_answer_reference ?? d.quiz_reference_answer ?? '').trim();
-}
-
-/** 僅在另有獨立 quiz_hint 時，底下另顯「參考答案(暫存)」避免與提示區重複 */
-function englishPhaseQuizReferenceSeparate(phaseId) {
-  const d = englishPhaseQuizResponse(phaseId);
-  if (!d || typeof d !== 'object') return '';
-  const h = String(d.quiz_hint ?? d.hint ?? '').trim();
-  const r = String(
-    d.quiz_answer_reference ?? d.quiz_reference_answer ?? d.quiz_answer ?? ''
-  ).trim();
-  if (h && r) return r;
-  return '';
-}
-
-function englishPhaseQuizHasDisplay(phaseId) {
-  return (
-    englishPhaseQuizContent(phaseId) !== '' ||
-    englishPhaseQuizCollapseHintText(phaseId) !== '' ||
-    englishPhaseQuizReferenceSeparate(phaseId) !== ''
-  );
-}
-
-function toggleEnglishPhaseQuizHint(phaseId) {
-  const pst = getSlotFormState(String(phaseId));
-  pst.englishPhaseQuizHintVisible = !pst.englishPhaseQuizHintVisible;
+function toggleEnglishPhaseQuizCardHint(item) {
+  if (item && typeof item === 'object') {
+    item.hintVisible = !item.hintVisible;
+  }
 }
 
 watch(
@@ -2754,7 +2755,10 @@ watch(
                   <div
                     class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-3"
                   >
-                    <div class="my-font-lg-600 my-color-black mb-0">第 {{ testPhaseLocalQuestionIndexOneBased(activeTestPhaseIdForContent) }} 題</div>
+                    <div
+                      v-if="!String(getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard?.quiz ?? '').trim()"
+                      class="my-font-lg-600 my-color-black mb-0"
+                    >第 {{ testPhaseLocalQuestionIndexOneBased() }} 題</div>
                   <div class="d-flex flex-column gap-0 w-100 min-w-0">
                     <label
                       class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1"
@@ -2789,51 +2793,17 @@ watch(
                   >
                     {{ getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizError }}
                   </div>
-                  <div
-                    v-if="englishPhaseQuizHasDisplay(activeTestPhaseIdForContent)"
-                    class="w-100 min-w-0 d-flex flex-column gap-4"
-                  >
-                    <div
-                      v-if="englishPhaseQuizContent(activeTestPhaseIdForContent)"
-                      class="w-100 min-w-0 d-flex flex-column gap-1 mb-0"
-                    >
-                      <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">題目</div>
-                      <div
-                        class="lh-base form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                      >
-                        {{ englishPhaseQuizContent(activeTestPhaseIdForContent) }}
-                      </div>
-                    </div>
-                    <div
-                      v-if="englishPhaseQuizCollapseHintText(activeTestPhaseIdForContent)"
-                      class="w-100 min-w-0 d-flex flex-column gap-1 mb-0"
-                    >
-                      <button
-                        type="button"
-                        class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-start flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
-                        style="flex: 0 0 auto;"
-                        @click="toggleEnglishPhaseQuizHint(activeTestPhaseIdForContent)"
-                      >
-                        {{ getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizHintVisible ? '隱藏提示' : '顯示提示' }}
-                      </button>
-                      <div
-                        v-show="getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizHintVisible"
-                        class="my-font-sm-400 form-control my-input-md my-input-md--on-dark my-bgcolor-light-gray rounded-2 w-100 min-w-0 px-3 py-2 my-color-gray-4"
-                      >
-                        {{ englishPhaseQuizCollapseHintText(activeTestPhaseIdForContent) }}
-                      </div>
-                    </div>
-                    <div
-                      v-if="englishPhaseQuizReferenceSeparate(activeTestPhaseIdForContent)"
-                      class="w-100 min-w-0 d-flex flex-column gap-1 mb-0"
-                    >
-                      <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">參考答案(暫存)</div>
-                      <div
-                        class="my-font-sm-400 form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                        style="white-space: pre-wrap;"
-                      >{{ englishPhaseQuizReferenceSeparate(activeTestPhaseIdForContent) }}</div>
-                    </div>
-                  </div>
+                  <QuizCard
+                    v-if="String(getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard?.quiz ?? '').trim() !== ''"
+                    :card="getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard"
+                    :slot-index="testPhaseLocalQuestionIndexOneBased()"
+                    :course-name="courseNameForPrompt"
+                    question-hint-only
+                    design-ui
+                    design-embedded
+                    skip-rag-mismatch-guard
+                    @toggle-hint="toggleEnglishPhaseQuizCardHint"
+                  />
                   </div>
                   </template>
                   <!-- 與建立測驗題庫「測試題目」相同：新增題目列固定在最下面（展開產生區後仍在灰塊下方） -->

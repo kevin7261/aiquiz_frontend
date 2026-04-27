@@ -1,5 +1,5 @@
 /**
- * English System API 回傳正規化（GET /english_system/tabs）
+ * English System API 回傳正規化（GET /english_system/tabs；每筆可含 phases、quizzes、answers）
  *
  * @param {unknown} data
  * @returns {object[]}

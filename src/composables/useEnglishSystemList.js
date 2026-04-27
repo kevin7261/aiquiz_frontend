@@ -1,8 +1,8 @@
 /**
- * English System 列表：GET /english_system/tabs?person_id=（loggedFetch 自動帶 person_id）
+ * English System 列表：GET /english_system/tabs?local=（與 GET /rag/tabs 一致）＋ person_id（loggedFetch 自動帶 person_id）
  */
 import { ref, watch, unref } from 'vue';
-import { API_BASE, API_ENGLISH_SYSTEM_TABS } from '../constants/api.js';
+import { API_BASE, API_ENGLISH_SYSTEM_TABS, isFrontendLocalHost } from '../constants/api.js';
 import { normalizeEnglishSystemTabsResponse } from '../utils/englishSystem.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import { useAuthStore } from '../stores/authStore.js';
@@ -38,7 +38,12 @@ export function useEnglishSystemList(options = {}) {
     if (!silent) englishSystemListLoading.value = true;
     englishSystemListError.value = '';
     try {
-      const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TABS}`, { method: 'GET' });
+      const listParams = new URLSearchParams();
+      listParams.set('local', String(isFrontendLocalHost()));
+      const res = await loggedFetch(
+        `${API_BASE}${API_ENGLISH_SYSTEM_TABS}?${listParams.toString()}`,
+        { method: 'GET' }
+      );
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       englishSystemList.value = normalizeEnglishSystemTabsResponse(data);

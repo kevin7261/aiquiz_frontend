@@ -1,7 +1,7 @@
 /**
  * 建立「英文測驗題庫」專用：列表 Composable（與 `useRagList.js` 分離）
  *
- * 清單來源為 GET /english_system/tabs?local=（與 Rag.local 一致）；並平行呼叫 GET /rag/tabs 以合併 file_metadata、unit_list 等同 rag_tab_id 的 RAG 欄位。
+ * 清單來源為 GET /english_system/tabs?local=（與 Rag.local 一致；回傳每筆可併入 phases／quizzes／answers）；並平行呼叫 GET /rag/tabs 以合併 file_metadata、unit_list 等同 rag_tab_id 的 RAG 欄位。
  * 若 English_System 表無列，側欄為空（不再僅依 RAG＋前端 registry 顯示）。
  *
  * 以 watch（immediate）依登入身分載入；Pinia 還原較晚時 loggedFetch 會在 user 就緒後再帶 person_id query。

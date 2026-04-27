@@ -130,18 +130,24 @@ export const API_PUT_RAG_FOR_EXAM_LOCALHOST = '/system-settings/rag-for-exam-loc
 /** 設為試題用 RAG（非本機前端）：PUT body { rag_id }；System_Setting key=rag_deploy */
 export const API_PUT_RAG_FOR_EXAM_DEPLOY = '/system-settings/rag-for-exam-deploy';
 
-/** English System：GET /english_system/tabs；query person_id（與 GET /rag/tabs 一致）；回傳 english_systems 或 systems、count；列對應表 English_System（system_id、system_tab_id、system_name…） */
+/** English System：GET /english_system/tabs；query person_id（必填）、local（與 GET /rag/tabs 相同；未傳時後端依連線判定）；僅 deleted=false；回傳 english_systems、count；每筆含 English_System 欄位並併入 phases（每段含 quizzes、quizzes[].answers）、頂層 answers 與 quizzes（phase 已刪時之題）；依 created_at 舊→新 */
 export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
 /** English System：POST /english_system/tab/create；query person_id；body：system_tab_id、tab_name（寫入 system_name）、person_id、local（選填，預設 false；本機前端與 POST /rag/tab/create 一致可傳 true）；回傳 system_id、system_tab_id、tab_name、person_id、local、created_at（對齊 POST /rag/tab/create） */
 export const API_ENGLISH_SYSTEM_TAB_CREATE = '/english_system/tab/create';
 /** English System：POST /english_system/tab/build-system；query person_id；JSON body：system_tab_id、person_id、quiz_type（未傳預設 0）、quiz_text、quiz_mp3_filename、quiz_youtube_url；更新 English_System；「開始建立題庫」呼叫；不建 RAG、不串流 */
 export const API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM = '/english_system/tab/build-system';
-/** English_System_Phase：POST /english_system/tab/phase/create；query person_id；body：english_system_id、english_system_tab_id、person_id、quiz_phase_name；回傳 english_system_quiz_phase_id、created_at 等 */
-export const API_ENGLISH_SYSTEM_TAB_PHASE_CREATE = '/english_system/tab/phase/create';
-/** English_System_Phase 列表：GET /english_system/tab/phases；query system_tab_id、person_id；回傳該 tab 下 Phase（依 created_at 舊→新；須已存在 English_System 且非 deleted、person 一致） */
-export const API_ENGLISH_SYSTEM_TAB_PHASES = '/english_system/tab/phases';
-/** English_System Phase 出題：POST /english_system/tab/phase/quiz/create；query person_id；body：system_id、system_tab_id、system_quiz_phase_id、person_id、quiz_phase_name、quiz_text、quiz_user_prompt_instruction；回傳 quiz_content、quiz_answer_reference、english_system_quiz_phase_id 等（與 generate_quiz 同模型；LLM Key 依 person_id） */
+/**
+ * POST /english_system/tab/phase/quiz/create（OpenAPI：**Create English System Tab Phase (no LLM)**）
+ * 建立或更新 English_System_Phase（不呼叫 LLM）。`system_quiz_phase_id === 0` 新增；`> 0` 更新。`person_id` 僅 query。
+ * body：`system_id`、`system_tab_id`、`system_quiz_phase_id`、`quiz_phase_name`、`quiz_content`、`content_text`、`quiz_text`、`quiz_user_prompt_instruction`、`quiz_answer_reference`。
+ * 若 `quiz_content` 或 `quiz_user_prompt_instruction` 任一非空，須同時 `quiz_answer_reference` 非空才 insert English_System_Quiz。
+ * 回傳：`system_quiz_id`、`quiz_content`、`quiz_answer_reference`（無草稿時 system_quiz_id 為 0）。
+ */
 export const API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_CREATE = '/english_system/tab/phase/quiz/create';
+/**
+ * POST /english_system/tab/phase/create — **LLM 出題**（system=content_text，user=quiz_user_prompt_instruction）；長文教材自動出題用此路徑，非 phase/quiz/create。
+ */
+export const API_ENGLISH_SYSTEM_TAB_PHASE_CREATE = '/english_system/tab/phase/create';
 /**
  * English System 音訊轉逐字稿：POST /english_system/transcript/audio
  * multipart：file、system_tab_id；query person_id。後端寫入 SUPABASE_ENGLISH_BUCKET 並以 Deepgram 轉逐字稿（DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）；無對應 English_System 列時可依 system_tab_id 與檔名自動建立。
