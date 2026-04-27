@@ -5,6 +5,7 @@ import {
   API_BASE,
   API_ENGLISH_SYSTEM_TAB_CREATE,
   API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM,
+  API_ENGLISH_SYSTEM_TAB_PHASE_CREATE,
   API_ENGLISH_TRANSCRIPT_AUDIO,
   API_ENGLISH_TRANSCRIPT_YOUTUBE,
   isFrontendLocalHost,
@@ -97,6 +98,55 @@ export async function apiEnglishSystemTabBuildSystem(body, opts = {}) {
       quiz_text: body.quiz_text != null ? String(body.quiz_text) : '',
       quiz_mp3_filename: body.quiz_mp3_filename != null ? String(body.quiz_mp3_filename) : '',
       quiz_youtube_url: body.quiz_youtube_url != null ? String(body.quiz_youtube_url) : '',
+    }),
+  }, { personId: opts.personId });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+function nullIfEmptyString(val) {
+  if (val == null) return null;
+  const s = String(val).trim();
+  return s === '' ? null : s;
+}
+
+/**
+ * POST /english_system/tab/phase/create — 建立一筆 English_System_Phase（須已存在 English_System、person_id 一致；建議先 build-system 再以回傳 system_id 帶入 english_system_id）
+ *
+ * @param {{
+ *   english_system_id: number,
+ *   english_system_tab_id: string,
+ *   person_id: string,
+ *   quiz_phase_name?: string | null,
+ *   quiz_user_prompt_instruction?: string | null,
+ *   critique_user_prompt_instruction?: string | null,
+ *   quiz_metadata?: object | null,
+ * }} body
+ * @param {{ personId?: string | null }} [opts]
+ * @returns {Promise<object>}
+ */
+export async function apiCreateEnglishSystemPhase(body, opts = {}) {
+  const english_system_id = Number(body.english_system_id);
+  if (!Number.isFinite(english_system_id) || english_system_id < 1) {
+    throw new Error('缺少或無效的 english_system_id');
+  }
+  const english_system_tab_id = String(body.english_system_tab_id ?? '').trim();
+  const person_id = String(body.person_id ?? '').trim();
+  if (!person_id) {
+    throw new Error('缺少 person_id');
+  }
+  const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_PHASE_CREATE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      english_system_id,
+      english_system_tab_id,
+      person_id,
+      quiz_phase_name: nullIfEmptyString(body.quiz_phase_name),
+      quiz_user_prompt_instruction: nullIfEmptyString(body.quiz_user_prompt_instruction),
+      critique_user_prompt_instruction: nullIfEmptyString(body.critique_user_prompt_instruction),
+      quiz_metadata: body.quiz_metadata == null || body.quiz_metadata === '' ? null : body.quiz_metadata,
     }),
   }, { personId: opts.personId });
   const text = await res.text();

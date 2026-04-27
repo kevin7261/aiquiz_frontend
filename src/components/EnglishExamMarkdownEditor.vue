@@ -1,6 +1,7 @@
 <script setup>
 /**
  * 建立英文測驗題庫「文字內容」用：EasyMDE + 「編輯／預覽」切換；預覽為 marked + DOMPurify（與全站 renderMarkdown 一致）
+ * previewOnly：讀入／build-system 完成等唯讀時僅顯示預覽，不掛 EasyMDE、不顯示編輯分頁
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import EasyMDE from 'easymde';
@@ -11,6 +12,8 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  /** 僅預覽：已讀入或 build-system 完成；不掛編輯器、不顯示編輯／預覽切換 */
+  previewOnly: { type: Boolean, default: false },
   /** 對應外層 <label for="…">，維持無障礙關聯 */
   textareaId: { type: String, default: 'english-bank-paste-text' },
 });
@@ -32,26 +35,40 @@ function syncReadOnly() {
   easyMDE.codemirror.setOption('readOnly', props.disabled);
 }
 
+function initEasyMde() {
+  if (props.previewOnly || easyMDE) return;
+  const el = textareaRef.value;
+  if (!el) return;
+  easyMDE = new EasyMDE({
+    element: el,
+    initialValue: props.modelValue ?? '',
+    placeholder: props.placeholder ? String(props.placeholder) : undefined,
+    spellChecker: false,
+    autoDownloadFontAwesome: false,
+    status: false,
+    minHeight: '260px',
+    renderingConfig: {
+      singleLineBreaks: false,
+    },
+  });
+  easyMDE.codemirror.on('change', () => {
+    emit('update:modelValue', easyMDE.value());
+  });
+  syncReadOnly();
+}
+
+function destroyEasyMde() {
+  if (easyMDE) {
+    easyMDE.toTextArea();
+    easyMDE = null;
+  }
+}
+
 onMounted(() => {
   nextTick(() => {
-    const el = textareaRef.value;
-    if (!el) return;
-    easyMDE = new EasyMDE({
-      element: el,
-      initialValue: props.modelValue ?? '',
-      placeholder: props.placeholder ? String(props.placeholder) : undefined,
-      spellChecker: false,
-      autoDownloadFontAwesome: false,
-      status: false,
-      minHeight: '260px',
-      renderingConfig: {
-        singleLineBreaks: false,
-      },
-    });
-    easyMDE.codemirror.on('change', () => {
-      emit('update:modelValue', easyMDE.value());
-    });
-    syncReadOnly();
+    if (!props.previewOnly) {
+      initEasyMde();
+    }
   });
 });
 
@@ -73,23 +90,60 @@ watch(
   }
 );
 
+watch(
+  () => props.previewOnly,
+  (po) => {
+    if (po) {
+      viewMode.value = 'preview';
+      destroyEasyMde();
+    } else {
+      nextTick(() => {
+        initEasyMde();
+        nextTick(() => {
+          easyMDE?.codemirror?.refresh();
+        });
+      });
+    }
+  }
+);
+
 watch(viewMode, (m) => {
-  if (m !== 'edit') return;
+  if (m !== 'edit' || props.previewOnly) return;
   nextTick(() => {
     easyMDE?.codemirror?.refresh();
   });
 });
 
 onBeforeUnmount(() => {
-  if (easyMDE) {
-    easyMDE.toTextArea();
-    easyMDE = null;
-  }
+  destroyEasyMde();
 });
 </script>
 
 <template>
   <div class="english-exam-md-editor-root min-w-0">
+    <!-- 唯讀讀入／已建置：只顯示預覽 -->
+    <template v-if="previewOnly">
+      <div
+        :id="textareaId"
+        class="english-exam-md-preview-panel my-bgcolor-surface min-w-0 rounded-2 border overflow-auto"
+        role="region"
+        aria-label="Markdown 預覽（僅讀）"
+        tabindex="0"
+      >
+        <div
+          v-if="!previewEmpty"
+          class="english-exam-md-preview-body px-3 py-2 text-break"
+          v-html="previewHtml"
+        />
+        <div
+          v-else
+          class="english-exam-md-preview-empty px-3 py-4 my-font-sm-400 my-color-gray-4 text-center"
+        >
+          尚無內容可預覽
+        </div>
+      </div>
+    </template>
+    <template v-else>
     <div
       class="btn-group my-btn-group-pill w-100 mb-2"
       role="tablist"
@@ -150,6 +204,7 @@ onBeforeUnmount(() => {
         尚無內容可預覽
       </div>
     </div>
+    </template>
   </div>
 </template>
 

@@ -4,7 +4,7 @@
  *
  * 側欄分頁清單：GET /english_system/tabs（合併同 system_tab_id 之 GET /rag/tabs 詳情）；教材來源為文字／MP3／YouTube。
  * MP3 轉逐字稿：POST /english_system/transcript/audio（Deepgram，見 englishSystemApi）。YouTube：GET /english_system/transcript/youtube。
- * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create（system_tab_id = rag_tab_id、tab_name 與 RAG 一致、local 與 rag 相同），對齊「新增測驗題庫」先有 tab 再寫教材。「開始建立題庫」POST /english_system/tab/build-system。
+ * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create（system_tab_id = rag_tab_id、tab_name 與 RAG 一致、local 與 rag 相同），對齊「新增測驗題庫」先有 tab 再寫教材。「開始建立題庫」POST /english_system/tab/build-system。測試階段欄位對照 English_System_Phase；建立 POST /english_system/tab/phase/create。
  */
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -18,6 +18,7 @@ import {
   apiEnglishTranscriptAudio,
   apiEnglishTranscriptYoutube,
   apiEnglishSystemTabBuildSystem,
+  apiCreateEnglishSystemPhase,
   ensureEnglishSystemTab,
 } from '../services/englishSystemApi.js';
 import {
@@ -43,11 +44,9 @@ import {
   parsePackTasksList,
   parseRagMetadataObject,
   DEFAULT_SYSTEM_INSTRUCTION,
-  QUIZ_LEVEL_LABELS,
   normalizeQuizLevelLabel,
   quizLevelStringForApi,
   reconcileQuizUnitSelectSlot,
-  findQuizUnitBySlotSelection,
   examOrRagQuizRowKey,
   examOrRagAnswerRowKey,
 } from '../utils/englishExamRag.js';
@@ -61,7 +60,6 @@ import { useEnglishExamPackTasks } from '../composables/useEnglishExamPackTasks.
 import { loggedFetch } from '../utils/loggedFetch.js';
 import EnglishExamQuizCard from '../components/EnglishExamQuizCard.vue';
 import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
-import EnglishExamUnitSelectDropdown from '../components/EnglishExamUnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 
@@ -248,7 +246,7 @@ const packOutputs = computed(() => {
   return Array.isArray(data.outputs) ? data.outputs : [];
 });
 
-/** 產生題目：選擇單元 = rag_name 下拉（供 API；Pack 無資料時從 /rags 推導） */
+/** 產生題目 API 用：從 pack outputs 或 /rag/tabs 推導（英文測驗題庫畫面不再顯示單元／難度，仍供 reconcile 舊狀態用） */
 const generateQuizUnits = computed(() => {
   const data = currentState.value.packResponseJson;
   const out = packOutputs.value;
@@ -289,8 +287,7 @@ function ensureNumber(val, defaultVal) {
   return (n === n && isFinite(n)) ? n : defaultVal;
 }
 
-/** 難度、chunk 參數（共用）；chunk_size / chunk_overlap 一律為數字 */
-const filterDifficulty = ref('基礎');
+/** chunk 參數；chunk_size / chunk_overlap 一律為數字 */
 const chunkSize = ref(1000);
 const chunkOverlap = ref(200);
 
@@ -309,6 +306,15 @@ const currentRagIdForQuizCards = computed(() => {
   const rag = currentRagItem.value;
   const v = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
   return v != null && String(v).trim() !== '' ? v : null;
+});
+
+/** 對照 English_System.english_system_id（API 多為 system_id） */
+const currentEnglishSystemId = computed(() => {
+  const rag = currentRagItem.value;
+  if (rag == null) return null;
+  const v = rag.system_id ?? rag.english_system_id;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
 });
 
 /** GET /system-settings/rag-for-exam-* 的 rag_id（列表未帶 for_exam 時仍可比對） */
@@ -366,9 +372,18 @@ const hasAnySlotGenerating = computed(() => {
   return false;
 });
 
+const hasAnyPhaseCreateLoading = computed(() => {
+  const state = currentState.value;
+  const n = Number(state.quizSlotsCount) || 0;
+  for (let i = 1; i <= n; i++) {
+    if (state.slotFormState[i]?.phaseCreateLoading) return true;
+  }
+  return false;
+});
+
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／English build-system／建題庫／測驗用設定／產生題目／批改／英文 MP3 Deepgram 轉逐字稿／YouTube 字幕 */
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／English build-system／建題庫／測驗用設定／產生題目／建立測試階段／批改／英文 MP3 Deepgram 轉逐字稿／YouTube 字幕 */
 const loadingOverlayVisible = computed(
   () =>
     ragListLoading.value ||
@@ -381,12 +396,14 @@ const loadingOverlayVisible = computed(
     !!currentState.value?.englishTranscriptAudioLoading ||
     !!currentState.value?.englishTranscriptYoutubeLoading ||
     hasAnySlotGenerating.value ||
+    hasAnyPhaseCreateLoading.value ||
     isGradingSubmitting.value
 );
 
 const loadingOverlayText = computed(() => {
   if (isGradingSubmitting.value) return '批改中...';
   if (hasAnySlotGenerating.value) return '產生題目中...';
+  if (hasAnyPhaseCreateLoading.value) return '建立測驗階段中...';
   const st = currentState.value;
   if (st?.englishTranscriptAudioLoading) return '轉換逐字稿中...';
   if (st?.englishTranscriptYoutubeLoading) return '擷取字幕中...';
@@ -504,6 +521,17 @@ const showUploadFileSection = computed(
 /** 英文教材欄位唯讀（POST /english_system/tab/build-system 成功後） */
 const englishMaterialReadOnly = computed(() => !!currentState.value.englishSystemBuildSucceeded);
 
+/**
+ * 文字內容僅能「預覽」、不使用 Markdown 的編輯分頁：已建置／送 build-system 中／MP3·YouTube 讀入鎖定
+ * 可編輯時改在下方以 textarea 輸入＋只讀預覽，不出現 EasyMDE 編輯模式
+ */
+const englishTextMarkdownPreviewOnly = computed(
+  () =>
+    !!currentState.value.englishBuildSystemLoading ||
+    englishMaterialReadOnly.value ||
+    !!currentState.value.englishSourceInputLocked
+);
+
 const englishSourceKindReadonlyLabel = computed(() => {
   const k = currentState.value?.englishSourceKind;
   if (k === 'mp3') return 'MP3';
@@ -524,7 +552,7 @@ const englishBuildSystemCanSubmit = computed(() => {
   return (st.englishPasteText || '').trim() !== '';
 });
 
-/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測試階段（含英文 build-system 成功） */
+/** 建立流程 stepper 階段：1 上傳檔案 → 2 已上傳、建置題庫中 → 3 已建置、可測驗階段（含英文 build-system 成功） */
 const createRagStepperPhase = computed(() => {
   if (hasRagMetadata.value || currentState.value.englishSystemBuildSucceeded) return 3;
   if (hasUploadedFileMetadata.value) return 2;
@@ -687,10 +715,14 @@ function applyEnglishSystemListRowToTabState(rag, state) {
     state.englishLockedYoutubeDisplay = '';
   }
 
+  /** 有 RAG metadata 仍須標記已建置，讓「文字內容」與出題設定唯讀；底下 pack 假資料僅在無 rag_metadata 時寫入 */
+  if (englishSystemRowHasBuiltQuizBank(rag)) {
+    state.englishSystemBuildSucceeded = true;
+  }
+
   if (hasRagMeta) return;
 
   if (englishSystemRowHasBuiltQuizBank(rag)) {
-    state.englishSystemBuildSucceeded = true;
     const tid = String(rag.rag_tab_id ?? '').trim();
     const rid = rag.rag_id != null ? rag.rag_id : null;
     state.packResponseJson = {
@@ -798,7 +830,7 @@ watch(
   { immediate: true }
 );
 
-/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試階段區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測驗階段區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
 function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
@@ -831,14 +863,9 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   };
 }
 
-/** 單元下拉預設不選；清單變動時用 unit_name／rag_tab_id 重新對齊選取（避免無匹配 value 時 select 誤顯示第一筆） */
+/** 清單變動時對齊分頁層 generateQuizTabId（測驗階段不再使用單元下拉） */
 watch(generateQuizUnits, (units) => {
-  const state = currentState.value;
-  reconcileQuizUnitSelectSlot(state, units);
-  const count = state.quizSlotsCount || 0;
-  for (let i = 1; i <= count; i++) {
-    reconcileQuizUnitSelectSlot(state.slotFormState?.[i], units);
-  }
+  reconcileQuizUnitSelectSlot(currentState.value, units);
 }, { immediate: true });
 
 /** 有 RAG 資料時預設選第一個 tab */
@@ -1493,24 +1520,87 @@ async function confirmPack() {
   }
 }
 
-/** 難度選項；tab/quiz/create 的 quiz_level 直接送「基礎」／「進階」字串 */
-const difficultyOptions = QUIZ_LEVEL_LABELS;
-
-/** 取得第 slotIndex 題的產生題目表單狀態（獨立、不連動） */
+/** 取得第 slotIndex 題的產生題目表單狀態（獨立、不連動）；含 English_System_Phase 對應欄位 */
 function getSlotFormState(slotIndex) {
   const state = currentState.value;
   if (!state.slotFormState[slotIndex]) {
     state.slotFormState[slotIndex] = reactive({
-      generateQuizTabId: '',
       loading: false,
       error: '',
       responseJson: null,
+      quiz_phase_name: '',
+      quiz_user_prompt_instruction: '',
+      critique_user_prompt_instruction: '',
+      phaseCreateLoading: false,
+      phaseCreateError: '',
+      phaseCreateMessage: '',
+      english_system_quiz_phase_id: null,
     });
+  } else {
+    const s = state.slotFormState[slotIndex];
+    if (s.quiz_phase_name === undefined) s.quiz_phase_name = '';
+    if (s.quiz_user_prompt_instruction === undefined) s.quiz_user_prompt_instruction = '';
+    if (s.critique_user_prompt_instruction === undefined) s.critique_user_prompt_instruction = '';
+    if (s.phaseCreateLoading === undefined) s.phaseCreateLoading = false;
+    if (s.phaseCreateError === undefined) s.phaseCreateError = '';
+    if (s.phaseCreateMessage === undefined) s.phaseCreateMessage = '';
+    if (s.english_system_quiz_phase_id === undefined) s.english_system_quiz_phase_id = null;
   }
   return state.slotFormState[slotIndex];
 }
 
-/** 點「新增測試階段」：展開一個新的題目區塊（第 n 題）；cardList 與 slot 對齊 */
+/** POST /english_system/tab/phase/create，建立 English_System_Phase */
+async function createEnglishTestPhase(slotIndex) {
+  const st = getSlotFormState(slotIndex);
+  const personId = getPersonId(authStore);
+  if (!personId) {
+    st.phaseCreateError = '請先登入';
+    st.phaseCreateMessage = '';
+    return;
+  }
+  const rag = currentRagItem.value;
+  const esId = currentEnglishSystemId.value;
+  if (rag == null || esId == null) {
+    st.phaseCreateError = '缺少 English_System 編號，請先建立分頁並完成出題流程';
+    st.phaseCreateMessage = '';
+    return;
+  }
+  const tabId = String(rag.rag_tab_id ?? rag.id ?? activeTabId.value ?? '').trim();
+  if (!tabId) {
+    st.phaseCreateError = '缺少 english_system_tab_id';
+    st.phaseCreateMessage = '';
+    return;
+  }
+  st.phaseCreateLoading = true;
+  st.phaseCreateError = '';
+  st.phaseCreateMessage = '';
+  try {
+    const data = await apiCreateEnglishSystemPhase(
+      {
+        english_system_id: esId,
+        english_system_tab_id: tabId,
+        person_id: personId,
+        quiz_phase_name: st.quiz_phase_name,
+        quiz_user_prompt_instruction: st.quiz_user_prompt_instruction,
+        critique_user_prompt_instruction: st.critique_user_prompt_instruction,
+        quiz_metadata: null,
+      },
+      { personId }
+    );
+    const newId = data.english_system_quiz_phase_id ?? data.quiz_phase_id;
+    if (newId != null) {
+      const num = Number(newId);
+      st.english_system_quiz_phase_id = Number.isFinite(num) ? num : newId;
+    }
+    st.phaseCreateMessage = '測驗階段已建立';
+  } catch (err) {
+    st.phaseCreateError = err?.message || '建立失敗';
+  } finally {
+    st.phaseCreateLoading = false;
+  }
+}
+
+/** 點「新增測驗階段」：展開一個新的題目區塊（第 n 題）；cardList 與 slot 對齊 */
 function openNextQuizSlot() {
   const state = currentState.value;
   state.showQuizGeneratorBlock = true;
@@ -1548,7 +1638,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
   state.cardList[slotIndex - 1] = card;
 }
 
-/** 產生題目 */
+/** 產生題目（英文測驗題庫不選單元／難度；API unit_name 送空、quiz_level 送「基礎」） */
 async function generateQuiz(slotIndex) {
   const state = currentState.value;
   const slotState = getSlotFormState(slotIndex);
@@ -1558,31 +1648,23 @@ async function generateQuiz(slotIndex) {
   const aid = activeTabId.value;
   const tidFromActive = aid && !isNewTabId(aid) ? String(aid).trim() : '';
   const sourceTabId = tidFromZip || tidFromRag || tidFromActive;
-  const selectedUnit = findQuizUnitBySlotSelection(generateQuizUnits.value, slotState.generateQuizTabId);
-  if (!selectedUnit) {
-    slotState.error = '請先選擇單元';
-    return;
-  }
-  const unitName = String(selectedUnit.unit_name ?? selectedUnit.rag_name ?? '').trim();
-  const ragName = selectedUnit.rag_name?.trim() || unitName;
+  const unitName = '';
+  const quizLevelForApi = quizLevelStringForApi('基礎');
+  const displayRagName = (rag && String(getRagTabLabel(rag) || '').trim()) || (generateQuizUnits.value[0]?.rag_name) || 'English';
   const ragId = rag?.rag_id ?? rag?.id ?? state?.zipResponseJson?.rag_id ?? state?.zipResponseJson?.id;
   if (ragId == null) {
     slotState.error = '無法取得題庫編號，請先上傳教材或重新整理頁面';
-    return;
-  }
-  if (!generateQuizUnits.value.length) {
-    slotState.error = '請先在「出題設定」按「開始建立題庫」完成題庫建立，或重新整理頁面';
     return;
   }
   slotState.loading = true;
   slotState.error = '';
   slotState.responseJson = null;
   try {
-    const data = await apiGenerateQuiz(ragId, sourceTabId, quizLevelStringForApi(filterDifficulty.value), unitName);
+    const data = await apiGenerateQuiz(ragId, sourceTabId, quizLevelForApi, unitName);
     slotState.responseJson = data;
     const quizContent = data[API_RESPONSE_QUIZ_CONTENT] ?? data[API_RESPONSE_QUIZ_LEGACY] ?? data.quiz_content ?? '';
     const hintText = data.quiz_hint ?? data.hint ?? '';
-    const targetFilename = data.unit_filename ?? data.target_filename ?? selectedUnit?.filename ?? '';
+    const targetFilename = data.unit_filename ?? data.target_filename ?? '';
     const referenceAnswerText =
       data.quiz_answer_reference ?? data.quiz_reference_answer ?? data.quiz_answer ?? data.answer ?? '';
     const rawRagQuizId =
@@ -1594,9 +1676,9 @@ async function generateQuiz(slotIndex) {
       hintText,
       targetFilename,
       referenceAnswerText,
-      ragName,
+      displayRagName,
       data,
-      filterDifficulty.value,
+      '基礎',
       (state.systemInstruction ?? '').trim() || DEFAULT_SYSTEM_INSTRUCTION,
       ragId,
       ragQuizId
@@ -1829,7 +1911,7 @@ async function confirmAnswer(item) {
             <span
               class="my-create-rag-stepper-label"
               :class="createRagStepperPhase >= 3 ? 'my-create-rag-stepper-label--current my-font-sm-600' : 'my-create-rag-stepper-label--inactive my-font-sm-400'"
-            >測試階段</span>
+            >測驗階段</span>
           </div>
           </div>
         </div>
@@ -2032,7 +2114,7 @@ async function confirmAnswer(item) {
               </div>
             </div>
 
-            <!-- 文字內容：三種教材類型共用（手打、或 MP3／YouTube 轉逐字稿寫入後可再編輯） -->
+            <!-- 文字內容：唯讀時僅 HTML 預覽；可編輯時 textarea ＋ 下方僅預覽（無 EasyMDE 編輯／預覽分頁） -->
             <div
               class="mb-3"
               :class="currentState.englishSourceKind === 'text' ? '' : 'mt-3'"
@@ -2041,12 +2123,37 @@ async function confirmAnswer(item) {
                 class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1 d-block"
                 for="english-bank-paste-text"
               >文字內容</label>
-              <EnglishExamMarkdownEditor
-                v-model="currentState.englishPasteText"
-                placeholder="貼上或輸入 Markdown…"
-                textarea-id="english-bank-paste-text"
-                :disabled="!!currentState.englishBuildSystemLoading || englishMaterialReadOnly"
-              />
+              <template v-if="englishTextMarkdownPreviewOnly">
+                <EnglishExamMarkdownEditor
+                  v-model="currentState.englishPasteText"
+                  placeholder="貼上或輸入 Markdown…"
+                  textarea-id="english-bank-paste-text"
+                  :disabled="!!currentState.englishBuildSystemLoading || englishMaterialReadOnly"
+                  :preview-only="true"
+                />
+              </template>
+              <template v-else>
+                <textarea
+                  id="english-bank-paste-text"
+                  v-model="currentState.englishPasteText"
+                  class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2 font-monospace"
+                  style="min-height: 12rem; resize: vertical"
+                  rows="12"
+                  placeholder="貼上或輸入 Markdown…"
+                  autocomplete="off"
+                />
+                <div
+                  class="my-color-gray-1 my-font-sm-400 mt-2 mb-1"
+                  id="english-bank-paste-text-preview-label"
+                >
+                  預覽
+                </div>
+                <EnglishExamMarkdownEditor
+                  :model-value="currentState.englishPasteText"
+                  preview-only
+                  textarea-id="english-bank-paste-text-preview"
+                />
+              </template>
             </div>
 
             <div v-if="!englishMaterialReadOnly && currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
@@ -2443,7 +2550,7 @@ async function confirmAnswer(item) {
           </section>
         </div>
       </template>
-      <!-- 測試階段：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
+      <!-- 測驗階段：標題在區塊外；每題（題卡或產生題目槽）各一 rounded-4 深灰塊 -->
       <div
         v-if="currentState.ragMetadata != null && String(currentState.ragMetadata).trim() !== ''"
         class="text-start my-page-block-spacing"
@@ -2454,7 +2561,7 @@ async function confirmAnswer(item) {
             aria-level="2"
           >
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
-            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測試階段</span>
+            <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">測驗階段</span>
             <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
           </div>
           <div
@@ -2482,53 +2589,80 @@ async function confirmAnswer(item) {
                 <div
                   class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-3"
                 >
-                  <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 題</div>
-                  <div class="text-start w-100 min-w-0">
-                  <div
-                    class="d-flex flex-row align-items-end gap-3 w-100 min-w-0 flex-nowrap justify-content-center"
-                  >
-                    <div class="d-flex flex-column gap-0 w-100 min-w-0 flex-grow-1">
-                      <label
-                        class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                        :for="`rag-quiz-unit-${slotIndex}-toggle`"
-                      >單元</label>
-                      <EnglishExamUnitSelectDropdown
-                        v-model="getSlotFormState(slotIndex).generateQuizTabId"
-                        :options="generateQuizUnits"
-                        :menu-id="`rag-quiz-unit-${slotIndex}`"
-                        :disabled="getSlotFormState(slotIndex).loading"
-                      />
-                    </div>
-                    <div class="d-flex flex-column gap-1 flex-shrink-0">
-                      <div
-                        class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                        :id="`rag-quiz-difficulty-label-${slotIndex}`"
-                      >難度</div>
-                      <div
-                        class="btn-group my-btn-group-pill flex-shrink-0"
-                        role="group"
-                        :aria-labelledby="`rag-quiz-difficulty-label-${slotIndex}`"
-                      >
-                        <button
-                          v-for="opt in difficultyOptions"
-                          :key="'rag-quiz-diff-' + slotIndex + '-' + opt"
-                          type="button"
-                          class="btn d-flex justify-content-center align-items-center my-font-md-400 px-3 py-2"
-                          :class="filterDifficulty === opt ? 'my-button-white' : 'my-button-gray-3'"
-                          :aria-pressed="filterDifficulty === opt"
-                          :disabled="getSlotFormState(slotIndex).loading"
-                          @click="filterDifficulty = opt"
-                        >
-                          {{ opt }}
-                        </button>
-                      </div>
-                    </div>
+                  <div class="my-font-lg-600 my-color-black mb-0">第 {{ slotIndex }} 測驗階段</div>
+                  <div class="d-flex flex-column gap-2 w-100 min-w-0 text-start">
+                    <label
+                      class="my-color-gray-1 my-font-sm-400 mb-0"
+                      :for="`eng-phase-name-${slotIndex}`"
+                    >階段名稱（quiz_phase_name）</label>
+                    <input
+                      :id="`eng-phase-name-${slotIndex}`"
+                      v-model="getSlotFormState(slotIndex).quiz_phase_name"
+                      type="text"
+                      class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
+                      :disabled="getSlotFormState(slotIndex).loading || getSlotFormState(slotIndex).phaseCreateLoading"
+                      autocomplete="off"
+                    />
+                    <label
+                      class="my-color-gray-1 my-font-sm-400 mb-0 mt-1"
+                      :for="`eng-quiz-prompt-${slotIndex}`"
+                    >出題提示（quiz_user_prompt_instruction）</label>
+                    <textarea
+                      :id="`eng-quiz-prompt-${slotIndex}`"
+                      v-model="getSlotFormState(slotIndex).quiz_user_prompt_instruction"
+                      class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
+                      rows="3"
+                      :disabled="getSlotFormState(slotIndex).loading || getSlotFormState(slotIndex).phaseCreateLoading"
+                    />
+                    <label
+                      class="my-color-gray-1 my-font-sm-400 mb-0 mt-1"
+                      :for="`eng-crit-prompt-${slotIndex}`"
+                    >批改提示（critique_user_prompt_instruction）</label>
+                    <textarea
+                      :id="`eng-crit-prompt-${slotIndex}`"
+                      v-model="getSlotFormState(slotIndex).critique_user_prompt_instruction"
+                      class="form-control my-input-md rounded-2 w-100 min-w-0 px-3 py-2"
+                      rows="3"
+                      :disabled="getSlotFormState(slotIndex).loading || getSlotFormState(slotIndex).phaseCreateLoading"
+                    />
                   </div>
-                  <div class="d-flex justify-content-center mt-3">
+                  <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
                     <button
                       type="button"
                       class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
-                      :disabled="getSlotFormState(slotIndex).loading || !String(getSlotFormState(slotIndex).generateQuizTabId || '').trim()"
+                      :disabled="
+                        getSlotFormState(slotIndex).phaseCreateLoading ||
+                        getSlotFormState(slotIndex).loading ||
+                        !getPersonId(authStore) ||
+                        currentEnglishSystemId == null
+                      "
+                      :aria-busy="getSlotFormState(slotIndex).phaseCreateLoading"
+                      aria-label="建立測驗階段"
+                      @click="createEnglishTestPhase(slotIndex)"
+                    >
+                      建立測驗階段
+                    </button>
+                    <span
+                      v-if="getSlotFormState(slotIndex).phaseCreateMessage"
+                      class="my-font-sm-400 my-color-gray-1 mb-0"
+                    >{{ getSlotFormState(slotIndex).phaseCreateMessage }}</span>
+                  </div>
+                  <div
+                    v-if="getSlotFormState(slotIndex).phaseCreateError"
+                    class="my-alert-danger-soft my-font-sm-400 py-2 mb-0"
+                  >
+                    {{ getSlotFormState(slotIndex).phaseCreateError }}
+                  </div>
+                  <div class="text-start w-100 min-w-0 d-flex flex-column align-items-center gap-2">
+                  <div class="d-flex justify-content-center mt-1">
+                    <button
+                      type="button"
+                      class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
+                      :disabled="
+                        ragGenerateDisabled ||
+                        getSlotFormState(slotIndex).loading ||
+                        getSlotFormState(slotIndex).phaseCreateLoading
+                      "
                       :aria-busy="getSlotFormState(slotIndex).loading"
                       aria-label="產生題目"
                       @click="generateQuiz(slotIndex)"
@@ -2536,7 +2670,7 @@ async function confirmAnswer(item) {
                       產生題目
                     </button>
                   </div>
-                  <div v-if="getSlotFormState(slotIndex).error" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
+                  <div v-if="getSlotFormState(slotIndex).error" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0 w-100">
                     {{ getSlotFormState(slotIndex).error }}
                   </div>
                 </div>
@@ -2544,17 +2678,17 @@ async function confirmAnswer(item) {
             </template>
           </template>
 
-            <!-- 新增測試階段按鈕：固定在最下面；與「新增測驗題庫」同款灰底膠囊＋加號 -->
+            <!-- 新增測驗階段按鈕：固定在最下面；與「新增測驗題庫」同款灰底膠囊＋加號 -->
             <div class="d-flex justify-content-center pt-2 mb-0">
               <button
                 type="button"
                 class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
-                title="新增測試階段"
-                aria-label="新增測試階段"
+                title="新增測驗階段"
+                aria-label="新增測驗階段"
                 @click="openNextQuizSlot"
               >
                 <i class="fa-solid fa-plus" aria-hidden="true" />
-                新增測試階段
+                新增測驗階段
               </button>
             </div>
           </div>
@@ -2568,7 +2702,7 @@ async function confirmAnswer(item) {
 </template>
 
 <style scoped>
-/* 區塊外標題：────── 測試階段 ────── */
+/* 區塊外標題：────── 測驗階段 ────── */
 .my-test-section-heading-line {
   display: block;
   border: 0;

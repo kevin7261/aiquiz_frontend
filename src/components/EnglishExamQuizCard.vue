@@ -11,7 +11,7 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateEnglishExamQuizBankPage 使用；評分邏輯由父層透過 useEnglishExamQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試階段」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測驗階段」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -26,7 +26,7 @@ const props = defineProps({
   skipRagMismatchGuard: { type: Boolean, default: false },
   /** 與 UI 元件參考按鈕／字色一致（建立測驗題庫設計稿用） */
   designUi: { type: Boolean, default: false },
-  /** 稿頁「測試階段」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
+  /** 稿頁「測驗階段」外層已包 rounded-4 深灰塊時為 true，本卡不再重複外框 */
   designEmbedded: { type: Boolean, default: false },
   /** 正在送出「確定批改」（全螢幕 LoadingOverlay 由父層顯示；按鈕僅停用） */
   gradeSubmitting: { type: Boolean, default: false },

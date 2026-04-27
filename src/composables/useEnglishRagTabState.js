@@ -70,7 +70,7 @@ export function useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore
         englishTranscriptYoutubeDurationMs: null,
         englishBuildSystemLoading: false,
         englishBuildSystemError: '',
-        /** POST /english_system/tab/build-system 成功後隱藏「開始建立題庫」、顯示測試階段區（與 tab/build-rag-zip 後 hasRagMetadata 對齊） */
+        /** POST /english_system/tab/build-system 成功後隱藏「開始建立題庫」、顯示測驗階段區（與 tab/build-rag-zip 後 hasRagMetadata 對齊） */
         englishSystemBuildSucceeded: false,
         /** MP3／YouTube 轉逐字稿成功後，來源輸入改為唯讀顯示 */
         englishSourceInputLocked: false,
