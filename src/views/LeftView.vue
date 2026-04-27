@@ -30,6 +30,7 @@
         if (!canSeeNavLink(t, 'profile')) return false;
         return (
           canSeeNavLink(t, 'create-test-bank') ||
+          canSeeNavLink(t, 'create-english-test-bank') ||
           canSeeNavLink(t, 'student-answer-analysis') ||
           canSeeNavLink(t, 'users') ||
           canSeeNavLink(t, 'settings') ||
@@ -95,6 +96,9 @@
         <ul class="dropdown-menu dropdown-menu-start w-100">
           <li v-if="canSeeNavLink(userType, 'create-test-bank')">
             <router-link class="dropdown-item" to="/create-test-bank" active-class="active">建立測驗題庫</router-link>
+          </li>
+          <li v-if="canSeeNavLink(userType, 'create-english-test-bank')">
+            <router-link class="dropdown-item" to="/create-english-test-bank" active-class="active">建立英文測驗題庫</router-link>
           </li>
           <li v-if="canSeeNavLink(userType, 'student-answer-analysis')">
             <router-link class="dropdown-item" to="/student-answer-analysis" active-class="active"

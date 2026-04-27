@@ -27,6 +27,7 @@
     'student-answer-analysis': 'studentAnswerAnalysis',
     profile: 'profile',
     'create-test-bank': 'createExamQuizBank',
+    'create-english-test-bank': 'createEnglishExamQuizBank',
     design: 'designPage',
     'manage-users': 'userManagement',
     settings: 'systemSettings',
@@ -43,7 +44,7 @@
       const route = useRoute();
       const dataStore = useDataStore();
       const authStore = useAuthStore();
-      /** 目前要顯示的區塊：work | studentWeaknessAnalysis | studentAnswerAnalysis | profile | createExamQuizBank | designPage | userManagement | systemSettings | logList */
+      /** 目前要顯示的區塊：work | studentWeaknessAnalysis | studentAnswerAnalysis | profile | createExamQuizBank | createEnglishExamQuizBank | designPage | userManagement | systemSettings | logList */
       const currentView = computed(() => {
         if (route.path === '/exam') return 'work';
         return PATH_TO_VIEW[route.params.view] || 'work';

@@ -39,7 +39,57 @@ function getPersonIdForQuery() {
  * @returns {string}
  */
 function mergePersonIdQuery(urlString, overridePersonId) {
-  if (typeof urlString !== 'string' || !API_BASE || !urlString.startsWith(API_BASE)) return urlString;
+  if (typeof urlString !== 'string' || !API_BASE) return urlString;
+
+  const baseTrim = String(API_BASE).replace(/\/$/, '');
+  let baseOrigin;
+  try {
+    baseOrigin = new URL(baseTrim).origin;
+  } catch {
+    baseOrigin = null;
+  }
+
+  let u;
+  let inputWasRelative = false;
+  try {
+    if (/^https?:\/\//i.test(urlString)) {
+      u = new URL(urlString);
+    } else if (urlString.startsWith('/')) {
+      if (typeof window === 'undefined' || !window.location?.origin) return urlString;
+      u = new URL(urlString, window.location.origin);
+      inputWasRelative = true;
+    } else {
+      return urlString;
+    }
+  } catch {
+    return urlString;
+  }
+
+  const p = u.pathname;
+  const isApiPath =
+    p.startsWith('/english_system') ||
+    p.startsWith('/rag') ||
+    p.startsWith('/user/') ||
+    p.startsWith('/exam/') ||
+    p.startsWith('/system-settings') ||
+    p.startsWith('/person-analysis') ||
+    p.startsWith('/course-analysis') ||
+    p.startsWith('/log/') ||
+    p.startsWith('/api');
+
+  if (!isApiPath) return urlString;
+
+  const abs = u.toString();
+  const sameApiHost = baseOrigin != null && u.origin === baseOrigin;
+  const sameDevOrigin =
+    typeof process !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    typeof window !== 'undefined' &&
+    inputWasRelative &&
+    baseOrigin === window.location.origin;
+  const startsWithConfiguredBase = abs.startsWith(baseTrim);
+
+  if (!startsWithConfiguredBase && !sameApiHost && !sameDevOrigin) return urlString;
 
   let personId = null;
   if (overridePersonId != null && String(overridePersonId).trim() !== '') {
@@ -49,17 +99,10 @@ function mergePersonIdQuery(urlString, overridePersonId) {
   }
   if (!personId) return urlString;
 
-  let u;
-  try {
-    u = new URL(urlString);
-  } catch {
-    try {
-      u = new URL(urlString, typeof window !== 'undefined' ? window.location.origin : undefined);
-    } catch {
-      return urlString;
-    }
-  }
   u.searchParams.set('person_id', personId);
+  if (inputWasRelative) {
+    return `${u.pathname}${u.search}${u.hash}`;
+  }
   return u.toString();
 }
 
@@ -85,7 +128,7 @@ export async function loggedFetch(input, init, fetchOptions) {
     const msg = e?.message ?? String(e);
     if (e?.name === 'TypeError' && msg.includes('Failed to fetch')) {
       throw new Error(
-        '無法連線至後端。若使用 npm run serve，請用 http://localhost:8080 或 http://127.0.0.1:8080 開啟（會經開發伺服器代理）；若要直連本機 API，請在 .env 設定 VUE_APP_API_BASE=http://127.0.0.1:8000 並啟動後端。'
+        '無法連線至後端。開發預設直連本機 8000；請確認後端已啟動，且 CORS 允許目前頁面 origin。若要改經 dev 代理，請在 .env 設 VUE_APP_API_BASE 與目前頁面 origin 相同（如 http://localhost:8081）並參考 vue.config.js。'
       );
     }
     throw e;

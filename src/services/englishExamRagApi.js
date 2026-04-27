@@ -1,4 +1,6 @@
 /**
+ * 建立「英文測驗題庫」專用 fork（與 `ragApi.js` 分離）
+ *
  * RAG 相關 API 呼叫模組
  *
  * 集中封裝 tab/create、tab/upload-zip、tab/build-rag-zip、tab/quiz/create、PUT tab/tab-name（分頁更名）、設為試題用（system-settings）、tab/delete 等
@@ -20,7 +22,7 @@ import { formatBuildRagZipErrorDetail, parseBuildRagZipError, parseFetchError } 
 import { loggedFetch } from '../utils/loggedFetch.js';
 
 const RETRY_500_DELAY_MS = 2000;
-import { quizLevelStringForApi } from '../utils/rag.js';
+import { quizLevelStringForApi } from '../utils/englishExamRag.js';
 
 /**
  * 從 authStore 取得目前使用者的 person_id

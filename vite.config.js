@@ -51,10 +51,9 @@ export default defineConfig({
    */
   server: {
     /**
-     * 🔌 服務端口
-     * 設定開發伺服器監聽的端口號
+     * 🔌 服務端口（與 Vue CLI vue.config.js 預設對齊）
      */
-    port: 8080,
+    port: 8081,
 
     /**
      * 🌐 主機設定
@@ -62,5 +61,15 @@ export default defineConfig({
      * false 等同於 'localhost'，僅允許本機訪問
      */
     host: true,
+
+    /**
+     * 與 vue.config.js 一致：/english_system 轉發本機後端（做法 B）
+     */
+    proxy: {
+      '/english_system': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
 });

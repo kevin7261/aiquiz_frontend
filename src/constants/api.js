@@ -24,9 +24,10 @@ export function isFrontendLocalHost() {
 /**
  * 後端 API 基底網址：
  * - 可設 .env 的 VUE_APP_API_BASE 強制覆寫（勿結尾 /）。
- * - npm run serve 且網址為 localhost／127.0.0.1：使用目前頁面 origin，請求經 vue.config.js proxy 預設轉發本機 8000。
+ * - npm run serve（development）預設：{@link API_BASE_LOCAL} 直連本機 API（作法 A，與 Postman/curl 相同網域）；瀏覽器為跨埠時後端 CORS 須允許前端 origin（如 http://localhost:8081）。
+ * - 若要改經 dev server 之 webpack proxy，可設 VUE_APP_API_BASE 與目前頁面 origin 相同（例 http://localhost:8081），則以該 origin 為 API_BASE。
  * - 生產建置在本機開啟：連 127.0.0.1:8000。
- * - 其餘（含區網 IP 開發站）：連 MyQuiz.ai_backend 之 Render 預設網址。
+ * - 其餘：連 MyQuiz.ai_backend 之 Render 預設網址。
  */
 function isValidHttpOrigin(value) {
   if (value == null || String(value).trim() === '' || String(value) === 'null') return false;
@@ -42,16 +43,33 @@ function resolveApiBase() {
   const fromEnv = typeof process !== 'undefined' && process.env && process.env.VUE_APP_API_BASE;
   if (fromEnv != null && String(fromEnv).trim() !== '') {
     const trimmed = String(fromEnv).replace(/\/$/, '');
-    if (isValidHttpOrigin(trimmed)) return trimmed;
+    if (isValidHttpOrigin(trimmed)) {
+      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+        try {
+          if (new URL(trimmed).origin === window.location.origin) {
+            /* eslint-disable no-console -- 明確改走 dev proxy 時之提示 */
+            if (typeof console !== 'undefined') {
+              console.warn(
+                '[api] VUE_APP_API_BASE 與目前開發頁面同源，將以該 origin 走 webpack proxy；預設直連 API 請刪除 VUE_APP_API_BASE 或改設 http://127.0.0.1:8000'
+              );
+            }
+            /* eslint-enable no-console */
+            if (isValidHttpOrigin(window.location.origin)) {
+              return String(window.location.origin).replace(/\/$/, '');
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      return trimmed;
+    }
   }
   if (typeof window === 'undefined') return API_BASE_PRODUCTION;
+  if (process.env.NODE_ENV === 'development') {
+    return API_BASE_LOCAL;
+  }
   if (isFrontendLocalHost()) {
-    if (process.env.NODE_ENV === 'development') {
-      const o = window.location.origin;
-      // file:// 等情境下 origin 可能為字串 "null"，無法作為 fetch 基底
-      if (isValidHttpOrigin(o)) return String(o).replace(/\/$/, '');
-      return API_BASE_LOCAL;
-    }
     return API_BASE_LOCAL;
   }
   return API_BASE_PRODUCTION;
@@ -111,6 +129,22 @@ export const API_RAG_FOR_EXAM = '/rag/tab/for-exam';
 export const API_PUT_RAG_FOR_EXAM_LOCALHOST = '/system-settings/rag-for-exam-localhost';
 /** 設為試題用 RAG（非本機前端）：PUT body { rag_id }；System_Setting key=rag_deploy */
 export const API_PUT_RAG_FOR_EXAM_DEPLOY = '/system-settings/rag-for-exam-deploy';
+
+/** English System：GET /english_system/tabs；query person_id（與 GET /rag/tabs 一致）；回傳 english_systems 或 systems、count；列對應表 English_System（system_id、system_tab_id、system_name…） */
+export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
+/** English System：POST /english_system/tab/create；query person_id；body：system_tab_id、system_name、person_id；選填 system_id（正整數）、local；回傳列欄位與 English_System 一致 */
+export const API_ENGLISH_SYSTEM_TAB_CREATE = '/english_system/tab/create';
+/**
+ * English System 音訊轉逐字稿：POST /english_system/transcript/audio
+ * multipart：file、system_tab_id；query person_id。後端寫入 SUPABASE_ENGLISH_BUCKET 並以 Deepgram 轉逐字稿（DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）；無對應 English_System 列時可依 system_tab_id 與檔名自動建立。
+ */
+export const API_ENGLISH_TRANSCRIPT_AUDIO = '/english_system/transcript/audio';
+/**
+ * English System：GET /english_system/transcript/youtube
+ * 擷取 YouTube 公開字幕並合併為單一純文字（不依賴 Whisper；行為同 Colab youtube-transcript-api 範例）。
+ * Query：video_id（必填，11 字元或完整網址）、person_id（必填，由 loggedFetch 附加）、languages（選填，逗號分隔如 en,zh-TW；未傳則後端等同 en）。
+ */
+export const API_ENGLISH_TRANSCRIPT_YOUTUBE = '/english_system/transcript/youtube';
 
 /** 個人答題分析：GET /person-analysis/quizzes/{person_id}；僅含 Exam_Answer 有對應之題；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（quizzes／exam_quizzes、頂層 answers／exam_answers、每題可含 answers）；另帶 count、weakness_report（有 LLM Key 時） */
 export const API_QUIZZES_BY_PERSON = '/person-analysis/quizzes';

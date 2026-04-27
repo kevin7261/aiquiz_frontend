@@ -79,11 +79,22 @@ module.exports = defineConfig({
     host: '0.0.0.0',
 
     /**
+     * HMR WebSocket：以區網 IP（例 http://10.x.x.x:8081）開頁時，預設可能連到錯誤主機而報
+     * WebSocket connection to 'ws://…:8081/ws' failed。設為 auto 讓客戶端依目前網址決定 ws 目標。
+     * @see https://webpack.js.org/configuration/dev-server/#devserverclient
+     */
+    client: {
+      webSocketURL: 'auto://0.0.0.0:0/ws',
+    },
+
+    /**
      * 🔀 開發環境 API 代理（避開 CORS）
      * 預設轉發本機 8000；線上後端請設 DEV_API_PROXY_TARGET（Vercel 生產不走此 proxy，見 api.js API_BASE）。
      * 使用物件格式（webpack-dev-server v4 最穩定的寫法）。
      * 每個 key 為前綴；SPA 路由 /exam（無後綴斜線）不會被 /exam/tab 吃掉。
      * /user/ 需加斜線，避免誤匹配 SPA 的 /user-management、/users 等前端路由。
+     * ※ 預設（api.js）開發直連 http://127.0.0.1:8000，後端 CORS 須含前端 origin。若要在 .env 把
+     *    VUE_APP_API_BASE 設成與 dev server 同 origin，則 fetch 才會走此 proxy 到 8000。
      */
     proxy: {
       '/api': {
@@ -91,6 +102,10 @@ module.exports = defineConfig({
         changeOrigin: true,
       },
       '/rag': {
+        target: devApiProxyTarget,
+        changeOrigin: true,
+      },
+      '/english_system': {
         target: devApiProxyTarget,
         changeOrigin: true,
       },

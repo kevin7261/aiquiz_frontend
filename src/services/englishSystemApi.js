@@ -1,0 +1,134 @@
+/**
+ * English System：tab 建立等 API
+ */
+import {
+  API_BASE,
+  API_ENGLISH_SYSTEM_TAB_CREATE,
+  API_ENGLISH_TRANSCRIPT_AUDIO,
+  API_ENGLISH_TRANSCRIPT_YOUTUBE,
+} from '../constants/api.js';
+import { parseFetchError } from '../utils/apiError.js';
+import { loggedFetch } from '../utils/loggedFetch.js';
+
+function parseJson(text) {
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * POST /english_system/tab/create
+ *
+ * @param {string} personId
+ * @param {string} englishSystemTabId
+ * @param {string} tabName
+ * @param {number} englishSystemId
+ * @returns {Promise<object>}
+ */
+export async function apiCreateEnglishSystemTab(personId, englishSystemTabId, tabName, englishSystemId) {
+  const res = await loggedFetch(`${API_BASE}${API_ENGLISH_SYSTEM_TAB_CREATE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      english_system_tab_id: englishSystemTabId,
+      tab_name: tabName,
+      person_id: personId,
+      english_system_id: englishSystemId,
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * MP3／音訊轉逐字稿：POST /english_system/transcript/audio
+ * multipart：`file`、`system_tab_id`（English_System.system_tab_id；尚無列時後端可自動建立）；query `person_id` 由 loggedFetch 併入。
+ * 後端：寫入 Supabase english bucket（路徑同 rag upload）後以 Deepgram 轉錄。
+ *
+ * @param {File | Blob} file
+ * @param {{ systemTabId: string, personId?: string | null }} opts
+ * @returns {Promise<{ text?: string, bucket?: string, storage_path?: string, elapsed_seconds?: number }>}
+ */
+export async function apiEnglishTranscriptAudio(file, opts = {}) {
+  if (file == null || (typeof Blob !== 'undefined' && !(file instanceof Blob))) {
+    throw new Error('請先選擇音訊檔');
+  }
+  const systemTabId =
+    opts.systemTabId != null && String(opts.systemTabId).trim() !== ''
+      ? String(opts.systemTabId).trim()
+      : opts.system_tab_id != null && String(opts.system_tab_id).trim() !== ''
+        ? String(opts.system_tab_id).trim()
+        : '';
+  if (!systemTabId) {
+    throw new Error('缺少 system_tab_id');
+  }
+  const pathOnly =
+    typeof process !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    typeof window !== 'undefined' &&
+    String(API_BASE).replace(/\/$/, '') === window.location.origin;
+  const urlString = pathOnly
+    ? API_ENGLISH_TRANSCRIPT_AUDIO
+    : `${String(API_BASE).replace(/\/$/, '')}${API_ENGLISH_TRANSCRIPT_AUDIO}`;
+  const formData = new FormData();
+  const name = file && file.name != null ? String(file.name) : 'audio';
+  formData.append('file', file, name);
+  formData.append('system_tab_id', systemTabId);
+  const res = await loggedFetch(
+    urlString,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    { personId: opts.personId }
+  );
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * YouTube 公開字幕 → 單一純文字：GET /english_system/transcript/youtube（與 Colab youtube-transcript-api 範例行為一致；不依賴 Whisper）。
+ * Query：video_id（必填）、person_id（必填，由 loggedFetch 併入）、languages（選填；未帶則由後端預設 en）
+ *
+ * @param {string} videoIdOrUrl - 11 字元 video_id 或完整影片網址
+ * @param {{ languages?: string, personId?: string | null }} [opts] - 已登入時可省略 personId，由 store 帶出
+ * @returns {Promise<{ text?: string, elapsed_seconds?: number, video_id?: string }>}
+ */
+export async function apiEnglishTranscriptYoutube(videoIdOrUrl, opts = {}) {
+  const vid = String(videoIdOrUrl).trim();
+  if (!vid) {
+    throw new Error('缺少 video_id');
+  }
+  const lang = opts.languages != null ? String(opts.languages).trim() : '';
+  const pathOnly =
+    typeof process !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    typeof window !== 'undefined' &&
+    String(API_BASE).replace(/\/$/, '') === window.location.origin;
+  const urlString = pathOnly
+    ? (() => {
+        const qs = new URLSearchParams();
+        qs.set('video_id', vid);
+        if (lang) qs.set('languages', lang);
+        return `${API_ENGLISH_TRANSCRIPT_YOUTUBE}?${qs.toString()}`;
+      })()
+    : (() => {
+        const base = String(API_BASE).replace(/\/$/, '');
+        const u = new URL(`${base}${API_ENGLISH_TRANSCRIPT_YOUTUBE}`);
+        u.searchParams.set('video_id', vid);
+        if (lang) u.searchParams.set('languages', lang);
+        return u.toString();
+      })();
+  const res = await loggedFetch(
+    urlString,
+    { method: 'GET' },
+    { personId: opts.personId }
+  );
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
