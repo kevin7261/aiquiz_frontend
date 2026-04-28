@@ -126,7 +126,7 @@ function isDifficultyPillActiveForItem(item, opt) {
             <template v-else>
               <div class="text-start my-page-block-spacing">
                 <div class="d-flex flex-column gap-4 w-100 min-w-0">
-                  <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
+                  <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
                     <div class="my-font-lg-600 my-color-black mb-4">作答紀錄摘要</div>
                     <div class="table-responsive">
                       <table class="table table-bordered table-sm my-font-md-400 mb-0">
@@ -166,7 +166,7 @@ function isDifficultyPillActiveForItem(item, opt) {
                   <div
                     v-for="(item, idx) in items"
                     :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx"
-                    class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-4"
+                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-4"
                   >
                     <div class="text-start w-100 min-w-0 d-flex flex-column gap-4">
                       <div class="my-font-lg-600 my-color-black mb-0">第 {{ idx + 1 }} 題</div>

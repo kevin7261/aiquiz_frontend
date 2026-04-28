@@ -89,7 +89,7 @@
       <div
         class="container-fluid px-3 px-md-4 py-4 flex-grow-1 d-flex align-items-center justify-content-center"
       >
-        <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 my-login-view-card my-color-black">
+        <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 my-login-view-card my-color-black">
           <p class="my-font-xl-600 my-color-black text-break text-center mb-4 mb-md-3">
             {{ courseName }} 登入
           </p>

@@ -55,4 +55,10 @@
   --my-scrollbar-thumb-inset: 1pt; /* 左右／上下各 1pt → 6 − 2 = 4pt */
   --my-scrollbar-thumb: color-mix(in srgb, var(--my-color-gray-4) 55%, var(--my-color-white));
   --my-scrollbar-thumb-hover: color-mix(in srgb, var(--my-color-gray-4) 78%, var(--my-color-black));
+
+  /* 關閉 Bootstrap shadow（.shadow／.shadow-sm／.shadow-lg 與引用 --bs-box-shadow* 的元件） */
+  --bs-box-shadow: none;
+  --bs-box-shadow-sm: none;
+  --bs-box-shadow-lg: none;
+  --bs-box-shadow-inset: none;
 }

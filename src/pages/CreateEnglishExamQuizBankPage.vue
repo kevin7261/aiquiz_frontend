@@ -2139,7 +2139,7 @@ watch(
       </section>
       <!-- 尚無 file_metadata 時顯示上傳區；DesignPage 同款 rounded-4 my-bgcolor-gray-3 p-4 mb-5 + 區塊標題 -->
       <section v-if="showUploadFileSection" class="text-start my-page-block-spacing">
-        <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+        <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
           <div class="my-font-lg-600 my-color-black text-break mb-4" role="heading" aria-level="2">
             {{ englishMaterialReadOnly ? '出題設定' : '上傳檔案' }}
           </div>
@@ -2408,7 +2408,7 @@ watch(
             v-if="!hasRagMetadata"
             class="text-start my-page-block-spacing"
           >
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div
               class="my-font-lg-600 my-color-black text-break mb-4"
               role="heading"
@@ -2629,7 +2629,7 @@ watch(
             v-if="hasRagMetadata"
             class="text-start my-page-block-spacing"
           >
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div
               class="my-font-lg-600 my-color-black text-break mb-4"
               role="heading"
@@ -2802,7 +2802,7 @@ watch(
                   </div>
                   <template v-if="getSlotFormState(activeTestPhaseIdForContent).showEnglishGenerateQuizForm">
                   <div
-                    class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-3"
+                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-3"
                   >
                     <div
                       class="my-font-lg-600 my-color-black mb-0"

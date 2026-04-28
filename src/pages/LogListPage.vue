@@ -92,7 +92,7 @@ onMounted(() => {
       <div class="container-fluid px-3 px-md-4 py-4">
         <div class="row">
           <div class="col-12">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
               <div class="d-flex flex-wrap justify-content-end mb-3">
                 <button
                   type="button"

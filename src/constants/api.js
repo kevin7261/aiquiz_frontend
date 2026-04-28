@@ -128,14 +128,22 @@ export const API_RAG_TAB_UNITS = '/rag/tab/units';
  * POST /rag/tab/unit/quiz/create；query person_id；body: { rag_tab_id, rag_unit_id }
  */
 export const API_RAG_TAB_UNIT_QUIZ_CREATE = '/rag/tab/unit/quiz/create';
-/** POST /rag/tab/unit/quiz/llm-generate — body：`rag_quiz_id`、`rag_tab_id`、`rag_unit_id`、`quiz_user_prompt_text`；query：`person_id`；成功時回 quiz_content / quiz_hint / quiz_reference_answer / rag_quiz_id 等 */
+/** POST /rag/tab/unit/quiz/llm-generate — body：`rag_quiz_id`、`quiz_name`、`quiz_user_prompt_text`；query：`person_id` */
 export const API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE = '/rag/tab/unit/quiz/llm-generate';
 /** Rag_Quiz 單題測驗用標記：POST /rag/tab/unit/quiz/for-exam — query person_id；body：`rag_quiz_id`、`rag_tab_id`、`rag_unit_id`（可 ""／0）；可選 `for_exam` 切換 true／false（與後端 OpenAPI 一致時） */
 export const API_RAG_TAB_UNIT_QUIZ_FOR_EXAM = '/rag/tab/unit/quiz/for-exam';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
 export const API_RAG_APPLIED = '/rag/applied';
-/** 試題頁用 RAG：GET /rag/tab/for-exam 取得試題用 RAG（for_exam=true 且 deleted=false，0 或 1 筆），無 parameters */
+/** 試題用 RAG（單筆）：GET /rag/tab/for-exam（for_exam=true 且 deleted=false，0 或 1 筆），無 parameters。測驗頁請用 GET /exam/rag-for-exams（{@link API_RAG_FOR_EXAMS}）。 */
 export const API_RAG_FOR_EXAM = '/rag/tab/for-exam';
+/**
+ * List RAG units & quizzes marked for exam：GET /exam/rag-for-exams
+ * Query `person_id` 必填（全站慣例），此端點不用於篩選（不限 person_id）。
+ * 單元：Rag_Unit.deleted=false 且（Rag_Unit.for_exam=true 或至少一筆 Rag_Quiz.for_exam=true 隸屬該 rag_unit_id）；若僅題目標記 for_exam、單元未標，仍會出現。
+ * quizzes：僅 Rag_Quiz.for_exam=true 且 deleted=false。
+ * Rag_Quiz 列上「出題 prompt」「批改 prompt」相關欄位僅供預覽（截短／摘要），不可當完整字串用於 LLM 送出；完整內容請依後端另行提供的讀取途徑。
+ */
+export const API_RAG_FOR_EXAMS = '/exam/rag-for-exams';
 
 /** English System：GET /english_system/tabs；query person_id（必填）、local（與 GET /rag/tabs 相同；未傳時後端依連線判定）；僅 deleted=false；回傳 english_systems、count；每筆含 English_System 欄位並併入 phases（每段含 quizzes、quizzes[].answers）、頂層 answers 與 quizzes（phase 已刪時之題）；依 created_at 舊→新 */
 export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
@@ -180,27 +188,39 @@ export const API_ENGLISH_TRANSCRIPT_AUDIO = '/english_system/transcript/audio';
  */
 export const API_ENGLISH_TRANSCRIPT_YOUTUBE = '/english_system/transcript/youtube';
 
-/** 個人答題分析：GET /person-analysis/quizzes/{person_id}；僅含 Exam_Answer 有對應之題；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（quizzes／exam_quizzes、頂層 answers／exam_answers、每題可含 answers）；另帶 count、weakness_report（有 LLM Key 時） */
+/** 個人答題分析：GET /person-analysis/quizzes/{person_id}；僅含作答有對應之題；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（含 units→quizzes 或扁平 quizzes；頂層 answers／內嵌 answer_*）；另帶 count、weakness_report（有 LLM Key 時） */
 export const API_QUIZZES_BY_PERSON = '/person-analysis/quizzes';
 /** 學生作答分析：GET /course-analysis/quizzes；全部 Exam_Quiz，格式同上；weakness_report 固定 null */
 export const API_COURSE_ANALYSIS_QUIZZES = '/course-analysis/quizzes';
 
-/** Exam API：GET /exam/tabs List Exams（deleted=false；Exam.local 須與 query local 相符；未傳 local 時後端依連線判定；query: person_id 可選、local 建議與 POST /rag/tab/create 一致） */
+/** Exam API：GET /exam/tabs List Exams（deleted=false；person_id／local 篩選；未傳 local 時後端依連線判定）。每筆含 units[]（Exam_Unit），每單元 quizzes[]（Exam_Quiz），題列可內嵌 answer_content／quiz_score（或 quiz_grade）／answer_critique */
 export const API_EXAM_TESTS = '/exam/tabs';
-/** Exam：POST /exam/tab/create；body 可選 exam_tab_id（未傳則後端產生）、person_id、tab_name、local（預設 false；本機前端應傳 true 與 RAG tab/create 一致）；回傳 exam_id、exam_tab_id、person_id、tab_name、local、created_at */
+/** Exam：POST /exam/tab/create；query person_id 必填；body 可選 exam_tab_id（未傳則後端產生）、person_id、tab_name、local（預設 false；本機前端應傳 true 與 RAG tab/create 一致）；回傳 exam_id、exam_tab_id、person_id、tab_name、local、created_at */
 export const API_CREATE_EXAM = '/exam/tab/create';
 /** 更新測驗分頁顯示名稱：PUT /exam/tab/tab-name；body JSON：exam_id、tab_name；以 exam_id 比對，僅更新 deleted=false；回傳 exam_id、exam_tab_id、person_id、tab_name、updated_at */
 export const API_EXAM_UNIT_NAME = '/exam/tab/tab-name';
 /** Exam：POST /exam/tab/delete/{exam_tab_id} Delete Exam；不需 X-Person-Id */
 export const API_EXAM_DELETE = '/exam/tab/delete';
-/** Exam：POST /exam/tab/quiz/create（Exam Create Quiz）；body 對齊 RAG 的 POST /rag/tab/quiz/create：exam_id 或 exam_tab_id（二擇一；可 ""／0 搭配另一欄）、quiz_level（「基礎」或「進階」）、unit_name（選填可 ""）；LLM Key 由系統設定；試題 RAG 依連線讀 rag_localhost／rag_deploy。回傳對應 Exam_Quiz 等欄位 */
+/**
+ * POST /exam/tab/quiz/create（OpenAPI：**Exam Create Quiz (no LLM)**）
+ * Query：`person_id`（必填，呼叫者；前端由 loggedFetch 附加）。Body JSON：`exam_tab_id`、`rag_unit_id`。
+ * Swagger 示例之 `rag_unit_id: 0` 為占位；送出時須為有效題庫單元編號。
+ * LLM 出題請用 {@link API_EXAM_TAB_QUIZ_LLM_GENERATE}
+ */
 export const API_EXAM_CREATE_QUIZ = '/exam/tab/quiz/create';
 /** @deprecated 使用 API_EXAM_CREATE_QUIZ */
 export const API_EXAM_GENERATE_QUIZ = API_EXAM_CREATE_QUIZ;
 /** @deprecated 使用 API_EXAM_CREATE_QUIZ */
 export const API_TEST_GENERATE_QUIZ = API_EXAM_CREATE_QUIZ;
-/** Exam：POST /exam/tab/quiz/grade；body: exam_id, exam_tab_id, exam_quiz_id, quiz_content, quiz_answer, quiz_answer_reference（選填可 ""）；可併送 critique_user_prompt_instruction；後端由系統設定取 llm_api_key；回傳 202 + job_id；GET /exam/tab/quiz/grade-result/{job_id} 輪詢；ready 時 result 含 quiz_score、quiz_comments（與 RAG 輪詢 result 對齊） */
-export const API_EXAM_QUIZ_GRADE = '/exam/tab/quiz/grade';
+/**
+ * POST /exam/tab/quiz/llm-generate — body：`exam_quiz_id`、`quiz_name`、`quiz_user_prompt_text`（後兩者可為空字串）；
+ * `exam_tab_id`／unit_name／`rag_unit_id` 由後端依該 Exam_Quiz 列帶入。query person_id。
+ */
+export const API_EXAM_TAB_QUIZ_LLM_GENERATE = '/exam/tab/quiz/llm-generate';
+/** Exam：POST /exam/tab/quiz/llm-grade（Exam Grade Quiz，對齊 RAG 之 202 + job_id）；body：exam_quiz_id、quiz_answer、選填 quiz_content、answer_user_prompt_text（批改指引）；GET /exam/tab/quiz/grade-result/{job_id} 輪詢 */
+export const API_EXAM_QUIZ_GRADE = '/exam/tab/quiz/llm-grade';
+/** @deprecated 舊路徑 POST /exam/tab/quiz/grade；批改請使用 {@link API_EXAM_QUIZ_GRADE}（llm-grade） */
+export const API_EXAM_QUIZ_GRADE_LEGACY = '/exam/tab/quiz/grade';
 /** Exam：GET /exam/tab/quiz/grade-result/{job_id}（Get Grade Result）；ready 時 result 含 quiz_score、quiz_comments 等，對齊 RAG */
 export const API_EXAM_QUIZ_GRADE_RESULT = '/exam/tab/quiz/grade-result';
 /** Exam：POST /exam/tab/quiz/rate；body: exam_quiz_id、quiz_rate（僅 -1、0、1）；更新 Exam_Quiz.quiz_rate；成功回傳 exam_quiz_id、quiz_rate、updated_at 與訊息 */

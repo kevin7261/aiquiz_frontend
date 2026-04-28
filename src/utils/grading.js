@@ -36,13 +36,13 @@ function unwrapMetadata(meta) {
 }
 
 /**
- * 作答列分數原始值（與 API：quiz_score 為主；列表可能仍為 quiz_grade、answer_grade）
+ * 作答列分數原始值（與 API：quiz_score 為主；列表可能仍為 quiz_grade）
  * @param {Record<string, unknown> | null | undefined} answer
  * @returns {unknown}
  */
 export function getAnswerScoreValue(answer) {
   if (answer == null || typeof answer !== 'object') return undefined;
-  return answer.quiz_score ?? answer.quiz_grade ?? answer.answer_grade;
+  return answer.quiz_score ?? answer.quiz_grade;
 }
 
 /**

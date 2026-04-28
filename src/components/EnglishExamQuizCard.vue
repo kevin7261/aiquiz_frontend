@@ -66,7 +66,7 @@ const showGradingResultSection = computed(
   <div
     :class="[
       designUi
-        ? (designEmbedded ? 'w-100 min-w-0 mb-0' : 'my-bgcolor-gray-3 rounded-4 shadow-sm p-4 mb-0 w-100 min-w-0')
+        ? (designEmbedded ? 'w-100 min-w-0 mb-0' : 'my-bgcolor-gray-3 rounded-4 p-4 mb-0 w-100 min-w-0')
         : ['my-bgcolor-page-block rounded-3 p-3 p-lg-4', 'mb-4'],
       { 'mt-4': !designUi && slotIndex > 1 },
     ]"

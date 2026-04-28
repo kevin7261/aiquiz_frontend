@@ -13,19 +13,38 @@ const props = defineProps({
   placeholder: { type: String, default: '— 請選擇單元 —' },
   /** 用於觸發鈕 id（會加上 -toggle），須在頁面內唯一 */
   menuId: { type: String, required: true },
+  /** 選項 value；未傳時等同 unitSelectValue（單元 outputs） */
+  optionValue: { type: Function, default: null },
+  /** 選項顯示文字；未傳時使用 rag_name */
+  optionLabel: { type: Function, default: null },
 });
 
 const emit = defineEmits(['update:modelValue']);
 
 const toggleId = computed(() => `${props.menuId}-toggle`);
 
+function optValue(o) {
+  if (typeof props.optionValue === 'function') {
+    return String(props.optionValue(o) ?? '').trim();
+  }
+  return unitSelectValue(o);
+}
+
+function optLabel(o) {
+  if (typeof props.optionLabel === 'function') {
+    return String(props.optionLabel(o) ?? '').trim() || '—';
+  }
+  if (o && o.rag_name != null && String(o.rag_name).trim() !== '') {
+    return String(o.rag_name);
+  }
+  return '—';
+}
+
 const buttonLabel = computed(() => {
   const v = String(props.modelValue || '').trim();
   if (!v) return props.placeholder;
-  const opt = props.options.find((o) => unitSelectValue(o) === v);
-  if (opt && opt.rag_name != null && String(opt.rag_name).trim() !== '') {
-    return String(opt.rag_name);
-  }
+  const opt = props.options.find((o) => optValue(o) === v);
+  if (opt) return optLabel(opt);
   return props.placeholder;
 });
 
@@ -62,14 +81,14 @@ function select(val) {
           {{ placeholder }}
         </button>
       </li>
-      <li v-for="(opt, i) in options" :key="unitSelectValue(opt) || 'u-' + i">
+      <li v-for="(opt, i) in options" :key="optValue(opt) || 'u-' + i">
         <button
           type="button"
           class="dropdown-item text-wrap"
-          :class="{ active: unitSelectValue(opt) === modelValue }"
-          @click="select(unitSelectValue(opt))"
+          :class="{ active: optValue(opt) === modelValue }"
+          @click="select(optValue(opt))"
         >
-          {{ opt.rag_name }}
+          {{ optLabel(opt) }}
         </button>
       </li>
     </ul>

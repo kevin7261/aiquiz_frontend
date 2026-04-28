@@ -19,31 +19,33 @@ import { loggedFetch } from '../utils/loggedFetch.js';
  * 流程：POST 送出 → 若 202 則取 job_id → 每 2 秒 GET 輪詢結果 → 解析 status ready/error → 寫入 item
  *
  * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
- * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：{ examId, examTabId }（並設 options.gradingMode === 'exam'）
- * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時 POST body 為 exam_*；RAG 預設 /rag/tab/unit/quiz/llm-grade，item.gradingPrompt 非空則併入 answer_user_prompt_text；extraGradeBody 可併入 POST JSON（如 Exam 之 critique_user_prompt_instruction）
+ * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：`gradingMode: 'exam'` 時 POST body 見下方（exam_quiz_id／quiz_answer／quiz_content／answer_user_prompt_text）；可傳 examId、examTabId 供錯誤提示等預留，body 已不再使用。
+ * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時為 POST /exam/tab/quiz/llm-grade；RAG 預設 /rag/tab/unit/quiz/llm-grade，item.gradingPrompt 非空則併入 answer_user_prompt_text；extraGradeBody 可併入 POST JSON（Exam 批改請優先用 item.gradingPrompt → answer_user_prompt_text）
  */
 export async function submitGrade(item, context, options = {}) {
   const isExam = options.gradingMode === 'exam';
-  const { sourceTabId, ragId, examId, examTabId } = context;
+  const { sourceTabId, ragId } = context;
   const quizGradeSubmissionPath =
     options.quizGradeSubmissionPath ?? options.gradeSubmissionPath ?? API_RAG_QUIZ_GRADE;
   const quizGradeResultPath =
     options.quizGradeResultPath ?? options.gradeResultPath ?? API_RAG_QUIZ_GRADE_RESULT;
 
   const gradeBody = isExam
-    ? {
-        exam_id: String(examId ?? ''),
-        exam_tab_id: examTabId != null ? String(examTabId) : '',
-        exam_quiz_id:
+    ? (() => {
+        const rawEq =
           item.exam_quiz_id != null && String(item.exam_quiz_id).trim() !== ''
-            ? String(item.exam_quiz_id)
-            : item.quiz_id != null
-              ? String(item.quiz_id)
-              : '',
-        quiz_content: item.quiz ?? '',
-        quiz_answer: item.quiz_answer.trim(),
-        quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
-      }
+            ? item.exam_quiz_id
+            : item.quiz_id;
+        const n = Number(rawEq);
+        const examQuizId =
+          Number.isFinite(n) && n >= 1 ? n : rawEq != null ? rawEq : '';
+        return {
+          exam_quiz_id: examQuizId,
+          quiz_answer: item.quiz_answer.trim(),
+          quiz_content: item.quiz != null ? String(item.quiz) : '',
+          answer_user_prompt_text: String(item.gradingPrompt ?? '').trim(),
+        };
+      })()
     : {
         rag_id: String(ragId ?? ''),
         rag_tab_id: sourceTabId != null && String(sourceTabId).trim() !== '' ? String(sourceTabId) : '',
@@ -65,13 +67,22 @@ export async function submitGrade(item, context, options = {}) {
   }
 
   const extra = options.extraGradeBody;
-  if (extra && typeof extra === 'object') {
+  if (extra && typeof extra === 'object' && !isExam) {
     for (const key of Object.keys(extra)) {
       const val = extra[key];
       if (val !== undefined && val !== null) {
         gradeBody[key] = val;
       }
     }
+  }
+
+  if (isExam) {
+    const nid = Number(gradeBody.exam_quiz_id);
+    if (!Number.isFinite(nid) || nid < 1) {
+      item.gradingResult = '批改失敗：缺少有效的題目編號（exam_quiz_id）。';
+      return;
+    }
+    gradeBody.exam_quiz_id = nid;
   }
 
   item.gradingResult = '';
@@ -109,6 +120,7 @@ export async function submitGrade(item, context, options = {}) {
       try { parsed = text ? JSON.parse(text) : null; } catch { /* ignore */ }
       item.gradingResponseJson = parsed;
       item.gradingResult = formatGradingResult(text) || '（無批改內容）';
+      item.confirmed = true;
       return;
     }
     let data;
@@ -172,6 +184,7 @@ export async function submitGrade(item, context, options = {}) {
           item.answer_id = Number.isFinite(rid) ? rid : result.rag_answer_id;
         }
         item.gradingResult = formatGradingResult(JSON.stringify(result)) || '（無批改內容）';
+        item.confirmed = true;
         return;
       }
       if (pollData.status === 'error') {
@@ -186,7 +199,5 @@ export async function submitGrade(item, context, options = {}) {
     item.gradingResult = '批改逾時：請稍後再試或重新送出';
   } catch (err) {
     item.gradingResult = '批改失敗：連線逾時或服務忙碌，請稍後再試。';
-  } finally {
-    item.confirmed = true;
   }
 }

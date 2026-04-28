@@ -14,7 +14,7 @@ const designSampleChoiceWhite = ref('選項一');
     - 根層：全高 flex 直向、網頁 canvas 灰淺（my-bgcolor-gray-4）；頂部固定、頁首標題無底分隔線、下方主區可捲動。
     - 頁首標題「UI 元件參考」置中、無 col；主內文 container-fluid px-3 px-md-4 py-4 + row 置中，欄寬與測驗頁一致 col-lg-10 col-xl-8 col-xxl-6。
     - 章節：各 <section> 使用 my-page-block-spacing；區塊 rounded-4 my-bgcolor-gray-3、無 border；子標題 .my-font-lg-600（common 預設字色 --my-color-black）。
-    - 複製：DesignPageCopyBtn 預設淺底深字；class 示範列多為黑框（.my-design-swatch-row my-bgcolor-black）複製鈕 :on-light-bg="false"；08 區塊本體 my-bgcolor-gray-3 shadow-sm（與 canvas 區隔）；其內 class 示範列仍 .my-design-swatch-row--light、:on-light-bg="true"、<code> my-color-black。黑框內 <code>／示範 <span> 皆併 my-font-sm-400（黑底併 my-color-white），避免 Bootstrap code 字級覆蓋。02／03 色票每組一顆色圓；底／字 class 兩黑框橫向同一排（.my-design-swatch-rows）。
+    - 複製：DesignPageCopyBtn 預設淺底深字；class 示範列多為黑框（.my-design-swatch-row my-bgcolor-black）複製鈕 :on-light-bg="false"；08 區塊本體 my-bgcolor-gray-3（與 canvas 區隔）；其內 class 示範列仍 .my-design-swatch-row--light、:on-light-bg="true"、<code> my-color-black。黑框內 <code>／示範 <span> 皆併 my-font-sm-400（黑底併 my-color-white），避免 Bootstrap code 字級覆蓋。02／03 色票每組一顆色圓；底／字 class 兩黑框橫向同一排（.my-design-swatch-rows）。
     - 編號：05 區塊內含「09 · 徽章」與「08 · 下拉選單」；其後為 06 輸入、07 分頁、08 表格。
   -->
   <div class="d-flex flex-column h-100 overflow-hidden my-bgcolor-gray-4 position-relative">
@@ -34,7 +34,7 @@ const designSampleChoiceWhite = ref('選項一');
           <!-- ===== 01 · 字階 =====
                common：.my-font-{xl|lg|md|sm}-{400|600}；左欄字重 400、右欄 600；<dl> 示範語意結構 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">01 · 字階</div>
                 <div class="row g-4 align-items-start">
                   <div class="col-12 col-md-6">
@@ -124,7 +124,7 @@ const designSampleChoiceWhite = ref('選項一');
           <!-- ===== 02 · 語意色 =====
                每語意一顆色圓；底／字 class 各一黑框，.my-design-swatch-rows 橫向同一排，各附複製鈕。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">02 · 語意色</div>
                 <div class="row g-3">
                   <div class="col-12">
@@ -179,7 +179,7 @@ const designSampleChoiceWhite = ref('選項一');
           <!-- ===== 03 · 灰階 · 背景 =====
                每列一顆色圓（背景階）；底／字 class 兩黑框橫向同一排（.my-design-swatch-rows）。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">03 · 灰階 · 背景</div>
                 <div class="row g-3">
                   <div class="col-12">
@@ -264,7 +264,7 @@ const designSampleChoiceWhite = ref('選項一');
           <!-- ===== 04 · 區塊定義 =====
                Design 頁章節外層：rounded-4 my-bgcolor-gray-3 p-4 mb-5、無 border；全站 canvas 為 gray-4（body）；業務內容區 my-bgcolor-page-block（底同 --my-color-gray-3）。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">04 · 區塊定義</div>
                 <div class="my-font-sm-400 d-flex flex-column gap-3">
                   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 gap-md-3 w-100">
@@ -272,7 +272,7 @@ const designSampleChoiceWhite = ref('選項一');
                       <code
                         class="user-select-all my-font-sm-400 font-monospace text-break flex-grow-1 min-w-0 px-1 my-color-white"
                         >rounded-4 my-bgcolor-gray-3 p-4 mb-5</code>
-                      <DesignPageCopyBtn class="flex-shrink-0 ms-auto" text="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5"
+                      <DesignPageCopyBtn class="flex-shrink-0 ms-auto" text="rounded-4 my-bgcolor-gray-3 p-4 mb-5"
                       :on-light-bg="false"/>
                     </div>
                   </div>
@@ -284,9 +284,9 @@ const designSampleChoiceWhite = ref('選項一');
                按鈕：小／中／大三組；小／中每組 藍／黑／描邊／黑無框；大僅藍／黑（填色，無白描邊與黑無框示範）；描邊（my-button-white-border）淺底 gray-1 邊＋字見 common。圓形黑無框下附兩鍵 btn-group + my-btn-group-pill（圓角同輸入 rounded-2、非膠囊；中）：選中 my-button-white、未選示範 my-button-gray-3（選項乙）。單行輸入見「06 · 輸入」。
                圓形：分頁「+」與複製鈕同規 my-btn-circle + my-button-transparent-borderless。
                09 徽章：在 08 下拉之上；僅示範灰底黑字；class 順序 badge … my-bgcolor-gray-3、my-color-black、描邊、rounded、px-2 py-1（rounded 在 badge 與色票之後、間距置末）。
-               08 下拉：區塊底 my-bgcolor-gray-3 shadow-sm；外層 .my-design-08-dropdown；示範一白底觸發邊 gray-2；示範二透明底無邊框；選單 .dropdown-menu Bootstrap 預設；觸發 rounded-2 同輸入（非膠囊）。 -->
+               08 下拉：區塊底 my-bgcolor-gray-3；外層 .my-design-08-dropdown；示範一白底觸發邊 gray-2；示範二透明底無邊框；選單 .dropdown-menu Bootstrap 預設；觸發 rounded-2 同輸入（非膠囊）。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">05 · 按鈕</div>
                 <div class="d-flex flex-column gap-4">
                   <!-- 小：字級 my-font-sm-400、內距 px-3 py-1 -->
@@ -562,7 +562,7 @@ const designSampleChoiceWhite = ref('選項一');
             </div>
 
             <!-- 08 · 下拉選單（仍屬 05 同一 section） -->
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5 mt-4">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5 mt-4">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">08 · 下拉選單</div>
               <div class="my-design-08-dropdown">
                 <div class="my-color-gray-1 my-font-sm-400 mb-2">中（my-font-md-400 · px-3 py-2）；外層 .my-design-08-dropdown；觸發 rounded-2 同輸入；示範一邊 gray-2；示範二透明底無邊框；選單 Bootstrap 預設</div>
@@ -641,7 +641,7 @@ const designSampleChoiceWhite = ref('選項一');
           <!-- ===== 06 · 輸入 =====
                單行／輸入區塊：啟用與停用各一；停用＝ readonly（勿用 disabled）；全站 .form-control.my-input-md.rounded-2。版面：row 兩欄（示範｜黑框 class＋複製，併 .my-design-swatch-row）。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
               <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">06 · 輸入</div>
               <div class="d-flex flex-column gap-4">
                 <!-- 單行：示範與複製鈕垂直置中 -->
@@ -923,7 +923,7 @@ const designSampleChoiceWhite = ref('選項一');
                外層捲動框 + Bootstrap table；表頭／儲存格內距 px-3 py-2；輔助欄 my-color-gray-4。
                進階表頭樣式見 common .my-table（本示範為輕量版）。 -->
           <section class="my-page-block-spacing">
-            <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 mb-5">
+            <div class="rounded-4 my-bgcolor-gray-3 p-4 mb-5">
             <div role="heading" aria-level="2" class="my-font-lg-600 my-color-black text-break mb-4">08 · 表格</div>
                 <div class="rounded-4 overflow-auto border">
                   <table class="table table-striped table-hover my-font-md-400 mb-0">

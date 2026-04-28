@@ -503,7 +503,7 @@ onActivated(() => {
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
             <div class="text-start my-page-block-spacing">
-              <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
+              <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
             <div class="mb-3">
               <p class="my-font-sm-400 my-color-gray-4 text-center mb-0">
                 共 {{ count }} 筆使用者
@@ -580,7 +580,7 @@ onActivated(() => {
         @click.self="closeSingleModal"
       >
         <div class="modal-dialog modal-dialog-centered" @click.stop>
-          <div class="modal-content shadow">
+          <div class="modal-content">
             <div class="modal-header border-bottom-0 pb-0">
               <h5 id="user-single-modal-title" class="modal-title">
                 新增一筆使用者
@@ -685,7 +685,7 @@ onActivated(() => {
         @click.self="closeBatchModal"
       >
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" @click.stop>
-          <div class="modal-content shadow">
+          <div class="modal-content">
             <div class="modal-header border-bottom-0 pb-0">
               <h5 id="user-batch-modal-title" class="modal-title">
                 批次新增學生

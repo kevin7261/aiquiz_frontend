@@ -31,7 +31,7 @@
     v-if="isVisible"
     class="my-loading-overlay d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100"
   >
-    <div class="text-center my-bgcolor-white rounded shadow my-loading-overlay-panel p-4">
+    <div class="text-center my-bgcolor-white rounded my-loading-overlay-panel p-4">
       <div class="spinner-border my-app-spinner mb-3" role="status">
         <span class="visually-hidden">{{ loadingText }}</span>
       </div>

@@ -155,7 +155,7 @@ async function save(block) {
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
             <div class="text-start my-page-block-spacing">
-              <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
+              <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
             <template v-for="block in BLOCKS" :key="block.id">
               <div class="mb-4">
                 <label class="form-label my-font-sm-600 my-color-gray-1 mb-0">{{ block.label }}</label>

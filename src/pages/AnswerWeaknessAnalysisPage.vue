@@ -2,7 +2,7 @@
 /**
  * AnswerWeaknessAnalysisPage - 作答弱點分析頁面
  *
- * 讀取 GET /person-analysis/quizzes/{person_id}；列表與 GET /exam/tabs、GET /rag/tabs 每筆一致（頂層 answers 與每題 quizzes 對齊合併）。
+ * 讀取 GET /person-analysis/quizzes/{person_id}；列表與 GET /exam/tabs、GET /rag/tabs 每筆一致（含 units→quizzes；頂層 answers 或題列內嵌 answer_*；mergeQuizzesWithTopLevelAnswers 合併）。
  * 另含 count、weakness_report；可顯示作答摘要、弱點報告、匯出 Excel。
  */
 import { ref, computed, onMounted } from 'vue';
@@ -186,7 +186,7 @@ function isDifficultyPillActiveForItem(item, opt) {
                 <div class="d-flex flex-column gap-4 w-100 min-w-0">
                   <div
                     v-if="weaknessReport"
-                    class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-4 text-start"
+                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-4 text-start"
                   >
                     <div class="my-font-lg-600 my-color-black mb-0">學習弱點分析報告</div>
                     <template v-if="weaknessReportParsed">
@@ -230,7 +230,7 @@ function isDifficultyPillActiveForItem(item, opt) {
                     />
                   </div>
 
-                  <div class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0">
+                  <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
                     <div class="my-font-lg-600 my-color-black mb-4">作答紀錄摘要</div>
                     <div class="table-responsive">
                       <table class="table table-bordered table-sm my-font-md-400 mb-0">
@@ -268,7 +268,7 @@ function isDifficultyPillActiveForItem(item, opt) {
                   <div
                     v-for="(item, idx) in items"
                     :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx"
-                    class="rounded-4 my-bgcolor-gray-3 shadow-sm p-4 w-100 min-w-0 d-flex flex-column gap-4"
+                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-4"
                   >
                     <div class="text-start w-100 min-w-0 d-flex flex-column gap-4">
                       <div class="my-font-lg-600 my-color-black mb-0">第 {{ idx + 1 }} 題</div>

@@ -155,6 +155,51 @@ export function findQuizUnitBySlotSelection(units, generateQuizTabId) {
 }
 
 /**
+ * 試卷題庫題目下拉的 v-model：Rag_Quiz 主鍵 rag_quiz_id（字串）
+ * @param {object} [opt]
+ * @returns {string}
+ */
+export function ragQuizSelectValue(opt) {
+  if (!opt || typeof opt !== 'object') return '';
+  const id =
+    opt.rag_quiz_id
+    ?? opt.RagQuizId
+    ?? opt.ragQuizId
+    ?? opt.quiz_id
+    ?? opt.QuizId
+    ?? opt.id
+    ?? opt.Id;
+  if (id == null || id === '') return '';
+  return String(id).trim();
+}
+
+/**
+ * GET /exam/rag-for-exams 之 quizzes[] 更新後，對齊 slot.generateQuizTabId（存 rag_quiz_id 字串）
+ * @param {{ generateQuizTabId?: string }} slot
+ * @param {object[]} quizzes
+ */
+export function reconcileRagQuizSelectSlot(slot, quizzes) {
+  if (!slot || !Array.isArray(quizzes)) return;
+  const raw = slot.generateQuizTabId;
+  if (raw == null || String(raw).trim() === '') return;
+  const key = String(raw).trim();
+  if (quizzes.some((q) => ragQuizSelectValue(q) === key)) return;
+  slot.generateQuizTabId = '';
+}
+
+/**
+ * 依下拉目前值找出試卷題庫題目列
+ * @param {object[]} quizzes
+ * @param {string} [generateQuizTabId]
+ * @returns {object | undefined}
+ */
+export function findRagQuizBySlotSelection(quizzes, generateQuizTabId) {
+  const key = String(generateQuizTabId ?? '').trim();
+  if (!key || !Array.isArray(quizzes)) return undefined;
+  return quizzes.find((q) => ragQuizSelectValue(q) === key);
+}
+
+/**
  * 將 GET /rag/tabs 單筆的 rag_metadata 正規化為物件。
  * 後端常將 rag_metadata 存成 JSON 字串，若直接用 rag.rag_metadata.outputs 會讀不到。
  * @param {object} [rag]
@@ -285,15 +330,55 @@ export function examOrRagAnswerRowKey(a) {
 }
 
 /**
+ * GET /exam/tabs 新版：Exam_Quiz 上可內嵌作答 answer_content／quiz_score（或 quiz_grade）／answer_critique（無獨立 Exam_Answer 陣列時）
+ * @param {object | null | undefined} q
+ * @returns {boolean}
+ */
+function examQuizHasEmbeddedAnswerFields(q) {
+  if (!q || typeof q !== 'object') return false;
+  const c = q.answer_content;
+  const g = q.quiz_score ?? q.quiz_grade;
+  const crit = q.answer_critique;
+  return (
+    (c != null && String(c).trim() !== '')
+    || (g != null && String(g).trim() !== '')
+    || (crit != null && String(crit).trim() !== '')
+  );
+}
+
+/**
+ * 將內嵌欄位轉成與頂層 answers[] 相容的一筆物件（供 mergeQuizzesWithTopLevelAnswers／題卡共用）
+ * @param {object} q
+ * @returns {object[]}
+ */
+function answersFromEmbeddedExamQuizFields(q) {
+  if (!examQuizHasEmbeddedAnswerFields(q)) return [];
+  const crit = q.answer_critique;
+  const score = q.quiz_score ?? q.quiz_grade;
+  const row = {
+    quiz_answer: q.answer_content ?? '',
+    student_answer: q.answer_content ?? '',
+    quiz_score: score,
+    quiz_grade: score,
+    exam_quiz_id: q.exam_quiz_id,
+  };
+  if (crit != null && String(crit).trim() !== '') {
+    row.quiz_comments = [String(crit).trim()];
+  }
+  return [row];
+}
+
+/**
  * 單筆 Exam／Rag 列（與 GET /exam/tabs、GET /rag/tabs 每筆相同）：quizzes／exam_quizzes 與頂層 answers／exam_answers 合併為每題含 answers（與 ExamPage syncExamItemToTabState 一致）
+ *
+ * GET /exam/tabs 新版：每筆 Exam 可為 units[]（Exam_Unit），每單元 quizzes[]（Exam_Quiz），作答欄位可內嵌於題列。
+ *
  * @param {object | null | undefined} item
  * @returns {object[]}
  */
 export function mergeQuizzesWithTopLevelAnswers(item) {
   if (!item || typeof item !== 'object') return [];
-  const quizzes = item.quizzes ?? item.exam_quizzes ?? [];
   const topAnswers = item.answers ?? item.exam_answers ?? [];
-  if (quizzes.length === 0) return [];
   const answersByQuizId = topAnswers.reduce((acc, a) => {
     const id = examOrRagAnswerRowKey(a);
     if (!id) return acc;
@@ -301,10 +386,53 @@ export function mergeQuizzesWithTopLevelAnswers(item) {
     acc[id].push(a);
     return acc;
   }, {});
+
+  const units = item.units;
+  if (Array.isArray(units) && units.length > 0) {
+    const out = [];
+    let globalIndex = 0;
+    for (const u of units) {
+      const unitLabel = u.unit_name ?? u.name ?? '';
+      const unitQuizzes = u.quizzes ?? u.exam_quizzes ?? [];
+      for (const q of unitQuizzes) {
+        const qKey = examOrRagQuizRowKey(q);
+        const nested = q.answers;
+        const byId = nested ?? (qKey ? answersByQuizId[qKey] : undefined);
+        const embedded = answersFromEmbeddedExamQuizFields(q);
+        let answers = [];
+        if (Array.isArray(byId) && byId.length > 0) {
+          answers = [...byId];
+        } else if (embedded.length > 0) {
+          answers = embedded;
+        } else if (topAnswers[globalIndex] != null) {
+          answers = [topAnswers[globalIndex]];
+        }
+        out.push({
+          ...q,
+          unit_name: q.unit_name ?? unitLabel,
+          answers,
+        });
+        globalIndex += 1;
+      }
+    }
+    return out;
+  }
+
+  const quizzes = item.quizzes ?? item.exam_quizzes ?? [];
+  if (quizzes.length === 0) return [];
   return quizzes.map((q, i) => {
     const qKey = examOrRagQuizRowKey(q);
-    const byId = q.answers ?? (qKey ? answersByQuizId[qKey] : undefined);
-    const answers = Array.isArray(byId) && byId.length > 0 ? byId : topAnswers[i] != null ? [topAnswers[i]] : [];
+    const nested = q.answers;
+    const byId = nested ?? (qKey ? answersByQuizId[qKey] : undefined);
+    const embedded = answersFromEmbeddedExamQuizFields(q);
+    let answers = [];
+    if (Array.isArray(byId) && byId.length > 0) {
+      answers = [...byId];
+    } else if (embedded.length > 0) {
+      answers = embedded;
+    } else if (topAnswers[i] != null) {
+      answers = [topAnswers[i]];
+    }
     return { ...q, answers };
   });
 }

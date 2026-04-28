@@ -369,7 +369,7 @@ code {
   opacity: 0.55;
 }
 
-/* 淺灰填色膠囊（併 .btn）：未選／非 highlight；底同 my-bgcolor-gray-2（字面 --my-color-gray-2）、字 --my-color-black。併 my-btn-group-pill（分段群組、rounded-2）時分段線見該段 inset */
+/* 淺灰填色膠囊（併 .btn）：未選／非 highlight；底同 my-bgcolor-gray-2（字面 --my-color-gray-2）、字 --my-color-black。併 my-btn-group-pill 時分段線見該段 border */
 .btn.my-button-gray-2 {
   background-color: var(--my-color-gray-2);
   color: var(--my-color-black);
@@ -386,7 +386,7 @@ code {
   opacity: 0.55;
 }
 
-/* 更淺填色膠囊（併 .btn）：底同 my-bgcolor-gray-3；字 --my-color-black。併 my-btn-group-pill 時分段線規則同 my-button-gray-2 */
+/* 更淺填色膠囊（併 .btn）：底同 my-bgcolor-gray-3；字 --my-color-black。併 my-btn-group-pill 時分段線規則同 my-button-gray-2（border） */
 .btn.my-button-gray-3 {
   background-color: var(--my-color-gray-3);
   color: var(--my-color-black);
@@ -589,20 +589,18 @@ code {
   box-sizing: border-box;
 }
 
-/* 兩鍵（或多鍵）分段群組：併 Bootstrap `.btn-group`；圓角同 .rounded-2／輸入（非膠囊）；外框／分段線與 .form-control.my-input-md 同 --my-color-gray-2（1px 等效 box-shadow）；淺底選中白底深字見下。內層 `.btn` 勿再加圓角 class；全無 border（含接縫）。勿對 .my-button-gray-2／.my-button-gray-3 清 box-shadow，否則蓋掉 inset 分段線 */
+/* 兩鍵（或多鍵）分段群組：併 Bootstrap `.btn-group`；圓角同 .rounded-2／輸入（非膠囊）；外框／分段線用 1px border（與 .form-control.my-input-md 同色），勿用 box-shadow。內層 `.btn` 勿再加圓角 class；預設無 border（含接縫），分段線見下 */
 .my-btn-group-pill.btn-group {
   border-radius: var(--bs-border-radius, 0.375rem);
   overflow: hidden;
   --my-btn-group-pill-ring: var(--my-color-gray-2);
-  box-shadow: 0 0 0 1px var(--my-btn-group-pill-ring);
+  border: 1px solid var(--my-btn-group-pill-ring);
+  box-sizing: border-box;
 }
 .my-btn-group-pill.btn-group > .btn {
   border-radius: 0 !important;
   border: none !important;
   margin: 0 !important;
-}
-.my-btn-group-pill.btn-group > .btn:not(.my-button-gray-2):not(.my-button-gray-3) {
-  box-shadow: none !important;
 }
 /* 未選分段：底 gray-2 或 gray-3（勿透明透出底層）；併設 --bs-btn-* 以免 Bootstrap .btn:hover／:active 蓋掉背景 */
 .my-btn-group-pill.btn-group > .btn.my-button-gray-2 {
@@ -631,14 +629,14 @@ code {
   color: var(--my-color-black);
   background-color: var(--my-color-gray-3);
 }
-/* 左側分段線：僅第二段起（避免最左與外框重疊雙線） */
+/* 左側分段線：僅第二段起（避免最左與群組外框重疊雙線） */
 .my-btn-group-pill.btn-group > .btn.my-button-gray-2:not(:first-child),
 .my-btn-group-pill.btn-group > .btn.my-button-gray-2:not(:first-child):hover,
 .my-btn-group-pill.btn-group > .btn.my-button-gray-2:not(:first-child):active:not(:disabled),
 .my-btn-group-pill.btn-group > .btn.my-button-gray-3:not(:first-child),
 .my-btn-group-pill.btn-group > .btn.my-button-gray-3:not(:first-child):hover,
 .my-btn-group-pill.btn-group > .btn.my-button-gray-3:not(:first-child):active:not(:disabled) {
-  box-shadow: inset 1px 0 0 var(--my-btn-group-pill-ring) !important;
+  border-inline-start: 1px solid var(--my-btn-group-pill-ring) !important;
 }
 /* 底為 gray-2 時略加深線色，避免外框／分段線與底色糊成一塊 */
 .my-bgcolor-gray-2 .my-btn-group-pill.btn-group {
@@ -1240,3 +1238,4 @@ div.form-control {
 .my-page-block-spacing {
   margin-bottom: 2.25rem;
 }
+
