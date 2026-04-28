@@ -9,10 +9,6 @@
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import {
-  API_BASE,
-  API_GET_SYSTEM_SETTING_COURSE_NAME,
-} from '../constants/api.js';
-import {
   apiEnglishTranscriptAudio,
   apiEnglishTranscriptYoutube,
   apiEnglishSystemTabBuildSystem,
@@ -43,7 +39,6 @@ import {
   getRagUnitListString,
   parsePackTasksList,
   parseRagMetadataObject,
-  DEFAULT_SYSTEM_INSTRUCTION,
   reconcileQuizUnitSelectSlot,
 } from '../utils/englishExamRag.js';
 import {
@@ -54,7 +49,6 @@ import { useEnglishExamRagList } from '../composables/useEnglishExamRagList.js';
 import { useEnglishRagTabState } from '../composables/useEnglishRagTabState.js';
 import { useEnglishExamPackTasks } from '../composables/useEnglishExamPackTasks.js';
 import { submitGrade } from '../composables/useEnglishExamQuizGrading.js';
-import { loggedFetch } from '../utils/loggedFetch.js';
 import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
 import QuizCard from '../components/QuizCard.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
@@ -184,13 +178,11 @@ const testPhaseRenameInitialName = ref('');
 const testPhaseRenameError = ref('');
 const testPhaseRenameSaving = ref(false);
 const deleteRagLoading = ref(false);
-/** 與左側標題相同：GET /system-settings/course-name 的 course_name，失敗時維持 MyQuiz.ai */
-const courseNameForPrompt = ref('MyQuiz.ai');
 const activeTabId = ref(null);
 const showFormWhenNoData = ref(false);
 const newTabIds = ref([]);
 
-const { getTabState, currentState, isNewTabId } = useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore, { defaultSystemInstruction: DEFAULT_SYSTEM_INSTRUCTION });
+const { getTabState, currentState, isNewTabId } = useEnglishRagTabState(activeTabId, newTabIds, ragList, authStore);
 
 function newEnglishTestPhaseId() {
   return `ph_${generateTabId(authStore.user?.person_id)}`;
@@ -801,9 +793,6 @@ function syncRagItemToState(rag, state) {
   if (rag.chunk_overlap != null) chunkOverlap.value = ensureNumber(rag.chunk_overlap, 200);
   const filename = rag.file_metadata?.filename ?? rag.filename;
   if (filename != null && String(filename).trim() !== '') state.zipFileName = String(filename).trim();
-  if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
-    state.systemInstruction = String(rag.system_prompt_instruction).trim();
-  }
   const quizzes = rag.quizzes ?? [];
   if (quizzes.length > 0) {
     const metaParsed = parseRagMetadataObject(rag);
@@ -946,20 +935,6 @@ async function refreshAllForExamSettings() {
   await refreshEnglishSystemForExamSetting();
 }
 
-async function fetchCourseNameForPrompt() {
-  try {
-    const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.course_name && String(data.course_name).trim()) {
-        courseNameForPrompt.value = String(data.course_name).trim();
-      }
-    }
-  } catch {
-    // 保持預設 MyQuiz.ai（與 LeftView 一致）
-  }
-}
-
 /** GET /english_system/tabs（及 /rag/tabs 合併）由 useEnglishExamRagList 內 watch(immediate) 首次載入；onActivated 再抓一次 */
 const createBankActivatedOnce = ref(false);
 onActivated(() => {
@@ -970,11 +945,10 @@ onActivated(() => {
   fetchRagList();
 });
 
-/** 此處僅試題用設定、檔案欄位、課程名稱 */
+/** 此處僅試題用設定、檔案欄位 */
 onMounted(() => {
   refreshAllForExamSettings();
   clearZipFileInput();
-  fetchCourseNameForPrompt();
 });
 
 onUnmounted(() => {
@@ -1530,7 +1504,6 @@ async function confirmPack() {
         unit_list: unitList,
         chunk_size: ensureNumber(chunkSize.value, 1000),
         chunk_overlap: ensureNumber(chunkOverlap.value, 200),
-        system_prompt_instruction: (state.systemInstruction ?? '').trim() || '',
       },
       (ev) => {
         if (!ev || typeof ev !== 'object') return;
@@ -1624,7 +1597,6 @@ function getSlotFormStateForTabState(state, phaseId) {
       english_system_quiz_phase_id: null,
       /** false：僅顯示「新增題目」；true：顯示 prompt 與「產生題目」 */
       showEnglishGenerateQuizForm: false,
-      englishGeneratePhasePrompt: '',
       englishPhaseQuizError: '',
       /** 批改 POST 一併送出之補充說明（extraGradeBody.context_text） */
       englishPhaseGradingPrompt: '',
@@ -1638,7 +1610,6 @@ function getSlotFormStateForTabState(state, phaseId) {
     if (s.phaseCreateError === undefined) s.phaseCreateError = '';
     if (s.english_system_quiz_phase_id === undefined) s.english_system_quiz_phase_id = null;
     if (s.showEnglishGenerateQuizForm === undefined) s.showEnglishGenerateQuizForm = false;
-    if (s.englishGeneratePhasePrompt === undefined) s.englishGeneratePhasePrompt = '';
     if (s.englishPhaseQuizError === undefined) s.englishPhaseQuizError = '';
     if (s.englishPhaseGradingPrompt === undefined) s.englishPhaseGradingPrompt = '';
     if (s.englishPhaseQuizCard === undefined) s.englishPhaseQuizCard = createDefaultEnglishPhaseQuizCard();
@@ -1817,23 +1788,6 @@ function applyPhasesFromApiResponse(state, data) {
         sfp.englishPhaseGradingPrompt = DEFAULT_ENGLISH_EXAM_GRADING_PROMPT;
       }
     }
-    if (String(sfp.englishGeneratePhasePrompt ?? '').trim() === '') {
-      for (let j = qList.length - 1; j >= 0; j--) {
-        const c = qList[j];
-        if (
-          c &&
-          typeof c === 'object' &&
-          (Object.prototype.hasOwnProperty.call(c, 'quiz_user_prompt_instruction') ||
-            Object.prototype.hasOwnProperty.call(c, 'quizUserPromptInstruction'))
-        ) {
-          setEnglishGeneratePhasePromptFromApiFields(sfp, c);
-          break;
-        }
-      }
-    }
-    if (String(sfp.englishGeneratePhasePrompt ?? '').trim() === '' && ph && typeof ph === 'object') {
-      setEnglishGeneratePhasePromptFromApiFields(sfp, ph);
-    }
   }
   if (!state.phaseCardById) state.phaseCardById = {};
   const next = {};
@@ -1880,7 +1834,7 @@ function revealEnglishGenerateQuizForm(phaseId) {
   getSlotFormState(String(phaseId)).showEnglishGenerateQuizForm = true;
 }
 
-/** POST /english_system/tab/phase/create（LLM）；content_text 為教材，quiz_user_prompt_instruction 為表單 prompt */
+/** POST /english_system/tab/phase/create（LLM）；content_text 為教材 */
 async function onEnglishGenerateQuiz() {
   const state = currentState.value;
   const phaseId = state.activeTestPhaseId;
@@ -1888,11 +1842,6 @@ async function onEnglishGenerateQuiz() {
     return;
   }
   const pst = getSlotFormState(String(phaseId));
-  const promptText = String(pst.englishGeneratePhasePrompt ?? '').trim();
-  if (!promptText) {
-    pst.englishPhaseQuizError = '請先輸入產生題目（prompt）';
-    return;
-  }
   const personId = getPersonId(authStore);
   if (!personId) {
     pst.englishPhaseQuizError = '請先登入';
@@ -1936,7 +1885,6 @@ async function onEnglishGenerateQuiz() {
         system_quiz_phase_id: phaseNum,
         quiz_phase_name: quizPhaseName,
         content_text: contentText,
-        quiz_user_prompt_instruction: promptText,
       },
       { personId }
     );
@@ -1948,20 +1896,6 @@ async function onEnglishGenerateQuiz() {
     pst.englishPhaseQuizError = err?.message || '產生題目失敗';
   } finally {
     state.generateQuizLoading = false;
-  }
-}
-
-/**
- * 後端可回傳 quiz_user_prompt_instruction（與 POST phase/create 表單欄位相同）
- * @param {object} pst
- * @param {object} obj
- */
-function setEnglishGeneratePhasePromptFromApiFields(pst, obj) {
-  if (!pst || !obj || typeof obj !== 'object') return;
-  if (Object.prototype.hasOwnProperty.call(obj, 'quiz_user_prompt_instruction')) {
-    pst.englishGeneratePhasePrompt = String(obj.quiz_user_prompt_instruction ?? '');
-  } else if (Object.prototype.hasOwnProperty.call(obj, 'quizUserPromptInstruction')) {
-    pst.englishGeneratePhasePrompt = String(obj.quizUserPromptInstruction ?? '');
   }
 }
 
@@ -2003,7 +1937,6 @@ function applyEnglishPhaseQuizCardFromApi(pst, data, phaseId) {
     rag_id: null,
     rag_quiz_id: ragQuizId,
   });
-  setEnglishGeneratePhasePromptFromApiFields(pst, data);
 }
 
 /** 英文測驗階段：POST /english_system/tab/phase/quiz/grade（同步）；批改指令為 critique_user_prompt_instruction */
@@ -2730,38 +2663,6 @@ watch(
               >
             </div>
           </div>
-          <div class="mt-3 d-flex flex-column gap-0 w-100 min-w-0">
-            <label
-              class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-              for="rag-pack-system-instruction"
-            >出題說明 (prompt)</label>
-            <div
-              class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 d-flex flex-column gap-3"
-            >
-              <div class="my-font-md-400 my-color-gray-4 lh-base text-break">
-                【出題規範】<br>
-                請根據輸入的「參考內容」設計試卷題目。<br>
-                請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。<br>
-                題目難度：{quiz_level}。
-              </div>
-              <textarea
-                id="rag-pack-system-instruction"
-                v-model="currentState.systemInstruction"
-                class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 font-monospace"
-                style="resize: vertical; min-height: 6rem;"
-                rows="5"
-                :placeholder="'留空則使用預設：' + DEFAULT_SYSTEM_INSTRUCTION"
-                autocomplete="off"
-              />
-              <div class="my-font-md-400 my-color-gray-4 lh-base text-break">
-                【回傳格式】<br>
-                請以 JSON 格式回傳：<br>
-                { "quiz_content": "問題內容", <br>
-                "quiz_hint": "答案提示內容", <br>
-                "quiz_answer_reference": "參考答案內容" }
-              </div>
-            </div>
-          </div>
           <div class="d-flex justify-content-center mt-3">
             <button
               type="button"
@@ -2865,30 +2766,6 @@ watch(
                     readonly
                     autocomplete="off"
                   >
-                </div>
-              </div>
-              <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
-                <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題說明 (prompt)</div>
-                <div
-                  class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-font-md-400 lh-base text-break d-flex flex-column gap-3"
-                >
-                  <div class="my-color-gray-4">
-                    你是一個「{{ courseNameForPrompt }}」課程的教授，請給學生設計試卷題目：<br>
-                    【出題規範】<br>
-                    請根據輸入的「參考內容」設計試卷題目。<br>
-                    **請使用繁體中文 (Traditional Chinese) 出題與撰寫提示及參考答案。**<br>
-                    題目難度：{quiz_level}。
-                  </div>
-                  <div>
-                    <span class="my-color-red">{{ (currentState.systemInstruction ?? '').trim() || '—' }}</span>
-                  </div>
-                  <div class="my-color-gray-4">
-                    【回傳格式】<br>
-                    請以 JSON 格式回傳：<br>
-                    { "quiz_content": "問題內容", <br>
-                    "quiz_hint": "答案提示內容", <br>
-                    "quiz_answer_reference": "參考答案內容" }
-                  </div>
                 </div>
               </div>
               <div
@@ -3026,19 +2903,6 @@ watch(
                     <div
                       class="my-font-lg-600 my-color-black mb-0"
                     >第 {{ testPhaseLocalQuestionIndexOneBased() }} 題</div>
-                  <div class="d-flex flex-column gap-0 w-100 min-w-0">
-                    <label
-                      class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-1"
-                      :for="'english-generate-quiz-prompt-' + activeTestPhaseIdForContent"
-                    >產生題目（prompt）</label>
-                    <textarea
-                      :id="'english-generate-quiz-prompt-' + activeTestPhaseIdForContent"
-                      v-model="getSlotFormState(activeTestPhaseIdForContent).englishGeneratePhasePrompt"
-                      class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-english-generate-prompt"
-                      :disabled="!!currentState.generateQuizLoading"
-                      placeholder="請輸入產生題目的 prompt（必填，送出前須有內容）"
-                    />
-                  </div>
                   <div
                     v-if="String(getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard?.quiz ?? '').trim() === ''"
                     class="d-flex flex-wrap justify-content-center align-items-center gap-2"
@@ -3047,8 +2911,7 @@ watch(
                       type="button"
                       class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
                       :disabled="
-                        !!currentState.generateQuizLoading ||
-                          !String(getSlotFormState(activeTestPhaseIdForContent).englishGeneratePhasePrompt ?? '').trim()
+                        !!currentState.generateQuizLoading
                       "
                       :aria-busy="!!currentState.generateQuizLoading"
                       aria-label="產生題目"
@@ -3069,7 +2932,6 @@ watch(
                     <QuizCard
                       :card="getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard"
                       :slot-index="testPhaseLocalQuestionIndexOneBased()"
-                      :course-name="courseNameForPrompt"
                       :grade-submitting="
                         englishGradingSubmittingCardId != null &&
                           String(englishGradingSubmittingCardId) ===
@@ -3199,12 +3061,6 @@ watch(
   border-top: 1px solid var(--my-color-gray-2);
   flex: 1 1 0;
   min-width: 1rem;
-}
-/* 產生題目 prompt：固定可視高度 100px（可垂直拉長） */
-.my-english-generate-prompt {
-  height: 100px;
-  min-height: 100px;
-  resize: vertical;
 }
 .my-english-phase-grading-prompt {
   height: 400px;

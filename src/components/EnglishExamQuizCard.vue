@@ -11,15 +11,13 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateEnglishExamQuizBankPage 使用；評分邏輯由父層透過 useEnglishExamQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測驗階段」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz，且不顯示「批改規則（預覽）」。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測驗階段」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
   card: { type: Object, required: true },
   /** 題號（從 1 開始，用於顯示「第 N 題」） */
   slotIndex: { type: Number, required: true },
-  /** 批改 prompt 內「課程名稱」占位（與建立測驗題庫頁 course 一致） */
-  courseName: { type: String, default: 'MyQuiz.ai' },
   /** 目前分頁／試題用 RAG 的 rag_id；與 card.rag_id 皆有值且不同時，停用答案輸入與確定 */
   currentRagId: { type: [String, Number], default: null },
   /** 為 true 時略過上述 rag_id 比對（介面稿頁用） */
@@ -30,7 +28,7 @@ const props = defineProps({
   designEmbedded: { type: Boolean, default: false },
   /** 正在送出「確定批改」（全螢幕 LoadingOverlay 由父層顯示；按鈕僅停用） */
   gradeSubmitting: { type: Boolean, default: false },
-  /** 測驗頁：顯示題目讚／差（32×32 my-btn-circle · 透明底；未選 fa-regular my-color-gray-1、選中 fa-solid my-color-black；與 POST /exam/tab/quiz/rate 搭配；需 designUi）；為 true 時不顯示「批改規則（預覽）」 */
+  /** 測驗頁：顯示題目讚／差（32×32 my-btn-circle · 透明底；未選 fa-regular my-color-gray-1、選中 fa-solid my-color-black；與 POST /exam/tab/quiz/rate 搭配；需 designUi） */
   showExamRating: { type: Boolean, default: false },
 });
 
@@ -297,41 +295,6 @@ const showGradingResultSection = computed(
             :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
           >{{ card.quiz_answer }}</div>
         </template>
-      </div>
-      <div
-        v-if="!showExamRating"
-        class="w-100 min-w-0"
-        :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
-      >
-        <label
-          class="d-block"
-          :class="designUi ? 'my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0' : 'form-label my-font-sm-600 mb-0 my-color-gray-1'"
-        >批改規則（預覽）</label>
-        <div
-          class="my-font-sm-400"
-          :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
-        >
-          你是一位「{{ courseName }}」課程的教授，請批改這道題目：<br>
-          【評分規範】<br>
-          根據「測驗題目」與「課程內容」，評估「學生答案」的內容是否正確。<br>
-          測驗題目：{quiz_content}<br>
-          學生答案：{quiz_answer}<br>
-          課程內容：{context_text}<br>
-          【重要限制】<br>
-          請使用繁體中文 (Traditional Chinese) 撰寫評語 (quiz_comments)。<br>
-          【評分標準】<br>
-          0-5分，一定是整數 (quiz_score)。<br>
-          0: 完全錯誤或未作答。<br>
-          1: 只有少量內容正確。<br>
-          2: 大幅缺漏，只有部分內容正確。<br>
-          3: 部分正確，但有大幅缺漏。<br>
-          4: 大致正確，略有不足。<br>
-          5: 完全正確且完整。<br>
-          【回傳格式】<br>
-          請以指定格式回傳（含分數與評語欄位）：<br>
-          { "quiz_score": int,<br>
-          "quiz_comments": str[] }<br>
-        </div>
       </div>
       <!-- 批改結果區：僅在回傳後有內容時顯示（送出中不占位） -->
       <div

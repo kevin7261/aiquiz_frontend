@@ -111,7 +111,7 @@ export const API_RAG_QUIZ_GRADE_RESULT = '/rag/tab/quiz/grade-result';
 
 /** Create Tab（RAG）：POST /rag/tab/create；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、tab_name，選填 local（預設 false；本機前端可傳 true）；system_prompt_instruction 請於 POST /rag/tab/build-rag-zip 傳入；回傳建立欄位（尚無檔案時不含 file_size） */
 export const API_CREATE_UNIT = '/rag/tab/create';
-/** 列出 RAG：GET /rag/tabs；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam、file_size〔MB〕、file_metadata、rag_metadata）、quizzes（每題含 answers）、頂層 answers */
+/** 列出 RAG：GET /rag/tabs；回傳 { rags, count }；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam、file_size〔MB〕、file_metadata）、units[]（每單元含 quiz_system_prompt_text、quizzes、for_exam 等）、相容頂層 quizzes／answers */
 export const API_RAG_LIST = '/rag/tabs';
 /** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata（內含 file_size〔MB〕等）並寫入 DB */
 export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
@@ -121,6 +121,15 @@ export const API_RAG_DELETE = '/rag/tab/delete';
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
 /** 建 RAG ZIP：POST /rag/tab/build-rag-zip；同上 body；成功時回應 application/x-ndjson 串流（每行 JSON：type start|building|unit|complete），query 須帶 person_id 與 body 一致；整批成敗以 complete.success 為準；寫入 Rag.rag_metadata；不需 llm_api_key */
 export const API_BUILD_RAG_ZIP = '/rag/tab/build-rag-zip';
+/** 列出指定 tab 下所有未刪除 Rag_Unit（含關聯 quizzes）：GET /rag/tab/units；query: rag_tab_id、person_id（必填）；依 created_at 舊→新 */
+export const API_RAG_TAB_UNITS = '/rag/tab/units';
+/**
+ * 依 rag_tab_id／rag_unit_id 建立空白 Rag_Quiz（不呼叫 LLM）；rag_quiz_id 由後端於回應中帶出。
+ * POST /rag/tab/unit/quiz/create；query person_id；body: { rag_tab_id, rag_unit_id }
+ */
+export const API_RAG_TAB_UNIT_QUIZ_CREATE = '/rag/tab/unit/quiz/create';
+/** POST /rag/tab/unit/quiz/llm-generate — body：`rag_quiz_id`、`rag_tab_id`、`rag_unit_id`、`quiz_user_prompt_text`；query：`person_id`；成功時回 quiz_content / quiz_hint / quiz_reference_answer / rag_quiz_id 等 */
+export const API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE = '/rag/tab/unit/quiz/llm-generate';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
 export const API_RAG_APPLIED = '/rag/applied';
 /** 試題頁用 RAG：GET /rag/tab/for-exam 取得試題用 RAG（for_exam=true 且 deleted=false，0 或 1 筆），無 parameters；回傳含 Rag 表之 file_size〔MB〕、file_metadata，outputs／rag_metadata.outputs 每項可含 file_size〔MB〕。設為試題用改由 PUT system-settings（見下方 rag-for-exam-*） */

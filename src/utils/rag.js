@@ -212,13 +212,17 @@ export function serializePackTasksList(list) {
 
 /**
  * 將 GET /rag/tabs 回傳正規化為 RAG 陣列
- * 支援：直接陣列、{ rags }、{ items }、或單一 RAG 物件
+ * 支援：直接陣列、{ rags, count }、{ items }、{ tabs }／{ data }（為陣列時）、或單一 RAG 物件
  * @param {unknown} data - API 回傳的資料
  * @returns {object[]}
  */
 export function normalizeRagListResponse(data) {
   if (Array.isArray(data)) return data;
-  const list = data?.rags ?? data?.items;
+  const list =
+    data?.rags
+    ?? data?.items
+    ?? (Array.isArray(data?.tabs) ? data.tabs : undefined)
+    ?? (Array.isArray(data?.data) ? data.data : undefined);
   if (Array.isArray(list) && list.length > 0) return list;
   if (data != null && typeof data === 'object' && (data.rag_tab_id != null || data.rag_id != null)) return [data];
   return [];

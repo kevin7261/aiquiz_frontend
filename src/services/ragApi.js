@@ -11,6 +11,9 @@ import {
   API_RAG_DELETE,
   API_RAG_UNIT_NAME,
   API_BUILD_RAG_ZIP,
+  API_RAG_TAB_UNITS,
+  API_RAG_TAB_UNIT_QUIZ_CREATE,
+  API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE,
   API_GENERATE_QUIZ,
   API_PUT_RAG_FOR_EXAM_DEPLOY,
   API_PUT_RAG_FOR_EXAM_LOCALHOST,
@@ -20,7 +23,6 @@ import { formatBuildRagZipErrorDetail, parseBuildRagZipError, parseFetchError } 
 import { loggedFetch } from '../utils/loggedFetch.js';
 
 const RETRY_500_DELAY_MS = 2000;
-import { quizLevelStringForApi } from '../utils/rag.js';
 
 /**
  * 從 authStore 取得目前使用者的 person_id
@@ -308,14 +310,101 @@ export async function apiBuildRagZip(body, onStreamEvent) {
 }
 
 /**
- * 產生題目：POST /rag/tab/quiz/create（與 OpenAPI 範例一致：四欄皆送出，選填欄可為 ""）
+ * 依 rag_tab_id 列出該 tab 下所有未刪除 Rag_Unit（含 quizzes），依 created_at 舊→新。
+ * GET /rag/tab/units?rag_tab_id=...&person_id=...
+ * @param {string | number} ragTabId
+ * @param {string | number} personId
+ * @returns {Promise<object[]>}
+ */
+export async function apiGetRagTabUnits(ragTabId, personId) {
+  const tabId = String(ragTabId ?? '').trim();
+  const pid = String(personId ?? '').trim();
+  if (!tabId) throw new Error('缺少 rag_tab_id');
+  if (!pid) throw new Error('缺少 person_id');
+  const url = new URL(`${API_BASE}${API_RAG_TAB_UNITS}`);
+  url.searchParams.set('rag_tab_id', tabId);
+  url.searchParams.set('person_id', pid);
+  const res = await loggedFetch(url.toString(), { method: 'GET' });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  const data = parseJson(text);
+  return Array.isArray(data) ? data : (Array.isArray(data?.units) ? data.units : []);
+}
+
+/**
+ * 建立空白 Rag_Quiz（不呼叫 LLM）：POST /rag/tab/unit/quiz/create；query person_id（必填）
+ * Body：{ rag_tab_id, rag_unit_id }；回應會帶出 rag_quiz_id。
+ * LLM 出題請改呼叫 {@link apiRagUnitQuizLlmGenerate}。
+ * @param {{ rag_tab_id: string, rag_unit_id: number }} body
+ */
+export async function apiCreateRagUnitQuiz(body, personId) {
+  const pid = String(personId ?? '').trim();
+  if (!pid) throw new Error('person_id 為必填');
+  const tid = body?.rag_tab_id != null ? String(body.rag_tab_id).trim() : '';
+  const uid =
+    body?.rag_unit_id != null && body.rag_unit_id !== ''
+      ? Number(body.rag_unit_id)
+      : 0;
+  if (!tid) throw new Error('缺少 rag_tab_id');
+  if (!Number.isFinite(uid) || uid < 0) throw new Error('無效的 rag_unit_id');
+  const res = await loggedFetch(`${API_BASE}${API_RAG_TAB_UNIT_QUIZ_CREATE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rag_tab_id: tid,
+      rag_unit_id: uid,
+    }),
+  }, { personId: pid });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * RAG + LLM 單元出題（與 POST /rag/tab/unit/quiz/create 分開）。
+ * POST /rag/tab/unit/quiz/llm-generate — query：**person_id**（必填）。
+ * Body **僅**四欄：rag_quiz_id（必填）、rag_tab_id（可為 ""）、rag_unit_id（≥0）、quiz_user_prompt_text；
+ * rag_tab_id／rag_unit_id 可為後端一致性驗證用 optional。
+ *
+ * LLM Key 來自 Rag 對應 User；成功後更新 Rag_Quiz。
+ * @param {{ rag_quiz_id: number, rag_tab_id?: string, rag_unit_id?: number, quiz_user_prompt_text?: string }} body
+ * @returns {Promise<object>} 後端 JSON，預期含 quiz_content、quiz_hint、quiz_reference_answer、rag_quiz_id 等。
+ */
+export async function apiRagUnitQuizLlmGenerate(body, personId) {
+  const pid = String(personId ?? '').trim();
+  if (!pid) throw new Error('person_id 為必填');
+  const rqid = Number(body?.rag_quiz_id);
+  if (!Number.isFinite(rqid) || rqid < 1) throw new Error('無效的 rag_quiz_id');
+  const tid = body?.rag_tab_id != null ? String(body.rag_tab_id).trim() : '';
+  const uid =
+    body?.rag_unit_id != null && body.rag_unit_id !== ''
+      ? Number(body.rag_unit_id)
+      : 0;
+  if (!Number.isFinite(uid) || uid < 0) throw new Error('無效的 rag_unit_id');
+  const uxt = body?.quiz_user_prompt_text != null ? String(body.quiz_user_prompt_text) : '';
+  const res = await loggedFetch(`${API_BASE}${API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rag_quiz_id: rqid,
+      rag_tab_id: tid,
+      rag_unit_id: uid,
+      quiz_user_prompt_text: uxt,
+    }),
+  }, { personId: pid });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * 產生題目：POST /rag/tab/quiz/create（quiz_level 已取消，不再送出）
  * @param {string | number} ragId - Rag 表主鍵
  * @param {string | number | null | undefined} [ragTabId] - 選填；空則傳 ""
- * @param {string | number} quizLevel - 「基礎」／「進階」，或舊版 0／1
  * @param {string | null | undefined} [unitName] - 選填；空字串則後端依 outputs 用第一筆
  * @returns {Promise<object>} 含 quiz_content、quiz_hint、quiz_answer_reference、rag_quiz_id 等
  */
-export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
+export async function apiGenerateQuiz(ragId, ragTabId, unitName) {
   const rid = Number(ragId);
   if (!Number.isFinite(rid) || rid < 1) {
     throw new Error('無效的 rag_id（須為 Rag 表主鍵正整數）');
@@ -326,7 +415,6 @@ export async function apiGenerateQuiz(ragId, ragTabId, quizLevel, unitName) {
   const body = {
     rag_id: rid,
     rag_tab_id: tid,
-    quiz_level: quizLevelStringForApi(quizLevel),
     unit_name: un,
   };
   const res = await loggedFetch(`${API_BASE}${API_GENERATE_QUIZ}`, {
