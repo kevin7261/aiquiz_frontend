@@ -2,7 +2,7 @@
 /**
  * CreateExamQuizBankPage - 建立測驗題庫頁面
  *
- * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 unit_list（虛擬資料夾群組）→ Build RAG ZIP → 可設為測驗用 → 產生題目 → 作答與評分。
+ * 一個分頁（tab）對應後端一筆 RAG（rag_id + rag_tab_id）。流程：建立 RAG → 上傳 ZIP → 設定 unit_list（虛擬資料夾群組）→ Build RAG ZIP → 產生題目 → 作答與評分（試卷用題庫由後端／系統設定與／或單題 POST for-exam 管理，見註解）。
  *
  * API 對應：
  * - 列表：GET /rag/tabs?local=（與 tab/create 的 local 一致）；useRagList 首次 watch(immediate) 載入，之後每次從側欄再進入本頁（KeepAlive onActivated）再抓一次
@@ -10,9 +10,9 @@
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
- * - 測驗用：GET／PUT /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy；PUT rag_id 正整數或 '' 清空；列表 for_exam 與設定併用於按鈕「取消設為測驗用」
- * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/quiz/grade、GET /rag/tab/quiz/grade-result/{job_id}，ready 時 result: { quiz_score, quiz_comments, rag_answer_id }
- * - 單元子分頁：GET /rag/tab/units；空白題 POST /rag/tab/unit/quiz/create；LLM 出題 POST /rag/tab/unit/quiz/llm-generate（四欄 body + query person_id；回 quiz_content／quiz_hint／quiz_reference_answer 等）
+ * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
+ * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
+ * - 單元子分頁：GET /rag/tab/units；空白題 POST /rag/tab/unit/quiz/create；LLM 出題 POST /rag/tab/unit/quiz/llm-generate（四欄 body + query person_id；回 quiz_content／quiz_hint／quiz_reference_answer 等）；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
@@ -27,13 +27,11 @@ import {
   apiUploadZip,
   apiDeleteRag,
   apiUpdateRagTabName,
-  apiGetRagForExamSetting,
-  apiSetRagForExam,
-  parseRagIdFromRagForExamSettingPayload,
   apiBuildRagZip,
   apiGetRagTabUnits,
   apiCreateRagUnitQuiz,
   apiRagUnitQuizLlmGenerate,
+  apiMarkRagQuizForExam,
   apiGenerateQuiz,
   is504OrNetworkError,
 } from '../services/ragApi.js';
@@ -54,6 +52,7 @@ import {
   findQuizUnitBySlotSelection,
   examOrRagQuizRowKey,
   examOrRagAnswerRowKey,
+  quizAnswerPresetFromReference,
 } from '../utils/rag.js';
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
@@ -274,23 +273,10 @@ const currentRagIdForQuizCards = computed(() => {
   return v != null && String(v).trim() !== '' ? v : null;
 });
 
-/** GET /system-settings/rag-for-exam-* 的 rag_id（列表未帶 for_exam 時仍可比對） */
-const ragForExamSettingRagId = ref(null);
-
-/** 列表 for_exam 或與系統設定 rag_id 相同時視為試題用 RAG（與分頁列綠點／刪除鈕一致） */
-function ragMatchesExamSetting(rag, settingRagId) {
-  if (!rag || typeof rag !== 'object') return false;
-  if (rag.for_exam === true) return true;
-  const rid = rag.rag_id ?? rag.id;
-  if (rid == null || rid === '') return false;
-  if (settingRagId == null) return false;
-  return String(settingRagId) === String(rid);
+/** GET /rag/tabs 列之 Rag.for_exam===true 時為試卷用（不做 system-settings 對照） */
+function ragIsForExamFromListRow(rag) {
+  return !!rag?.for_exam;
 }
-
-/** 目前分頁 RAG 是否為試題用（列表 for_exam 或與系統設定 rag_id 相同） */
-const currentRagIsExamRag = computed(() =>
-  ragMatchesExamSetting(currentRagItem.value, ragForExamSettingRagId.value)
-);
 
 /** 當前 tab 的 rag_id、rag_tab_id（僅 console 記錄；未上傳則為「未上傳」） */
 const currentRagIdAndTabId = computed(() => {
@@ -331,7 +317,7 @@ const hasAnySlotGenerating = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／測驗用設定／產生題目／批改 */
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／產生題目／批改 */
 const loadingOverlayVisible = computed(
   () =>
     ragListLoading.value ||
@@ -340,7 +326,6 @@ const loadingOverlayVisible = computed(
     renameRagTabSaving.value ||
     !!currentState.value?.zipLoading ||
     !!currentState.value?.packLoading ||
-    !!currentState.value?.forExamLoading ||
     hasAnySlotGenerating.value ||
     isGradingSubmitting.value
 );
@@ -351,7 +336,6 @@ const loadingOverlayText = computed(() => {
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立題庫中...';
-  if (st?.forExamLoading) return '設定中...';
   if (deleteRagLoading.value) return '刪除中...';
   if (renameRagTabSaving.value) return '儲存中...';
   if (createRagLoading.value) return '建立中...';
@@ -480,13 +464,13 @@ const {
   setAllSecondFoldersAsSingleGroup,
 } = usePackTasks(currentState, fileMetadataToShow, packGroupsEditBlocked);
 
-/** Tab 列用：rag 項目含 _tabId、_label、_isExamRag（試題用者分頁列不顯示刪除） */
+/** Tab 列用：rag 項目含 _tabId、_label、_isExamRag（試卷用者分頁列綠點／刪除確認） */
 const ragItems = computed(() =>
   ragList.value.map((r) => ({
     ...r,
     _tabId: r.rag_tab_id ?? r.id ?? r,
     _label: getRagTabLabel(r),
-    _isExamRag: ragMatchesExamSetting(r, ragForExamSettingRagId.value),
+    _isExamRag: ragIsForExamFromListRow(r),
   }))
 );
 /** Tab 列用：新增 tab 項目含 id、label */
@@ -696,7 +680,63 @@ const activeUnitSlotIndex = computed(() => {
   return idx >= 0 ? idx + 1 : 1;
 });
 
-/** 目前單元子分頁對應之「該單元底下全部題卡」（與後端 quizzes[] 對齊） */
+/** 目前單元槽對應之 rag_tab_id／rag_unit_id（供單題設為測驗用 POST /rag/tab/unit/quiz/for-exam） */
+function getRagQuizUnitMeta(slotIndex) {
+  const state = currentState.value;
+  const tabs = state.unitTabOrder ?? [];
+  const t = tabs[slotIndex - 1];
+  const ragTabId = t ? String(t.ragTabId ?? '').trim() : '';
+  const ru = t?.ragUnitDbId != null ? Number(t.ragUnitDbId) : 0;
+  return {
+    rag_tab_id: ragTabId,
+    rag_unit_id: Number.isFinite(ru) && ru >= 0 ? ru : 0,
+  };
+}
+
+/** 切換 Rag_Quiz.for_exam（需已批改有結果；題卡綠／線框鈕與試卷試題來源對齊） */
+async function onMarkRagQuizForExam(card) {
+  if (!card || typeof card !== 'object') return;
+  const personId = getPersonId(authStore);
+  if (!personId) {
+    alert('請先登入');
+    return;
+  }
+  const rqid = positiveRagQuizIdFromQuizRow(card);
+  if (rqid == null || rqid < 1) return;
+  const slotIndex = activeUnitSlotIndex.value;
+  const meta = getRagQuizUnitMeta(slotIndex);
+  const rag = currentRagItem.value;
+  const state = currentState.value;
+  const ragTabId =
+    String(card.rag_tab_id ?? meta.rag_tab_id ?? '').trim()
+    || String(rag?.rag_tab_id ?? activeTabId.value ?? state.zipTabId ?? '').trim();
+  let ragUnitId =
+    card.rag_unit_id != null && card.rag_unit_id !== ''
+      ? Number(card.rag_unit_id)
+      : Number(meta.rag_unit_id);
+  if (!Number.isFinite(ragUnitId) || ragUnitId < 0) ragUnitId = 0;
+  const nextForExam = !(card.rag_quiz_for_exam === true || card.rag_quiz_for_exam === 1);
+  card.ragQuizForExamLoading = true;
+  card.ragQuizForExamError = '';
+  try {
+    await apiMarkRagQuizForExam(
+      {
+        rag_quiz_id: rqid,
+        rag_tab_id: ragTabId,
+        rag_unit_id: ragUnitId,
+        for_exam: nextForExam,
+      },
+      personId
+    );
+    card.rag_quiz_for_exam = nextForExam;
+    card.rag_tab_id = ragTabId;
+    card.rag_unit_id = ragUnitId;
+  } catch (err) {
+    card.ragQuizForExamError = err?.message || String(err);
+  } finally {
+    card.ragQuizForExamLoading = false;
+  }
+}
 const activeUnitQuizCards = computed(() => {
   const state = currentState.value;
   const i = activeUnitSlotIndex.value - 1;
@@ -955,18 +995,82 @@ function positiveRagQuizIdFromCard(card) {
   return null;
 }
 
-/** 由 /rag/tabs 的 quiz（含 answers）組成一張題目卡片，供測試題目區塊顯示；批改結果從作答紀錄的 answer_metadata / answer_feedback_metadata 格式化 */
+/** 由 /rag/tabs 的 quiz 組題卡：批改優先 quiz.answers 末筆；若無則讀列上 answer_content／answer_grade／answer_critique（Rag_Quiz 內嵌欄位） */
 function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const answers = Array.isArray(quiz.answers) ? quiz.answers : [];
   const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
   const latestSubmitted =
     latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? null;
-  const gradingResult = latestAnswer
-    ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestSubmitted != null && String(latestSubmitted).trim() !== '' ? '已批改' : ''))
-    : '';
+  const refA = quiz.quiz_answer_reference ?? quiz.quiz_reference_answer ?? '';
+  const critStr = quiz.answer_critique != null ? String(quiz.answer_critique).trim() : '';
+  const hasAnswerGrade = quiz.answer_grade != null && String(quiz.answer_grade).trim() !== '';
+  const answerContentStr = quiz.answer_content != null ? String(quiz.answer_content) : '';
+  const useInlineGrading = !latestAnswer && (critStr !== '' || hasAnswerGrade);
+
+  let quiz_answer;
+  if (latestAnswer) {
+    quiz_answer =
+      latestSubmitted != null && String(latestSubmitted).trim() !== ''
+        ? String(latestSubmitted)
+        : quizAnswerPresetFromReference(refA);
+  } else if (answerContentStr.trim() !== '') {
+    quiz_answer = answerContentStr;
+  } else {
+    quiz_answer = quizAnswerPresetFromReference(refA);
+  }
+
+  let gradingResult = '';
+  let gradingResponseJson = null;
+  let confirmed = false;
+  let answer_id = null;
+
+  if (latestAnswer) {
+    gradingResult =
+      formatGradingResult(JSON.stringify(latestAnswer)) ||
+      (latestSubmitted != null && String(latestSubmitted).trim() !== '' ? '已批改' : '');
+    confirmed = true;
+    gradingResponseJson = latestAnswer;
+    answer_id = latestAnswer?.answer_id ?? latestAnswer?.rag_answer_id ?? null;
+  } else if (useInlineGrading) {
+    if (critStr !== '') {
+      gradingResult = formatGradingResult(critStr) || '';
+    }
+    if (!gradingResult && hasAnswerGrade) {
+      gradingResult = `總分：${quiz.answer_grade} / 5`;
+    }
+    confirmed = true;
+    const parsedCritique =
+      critStr !== ''
+        ? (() => {
+            try {
+              return JSON.parse(critStr);
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+    gradingResponseJson =
+      parsedCritique && typeof parsedCritique === 'object'
+        ? parsedCritique
+        : {
+            answer_grade: quiz.answer_grade,
+            answer_critique: quiz.answer_critique,
+            answer_content: quiz.answer_content,
+          };
+    answer_id = quiz.rag_answer_id ?? null;
+  }
+
+  const gradingPrompt = String(quiz.answer_user_prompt_text ?? '').trim();
   const generateLevel = normalizeQuizLevelLabel(quiz.quiz_level);
   const rid = quiz.rag_id ?? quiz.ragId ?? ragIdFallback;
   const ragIdStr = rid != null && String(rid).trim() !== '' ? String(rid) : null;
+  const fe =
+    quiz.for_exam === true
+    || quiz.for_exam === 1
+    || quiz.rag_quiz_for_exam === true;
+  const rtid = quiz.rag_tab_id != null ? String(quiz.rag_tab_id).trim() : '';
+  const ruidRaw = quiz.rag_unit_id != null ? Number(quiz.rag_unit_id) : NaN;
+  const ruid = Number.isFinite(ruidRaw) && ruidRaw >= 0 ? ruidRaw : 0;
   return {
     id: nextCardId(),
     quiz: quiz.quiz_content ?? '',
@@ -975,17 +1079,23 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
     sourceFilename: quiz.file_name ?? null,
     ragName: (ragName || quiz.rag_name || '').trim() || null,
     rag_id: ragIdStr,
-    quiz_answer: latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? '',
+    quiz_answer,
     hintVisible: false,
-    confirmed: !!latestAnswer,
+    confirmed,
     gradingResult,
-    gradingResponseJson: latestAnswer ?? null,
+    gradingResponseJson,
     generateQuizResponseJson: null,
     quizUserPromptText: extractQuizUserPromptText(quiz),
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: null,
     rag_quiz_id: positiveRagQuizIdFromQuizRow(quiz),
-    answer_id: latestAnswer?.answer_id ?? null,
+    rag_tab_id: rtid,
+    rag_unit_id: ruid,
+    rag_quiz_for_exam: fe,
+    ragQuizForExamLoading: false,
+    ragQuizForExamError: '',
+    answer_id,
+    gradingPrompt,
   };
 }
 
@@ -1110,15 +1220,6 @@ async function refreshUnitSubTabsFromApi(tabId) {
   return units;
 }
 
-async function refreshRagForExamSetting() {
-  try {
-    const data = await apiGetRagForExamSetting();
-    ragForExamSettingRagId.value = parseRagIdFromRagForExamSettingPayload(data);
-  } catch {
-    ragForExamSettingRagId.value = null;
-  }
-}
-
 /** GET /rag/tabs 由 useRagList 內 watch(immediate) 首次載入；每次從側欄再進入本頁（KeepAlive onActivated）再抓 GET /rag/tabs */
 const createBankActivatedOnce = ref(false);
 onActivated(() => {
@@ -1129,62 +1230,10 @@ onActivated(() => {
   fetchRagList();
 });
 
-/** 此處僅試題用設定、檔案欄位 */
+/** 檔案欄位初值 */
 onMounted(() => {
-  refreshRagForExamSetting();
   clearZipFileInput();
 });
-
-/** 設為測驗用（PUT system-settings rag-for-exam-*） */
-async function setRagForExam() {
-  const rag = currentRagItem.value;
-  if (!rag || isNewTabId(activeTabId.value)) return;
-  const ragId = rag.rag_id ?? rag.id;
-  if (ragId == null || ragId === '') {
-    const state = getTabState(activeTabId.value);
-    state.forExamError = '無法取得題庫編號，請先建立分頁並上傳教材檔';
-    return;
-  }
-  const personId = getPersonId(authStore);
-  if (!personId) {
-    alert('請先登入');
-    return;
-  }
-  const state = getTabState(activeTabId.value);
-  state.forExamLoading = true;
-  state.forExamError = '';
-  try {
-    await apiSetRagForExam(ragId);
-    await fetchRagList({ silent: true });
-    await refreshRagForExamSetting();
-  } catch (err) {
-    state.forExamError = err.message || String(err);
-  } finally {
-    state.forExamLoading = false;
-  }
-}
-
-/** 取消測驗用（PUT rag_id 空字串） */
-async function clearRagForExam() {
-  if (!currentRagIsExamRag.value || isNewTabId(activeTabId.value)) return;
-  const personId = getPersonId(authStore);
-  if (!personId) {
-    alert('請先登入');
-    return;
-  }
-  const state = getTabState(activeTabId.value);
-  state.forExamLoading = true;
-  state.forExamError = '';
-  try {
-    await apiSetRagForExam(null);
-    await fetchRagList({ silent: true });
-    await refreshRagForExamSetting();
-  } catch (err) {
-    state.forExamError = err.message || String(err);
-  } finally {
-    state.forExamLoading = false;
-  }
-}
 
 /** 刪除 RAG */
 async function deleteRag(rag, e) {
@@ -1196,7 +1245,12 @@ async function deleteRag(rag, e) {
     alert('請先登入');
     return;
   }
-  if (!confirm(`確定要刪除「${getRagTabLabel(rag)}」嗎？`)) return;
+  const label = getRagTabLabel(rag);
+  const isExam = ragIsForExamFromListRow(rag);
+  const msg = isExam
+    ? `「${label}」已標為試卷用題庫（for_exam）。確定刪除嗎？`
+    : `確定要刪除「${label}」嗎？`;
+  if (!confirm(msg)) return;
   deleteRagLoading.value = true;
   try {
     await apiDeleteRag(fileId);
@@ -1770,6 +1824,21 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
   const slotStatePrompt = getSlotFormState(slotIndex);
   const promptSnap = String(slotStatePrompt.quizUserPromptText ?? '').trim();
   const ragIdStr = ragId != null && String(ragId).trim() !== '' ? String(ragId) : null;
+  const hasUnitTabsEarly = (currentState.value.unitTabOrder || []).length > 0;
+  const unitExamDefaults = hasUnitTabsEarly
+    ? {
+      ...getRagQuizUnitMeta(slotIndex),
+      rag_quiz_for_exam: false,
+      ragQuizForExamLoading: false,
+      ragQuizForExamError: '',
+    }
+    : {
+      rag_tab_id: '',
+      rag_unit_id: 0,
+      rag_quiz_for_exam: false,
+      ragQuizForExamLoading: false,
+      ragQuizForExamError: '',
+    };
   const card = {
     id: nextCardId(),
     quiz: quizContent ?? '',
@@ -1778,7 +1847,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     sourceFilename: sourceFilename ?? null,
     ragName: ragName ?? null,
     rag_id: ragIdStr,
-    quiz_answer: '',
+    quiz_answer: quizAnswerPresetFromReference(referenceAnswer),
     hintVisible: false,
     confirmed: false,
     gradingResult: '',
@@ -1788,6 +1857,8 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     systemInstructionUsed: systemInstructionUsed ?? null,
     rag_quiz_id: ragQuizId ?? null,
     quizUserPromptText: promptSnap,
+    gradingPrompt: '',
+    ...unitExamDefaults,
   };
 
   const hasUnitTabs = (state.unitTabOrder || []).length > 0;
@@ -1810,13 +1881,25 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     if (idx >= 0) {
       const prev = sub[idx];
       card.id = prev.id;
-      card.quiz_answer = prev.quiz_answer ?? '';
+      const prevAns = prev.quiz_answer ?? '';
+      const preset = quizAnswerPresetFromReference(referenceAnswer);
+      card.quiz_answer =
+        String(prevAns).trim() !== '' ? prevAns : preset;
       card.hintVisible = prev.hintVisible ?? false;
       card.confirmed = prev.confirmed ?? false;
       card.gradingResult = prev.gradingResult ?? '';
       card.gradingResponseJson = prev.gradingResponseJson ?? null;
       card.answer_id = prev.answer_id ?? null;
       card.quizUserPromptText = promptSnap || prev.quizUserPromptText || '';
+      card.gradingPrompt = prev.gradingPrompt ?? '';
+      card.rag_tab_id =
+        prev.rag_tab_id != null && String(prev.rag_tab_id).trim() !== ''
+          ? prev.rag_tab_id
+          : card.rag_tab_id;
+      card.rag_unit_id = prev.rag_unit_id != null ? prev.rag_unit_id : card.rag_unit_id;
+      card.rag_quiz_for_exam = prev.rag_quiz_for_exam ?? card.rag_quiz_for_exam;
+      card.ragQuizForExamLoading = false;
+      card.ragQuizForExamError = '';
       sub[idx] = { ...prev, ...card };
     } else {
       sub.push(card);
@@ -1896,7 +1979,7 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-/** 評分：POST /rag/tab/quiz/grade；body: rag_id、rag_tab_id、rag_quiz_id、quiz_content、quiz_answer、quiz_answer_reference（皆 string，選填可 ""）；回傳 202 + job_id；輪詢 GET /rag/tab/quiz/grade-result/{job_id}；ready 時 result: { quiz_score, quiz_comments, rag_answer_id }。 */
+/** 評分：POST /rag/tab/unit/quiz/llm-grade；body: rag_id、rag_tab_id（選填）、rag_quiz_id、quiz_content、quiz_answer；選填 answer_user_prompt_text（題卡 gradingPrompt）；回傳 202 + job_id；輪詢 GET /rag/tab/unit/quiz/grade-result/{job_id}。 */
 async function confirmAnswer(item) {
   if (!item.quiz_answer.trim()) return;
   const state = currentState.value;
@@ -1926,7 +2009,7 @@ async function confirmAnswer(item) {
   }
   gradingSubmittingCardId.value = item.id;
   try {
-    await submitGrade(item, { sourceTabId, ragId });
+    await submitGrade(item, { sourceTabId, ragId }, {});
   } finally {
     gradingSubmittingCardId.value = null;
   }
@@ -1999,10 +2082,10 @@ async function confirmAnswer(item) {
                   />
                 </span>
                 <button
-                  v-else-if="activeTabId === item._tabId"
+                  v-if="activeTabId === item._tabId"
                   type="button"
                   class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4"
-                  title="刪除此出題單元"
+                  :title="item._isExamRag ? '刪除此題庫（將取消試卷用設定）' : '刪除此出題單元'"
                   :disabled="deleteRagLoading || renameRagTabSaving"
                   @click.stop="onDeleteRagTab(item._tabId)"
                 >
@@ -2456,27 +2539,6 @@ async function confirmAnswer(item) {
                   >
                 </div>
               </div>
-              <div
-                v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
-                class="d-flex flex-wrap justify-content-center align-items-center gap-2"
-              >
-                <button
-                  type="button"
-                  :class="
-                    currentRagIsExamRag
-                      ? 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-btn-outline-green-hollow px-3 py-2'
-                      : 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-green px-3 py-2'
-                  "
-                  :disabled="currentState.forExamLoading"
-                  :aria-busy="currentState.forExamLoading"
-                  @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
-                >
-                  {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
-                </button>
-              </div>
-              <div v-if="currentState.forExamError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 mt-2">
-                {{ currentState.forExamError }}
-              </div>
           </div>
           </section>
         </div>
@@ -2614,9 +2676,12 @@ async function confirmAnswer(item) {
                       String(gradingSubmittingCardId) === String(quizCard.id)
                     "
                     design-ui
+                    show-rag-quiz-for-exam-action
+                    @mark-rag-quiz-for-exam="onMarkRagQuizForExam"
                     @toggle-hint="toggleHint"
                     @confirm-answer="confirmAnswer"
                     @update:quiz_answer="(val) => { quizCard.quiz_answer = val }"
+                    @update:grading_prompt="(val) => { quizCard.gradingPrompt = val }"
                   />
                 </div>
               </div>

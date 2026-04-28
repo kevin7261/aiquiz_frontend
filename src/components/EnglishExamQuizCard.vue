@@ -7,7 +7,7 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
 /**
  * QuizCard - 單一題目卡片
  *
- * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、參考答案(暫存)、答案區、批改結果。
+ * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、答案區（預設帶入暫存參考答案並於下方註明）、批改結果。
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateEnglishExamQuizBankPage 使用；評分邏輯由父層透過 useEnglishExamQuizGrading 處理。
  *
@@ -235,20 +235,6 @@ const showGradingResultSection = computed(
         </div>
       </div>
       <div
-        v-if="card.referenceAnswer"
-        class="w-100 min-w-0"
-        :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
-      >
-        <div
-          :class="designUi ? 'my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0' : 'form-label my-font-sm-600 mb-0 my-color-gray-1'"
-        >參考答案(暫存)</div>
-        <div
-          class="my-font-sm-400"
-          style="white-space: pre-wrap;"
-          :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
-        >{{ card.referenceAnswer }}</div>
-      </div>
-      <div
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
@@ -272,6 +258,13 @@ const showGradingResultSection = computed(
             placeholder="請輸入您的答案..."
             maxlength="2000"
           />
+          <p
+            v-if="String(card.referenceAnswer ?? '').trim() !== '' && !card.confirmed"
+            :class="designUi ? 'my-font-sm-400 my-color-gray-4 mb-0 mt-1' : 'form-text my-font-sm-400 my-color-gray-4 mb-0 mt-1'"
+            role="note"
+          >
+            此欄預設為暫存參考答案，可自行修改。
+          </p>
           <div
             v-if="answerInputDisabled"
             :class="designUi ? 'my-font-sm-400 my-color-red mt-1' : 'form-text my-font-sm-400 my-color-red'"

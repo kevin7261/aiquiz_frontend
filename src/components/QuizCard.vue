@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import EnglishExamMarkdownEditor from './EnglishExamMarkdownEditor.vue';
 import { QUIZ_LEVEL_LABELS, normalizeQuizLevelLabel } from '../utils/rag.js';
 
 /** 與 Design 頁、建立題庫「難度」群組選項一致 */
@@ -7,11 +8,11 @@ const difficultyOptions = QUIZ_LEVEL_LABELS;
 /**
  * QuizCard - 單一題目卡片
  *
- * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、參考答案(暫存)、答案區、批改結果。
+ * 顯示：題號、單元/難度、題目內容、提示（可切換顯示）、答案區（預設帶入暫存參考答案，並於欄位下方註明）、批改 prompt、批改結果。
  * 未確定前可輸入答案並按「確定批改」送出評分。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
- * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError，RAG 題庫頁另含 rag_quiz_id（與後端 API 欄位一致）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz。questionHintOnly：建立英文測驗題庫用，僅顯示「第 N 題」、題目、提示（與 designUi 相同 class），不顯示單元／難度、參考答案、作答、批改。
+ * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, gradingPrompt（可選；Markdown；RAG 批改 POST 為 answer_user_prompt_text；Exam 仍為 critique_user_prompt_instruction）, confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, generateLevel, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError；RAG 題庫頁／單元題另含 rag_quiz_id、rag_tab_id、rag_unit_id（POST /rag/tab/unit/quiz/for-exam 用）、rag_quiz_for_exam（已標為測驗用試題）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz。questionHintOnly：建立英文測驗題庫用，僅顯示「第 N 題」、題目、提示（與 designUi 相同 class），不顯示單元／難度、參考答案、作答、批改。
  */
 const props = defineProps({
   /** 題目資料（含題目、提示、答案、批改結果等） */
@@ -36,9 +37,11 @@ const props = defineProps({
   hideUnitDifficulty: { type: Boolean, default: false },
   /** 父層已顯示「第 N 題」時，隱藏本卡題號（避免重複） */
   hideSlotIndex: { type: Boolean, default: false },
+  /** 建立測驗題庫（單元題）：批改有結果後可標記 Rag_Quiz.for_exam（POST /rag/tab/unit/quiz/for-exam） */
+  showRagQuizForExamAction: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer', 'rate-quiz']);
+const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer', 'update:grading_prompt', 'rate-quiz', 'mark-rag-quiz-for-exam']);
 
 function isDifficultyPillActive(opt) {
   const normalized = normalizeQuizLevelLabel(props.card?.generateLevel);
@@ -67,6 +70,14 @@ const showGradingResultSection = computed(
     !props.gradeSubmitting &&
     String(props.card?.gradingResult ?? '').trim() !== ''
 );
+
+const showRagQuizForExamToolbar = computed(() => {
+  if (!props.showRagQuizForExamAction || props.questionHintOnly) return false;
+  if (!showGradingResultSection.value) return false;
+  const raw = props.card?.rag_quiz_id ?? props.card?.quiz_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1;
+});
 </script>
 
 <template>
@@ -244,20 +255,6 @@ const showGradingResultSection = computed(
         </div>
       </div>
       <div
-        v-if="card.referenceAnswer && !questionHintOnly"
-        class="w-100 min-w-0"
-        :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
-      >
-        <div
-          :class="designUi ? 'my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0' : 'form-label my-font-sm-600 mb-0 my-color-gray-1'"
-        >參考答案(暫存)</div>
-        <div
-          class="my-font-sm-400"
-          style="white-space: pre-wrap;"
-          :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
-        >{{ card.referenceAnswer }}</div>
-      </div>
-      <div
         v-if="!questionHintOnly"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
@@ -282,22 +279,17 @@ const showGradingResultSection = computed(
             placeholder="請輸入您的答案..."
             maxlength="2000"
           />
+          <p
+            v-if="String(card.referenceAnswer ?? '').trim() !== '' && !card.confirmed"
+            :class="designUi ? 'my-font-sm-400 my-color-gray-4 mb-0 mt-1' : 'form-text my-font-sm-400 my-color-gray-4 mb-0 mt-1'"
+            role="note"
+          >
+            此欄預設為暫存參考答案，可自行修改。
+          </p>
           <div
             v-if="answerInputDisabled"
             :class="designUi ? 'my-font-sm-400 my-color-red mt-1' : 'form-text my-font-sm-400 my-color-red'"
           >此題與目前題庫版本不一致，無法作答。請改題或重新產生題目。</div>
-          <div :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'">
-            <button
-              type="button"
-              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
-              :disabled="answerInputDisabled || gradeSubmitting"
-              :aria-busy="gradeSubmitting"
-              aria-label="確定批改"
-              @click="emit('confirm-answer', card)"
-            >
-              確定批改
-            </button>
-          </div>
         </template>
         <template v-else>
           <div
@@ -305,6 +297,35 @@ const showGradingResultSection = computed(
             :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
           >{{ card.quiz_answer }}</div>
         </template>
+        <div class="d-flex flex-column gap-1 w-100 min-w-0 mt-3 quiz-card-grading-prompt-editor">
+          <label
+            :for="`quiz-grading-prompt-${card.id}`"
+            :class="designUi ? 'my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0' : 'form-label my-font-sm-600 mb-0 my-color-gray-1'"
+          >批改 prompt</label>
+          <EnglishExamMarkdownEditor
+            :model-value="String(card.gradingPrompt ?? '')"
+            :textarea-id="`quiz-grading-prompt-${card.id}`"
+            :preview-only="card.confirmed"
+            :disabled="card.confirmed ? false : answerInputDisabled || gradeSubmitting"
+            placeholder="輸入批改說明（可含教材重點、評分標準等，支援 Markdown）…"
+            @update:model-value="emit('update:grading_prompt', $event)"
+          />
+        </div>
+        <div
+          v-if="!card.confirmed"
+          :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'"
+        >
+          <button
+            type="button"
+            class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
+            :disabled="answerInputDisabled || gradeSubmitting"
+            :aria-busy="gradeSubmitting"
+            aria-label="確定批改"
+            @click="emit('confirm-answer', card)"
+          >
+            確定批改
+          </button>
+        </div>
       </div>
       <!-- 批改結果區：僅在回傳後有內容時顯示（送出中不占位） -->
       <div
@@ -320,7 +341,45 @@ const showGradingResultSection = computed(
           style="white-space: pre-wrap;"
           :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
         >{{ card.gradingResult }}</div>
+        <div
+          v-if="showRagQuizForExamToolbar"
+          class="w-100 min-w-0 d-flex flex-column align-items-center gap-2 mt-3"
+        >
+          <button
+            type="button"
+            :class="
+              card?.rag_quiz_for_exam === true
+                ? 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 my-font-md-400 my-btn-outline-green-hollow px-3 py-2'
+                : 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 my-font-md-400 my-button-green px-3 py-2'
+            "
+            :disabled="card.ragQuizForExamLoading"
+            :aria-busy="card.ragQuizForExamLoading"
+            @click="emit('mark-rag-quiz-for-exam', card)"
+          >
+            {{ card?.rag_quiz_for_exam === true ? '取消設為測驗用' : '設為測驗用' }}
+          </button>
+          <div
+            v-if="String(card.ragQuizForExamError ?? '').trim() !== ''"
+            class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 w-100 text-center"
+          >
+            {{ card.ragQuizForExamError }}
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 與 CreateExamQuizBankPage 「出題prompt」(.my-rag-unit-quiz-prompt-editor) 同高 */
+.quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-root) {
+  --english-md-preview-max-h: min(60vh, 28rem);
+}
+.quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror) {
+  min-height: 400px !important;
+}
+.quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll),
+.quiz-card-grading-prompt-editor :deep(.english-exam-md-preview-panel) {
+  min-height: 400px;
+}
+</style>

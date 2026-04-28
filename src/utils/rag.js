@@ -310,6 +310,16 @@ export function mergeQuizzesWithTopLevelAnswers(item) {
 }
 
 /**
+ * 尚無已存作答時：以暫存參考答案預填「答案」輸入（與 QuizCard 拆區後之單一答案欄一致）
+ * @param {unknown} referenceAnswer
+ * @returns {string}
+ */
+export function quizAnswerPresetFromReference(referenceAnswer) {
+  const r = referenceAnswer != null ? String(referenceAnswer) : '';
+  return r.trim() !== '' ? r : '';
+}
+
+/**
  * 是否為「新增」用的 tab id（尚未寫入後端）
  * @param {string} [id]
  * @returns {boolean}

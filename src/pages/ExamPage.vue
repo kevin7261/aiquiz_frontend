@@ -5,7 +5,7 @@
  * 與 CreateExamQuizBankPage 版面類似（分頁、題目卡片、出題/評分），但無 RAG 建立/上傳/Pack；題目來源為「試題用 RAG」與「測驗」。
  *
  * 資料來源：
- * - 不呼叫 GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（測驗／題目關聯由 GET /exam/tabs 等提供即可）
+ * - 試卷用 RAG 關聯由 GET /exam/tabs、GET /rag/tab/for-exam 等提供；不呼叫 system-settings rag-for-exam-*（已廢止）
  * - GET /rag/tab/for-exam：試題用 RAG 完整 payload（含 file_size、file_metadata；outputs／rag_metadata.outputs 每項可含 file_size；無 outputs／unit_list 時仍可用 rag_tab_id 合成單元）
  * - GET /exam/tabs?local=&person_id=：local 與 GET /rag/tabs 相同；回傳每筆含 quizzes、answers（或 exam_quizzes／exam_answers）時，以 syncExamItemToTabState 灌入卡片（同 CreateExamQuizBankPage 由列表同步題目／作答／批改）
  * 出題：POST /exam/tab/quiz/create（exam_id 或 exam_tab_id 二擇一；對齊 RAG 的 POST /rag/tab/quiz/create）；評分：POST /exam/tab/quiz/grade、GET /exam/tab/quiz/grade-result/{job_id}（與 RAG 輪詢流程相同，見 useQuizGrading）；題目讚／差：POST /exam/tab/quiz/rate（quiz_rate：1、-1、0）；分頁更名：PUT /exam/tab/tab-name（body: exam_id、tab_name）；刪除：POST /exam/tab/delete/{exam_tab_id}
@@ -41,6 +41,7 @@ import {
   normalizeExamListResponse,
   examOrRagQuizRowKey,
   examOrRagAnswerRowKey,
+  quizAnswerPresetFromReference,
 } from '../utils/rag.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import QuizCard from '../components/QuizCard.vue';
@@ -352,6 +353,12 @@ function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
     latestAnswer?.answer_text ??
     latestAnswer?.content ??
     null;
+  const refA =
+    quiz.quiz_answer_reference ?? quiz.quiz_reference_answer ?? quiz.reference_answer ?? '';
+  const quiz_answer =
+    latestSubmitted != null && String(latestSubmitted).trim() !== ''
+      ? String(latestSubmitted)
+      : quizAnswerPresetFromReference(refA);
   const gradingResult = latestAnswer
     ? (formatGradingResult(JSON.stringify(latestAnswer)) || (latestSubmitted != null && String(latestSubmitted).trim() !== '' ? '已批改' : ''))
     : '';
@@ -368,7 +375,7 @@ function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
     sourceFilename: quiz.file_name ?? null,
     ragName: (ragName || quiz.unit_name || quiz.rag_name || '').trim() || null,
     rag_id: ragIdStr,
-    quiz_answer: latestAnswer?.quiz_answer ?? latestAnswer?.student_answer ?? latestAnswer?.answer_text ?? latestAnswer?.content ?? '',
+    quiz_answer,
     hintVisible: false,
     quiz_rate: normalizeExamQuizRate(quiz.quiz_rate),
     rateError: '',
@@ -380,6 +387,7 @@ function buildCardFromExamQuiz(quiz, ragName, fallbackRagId) {
     systemInstructionUsed: null,
     exam_quiz_id: quizId,
     answer_id: answerId,
+    gradingPrompt: '',
   };
 }
 
@@ -759,7 +767,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     sourceFilename: sourceFilename ?? null,
     ragName: ragName ?? null,
     rag_id: ragIdStr,
-    quiz_answer: '',
+    quiz_answer: quizAnswerPresetFromReference(referenceAnswer),
     hintVisible: false,
     quiz_rate: 0,
     rateError: '',
@@ -770,6 +778,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     generateLevel: generateLevel ?? null,
     systemInstructionUsed: systemInstructionUsed ?? null,
     exam_quiz_id: quizId ?? null,
+    gradingPrompt: '',
   };
 }
 
@@ -921,6 +930,7 @@ async function confirmAnswer(item) {
   }
   gradingSubmittingCardId.value = item.id;
   try {
+    const critique = String(item.gradingPrompt ?? '').trim();
     await submitGrade(
       item,
       { examId, examTabId: String(activeTabId.value) },
@@ -928,6 +938,7 @@ async function confirmAnswer(item) {
         gradingMode: 'exam',
         quizGradeSubmissionPath: API_EXAM_QUIZ_GRADE,
         quizGradeResultPath: API_EXAM_QUIZ_GRADE_RESULT,
+        ...(critique !== '' ? { extraGradeBody: { critique_user_prompt_instruction: critique } } : {}),
       }
     );
   } finally {
@@ -1086,6 +1097,7 @@ onActivated(() => {
                       @confirm-answer="confirmAnswer"
                       @rate-quiz="(dir) => rateExamQuiz(currentState.cardList[slotIndex - 1], dir)"
                       @update:quiz_answer="(val) => { currentState.cardList[slotIndex - 1].quiz_answer = val }"
+                      @update:grading_prompt="(val) => { currentState.cardList[slotIndex - 1].gradingPrompt = val }"
                     />
                   </template>
                   <template v-else>

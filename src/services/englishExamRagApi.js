@@ -3,7 +3,7 @@
  *
  * RAG 相關 API 呼叫模組
  *
- * 集中封裝 tab/create、tab/upload-zip、tab/build-rag-zip、tab/quiz/create、PUT tab/tab-name（分頁更名）、設為試題用（system-settings）、tab/delete 等
+ * 集中封裝 tab/create、tab/upload-zip、tab/build-rag-zip、tab/quiz/create、PUT tab/tab-name（英文試題 system-settings）、tab/delete 等
  * 使用 loggedFetch（會輸出回應內容），錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
  */
 import {
@@ -14,8 +14,6 @@ import {
   API_RAG_UNIT_NAME,
   API_BUILD_RAG_ZIP,
   API_GENERATE_QUIZ,
-  API_PUT_RAG_FOR_EXAM_DEPLOY,
-  API_PUT_RAG_FOR_EXAM_LOCALHOST,
   API_PUT_ENGLISH_SYSTEM_FOR_EXAM_DEPLOY,
   API_PUT_ENGLISH_SYSTEM_FOR_EXAM_LOCALHOST,
   isFrontendLocalHost,
@@ -128,67 +126,10 @@ export async function apiUpdateRagTabName(ragId, tabName) {
   return parseJson(text);
 }
 
-function ragForExamSettingPath() {
-  return isFrontendLocalHost() ? API_PUT_RAG_FOR_EXAM_LOCALHOST : API_PUT_RAG_FOR_EXAM_DEPLOY;
-}
-
 function englishSystemForExamSettingPath() {
   return isFrontendLocalHost()
     ? API_PUT_ENGLISH_SYSTEM_FOR_EXAM_LOCALHOST
     : API_PUT_ENGLISH_SYSTEM_FOR_EXAM_DEPLOY;
-}
-
-/**
- * 從 GET /system-settings/rag-for-exam-* 回傳解析試題用 rag_id（支援 rag_id、value）
- * @param {object | null} data
- * @returns {number | null}
- */
-export function parseRagIdFromRagForExamSettingPayload(data) {
-  if (data == null || typeof data !== 'object') return null;
-  const raw = data.rag_id ?? data.value;
-  if (raw === '' || raw == null) return null;
-  const s = String(raw).trim();
-  if (s === '') return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（依前端網址）
- * @returns {Promise<object>}
- */
-export async function apiGetRagForExamSetting() {
-  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, { method: 'GET' });
-  const text = await res.text();
-  if (!res.ok) throw new Error(parseFetchError(res, text));
-  return parseJson(text);
-}
-
-/**
- * 設為試題用或清空：PUT 同上。body.rag_id 為正整數；清空傳 rag_id 空字串。
- * @param {string | number | null | undefined} ragId - 傳 null／undefined／'' 表示取消試題用設定
- */
-export async function apiSetRagForExam(ragId) {
-  const clear = ragId == null || ragId === '';
-  let body;
-  if (clear) {
-    body = { rag_id: '' };
-  } else {
-    const n = Number(ragId);
-    if (!Number.isInteger(n) || n < 1) {
-      throw new Error('無效的 rag_id（須為正整數）');
-    }
-    body = { rag_id: n };
-  }
-  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(parseFetchError(res, text));
-  }
 }
 
 /**

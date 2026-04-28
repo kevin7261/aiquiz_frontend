@@ -20,7 +20,7 @@ import { loggedFetch } from '../utils/loggedFetch.js';
  *
  * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
  * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：{ examId, examTabId }（並設 options.gradingMode === 'exam'）
- * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時 POST body 為 exam_*（對齊 POST /exam/tab/quiz/grade）；extraGradeBody 可併入 POST JSON
+ * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時 POST body 為 exam_*；RAG 預設 /rag/tab/unit/quiz/llm-grade，item.gradingPrompt 非空則併入 answer_user_prompt_text；extraGradeBody 可併入 POST JSON（如 Exam 之 critique_user_prompt_instruction）
  */
 export async function submitGrade(item, context, options = {}) {
   const isExam = options.gradingMode === 'exam';
@@ -45,8 +45,8 @@ export async function submitGrade(item, context, options = {}) {
         quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
       }
     : {
-        rag_id: String(ragId),
-        rag_tab_id: sourceTabId,
+        rag_id: String(ragId ?? ''),
+        rag_tab_id: sourceTabId != null && String(sourceTabId).trim() !== '' ? String(sourceTabId) : '',
         rag_quiz_id:
           item.rag_quiz_id != null && String(item.rag_quiz_id).trim() !== ''
             ? String(item.rag_quiz_id)
@@ -55,8 +55,14 @@ export async function submitGrade(item, context, options = {}) {
               : '',
         quiz_content: item.quiz ?? '',
         quiz_answer: item.quiz_answer.trim(),
-        quiz_answer_reference: item.referenceAnswer != null ? String(item.referenceAnswer) : '',
       };
+
+  if (!isExam) {
+    const answerPrompt = String(item.gradingPrompt ?? '').trim();
+    if (answerPrompt !== '') {
+      gradeBody.answer_user_prompt_text = answerPrompt;
+    }
+  }
 
   const extra = options.extraGradeBody;
   if (extra && typeof extra === 'object') {
@@ -89,7 +95,9 @@ export async function submitGrade(item, context, options = {}) {
       }
       const statusHint =
         res.status === 400
-          ? '（請至「系統設定」確認已填寫 AI 服務 API 金鑰）\n\n'
+          ? isExam
+            ? '（請至「系統設定」確認已填寫 AI 服務 API 金鑰）\n\n'
+            : '（請至「個人設定」確認已填寫 LLM API 金鑰）\n\n'
           : res.status === 502
             ? '（服務忙碌或暫時無法回應，請稍後再試）\n\n'
             : '';

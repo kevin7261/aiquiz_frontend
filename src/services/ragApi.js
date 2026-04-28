@@ -1,7 +1,7 @@
 /**
  * RAG 相關 API 呼叫模組
  *
- * 集中封裝 tab/create、tab/upload-zip、tab/build-rag-zip、tab/quiz/create、PUT tab/tab-name（分頁更名）、設為試題用（system-settings）、tab/delete 等
+ * 集中封裝 tab/create、tab/upload-zip、tab/build-rag-zip、tab/quiz/create、PUT tab/tab-name（分頁更名）、tab/delete 等
  * 使用 loggedFetch（會輸出回應內容），錯誤時以 parseFetchError 解析並 throw Error，供呼叫端 catch 顯示。
  */
 import {
@@ -14,9 +14,8 @@ import {
   API_RAG_TAB_UNITS,
   API_RAG_TAB_UNIT_QUIZ_CREATE,
   API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE,
+  API_RAG_TAB_UNIT_QUIZ_FOR_EXAM,
   API_GENERATE_QUIZ,
-  API_PUT_RAG_FOR_EXAM_DEPLOY,
-  API_PUT_RAG_FOR_EXAM_LOCALHOST,
   isFrontendLocalHost,
 } from '../constants/api.js';
 import { formatBuildRagZipErrorDetail, parseBuildRagZipError, parseFetchError } from '../utils/apiError.js';
@@ -124,63 +123,6 @@ export async function apiUpdateRagTabName(ragId, tabName) {
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
-}
-
-function ragForExamSettingPath() {
-  return isFrontendLocalHost() ? API_PUT_RAG_FOR_EXAM_LOCALHOST : API_PUT_RAG_FOR_EXAM_DEPLOY;
-}
-
-/**
- * 從 GET /system-settings/rag-for-exam-* 回傳解析試題用 rag_id（支援 rag_id、value）
- * @param {object | null} data
- * @returns {number | null}
- */
-export function parseRagIdFromRagForExamSettingPayload(data) {
-  if (data == null || typeof data !== 'object') return null;
-  const raw = data.rag_id ?? data.value;
-  if (raw === '' || raw == null) return null;
-  const s = String(raw).trim();
-  if (s === '') return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * GET /system-settings/rag-for-exam-localhost 或 rag-for-exam-deploy（依前端網址）
- * @returns {Promise<object>}
- */
-export async function apiGetRagForExamSetting() {
-  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, { method: 'GET' });
-  const text = await res.text();
-  if (!res.ok) throw new Error(parseFetchError(res, text));
-  return parseJson(text);
-}
-
-/**
- * 設為試題用或清空：PUT 同上。body.rag_id 為正整數；清空傳 rag_id 空字串。
- * @param {string | number | null | undefined} ragId - 傳 null／undefined／'' 表示取消試題用設定
- */
-export async function apiSetRagForExam(ragId) {
-  const clear = ragId == null || ragId === '';
-  let body;
-  if (clear) {
-    body = { rag_id: '' };
-  } else {
-    const n = Number(ragId);
-    if (!Number.isInteger(n) || n < 1) {
-      throw new Error('無效的 rag_id（須為正整數）');
-    }
-    body = { rag_id: n };
-  }
-  const res = await loggedFetch(`${API_BASE}${ragForExamSettingPath()}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(parseFetchError(res, text));
-  }
 }
 
 /**
@@ -395,6 +337,46 @@ export async function apiRagUnitQuizLlmGenerate(body, personId) {
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
+}
+
+/**
+ * 將單題 Rag_Quiz 標記為測驗用：POST /rag/tab/unit/quiz/for-exam — query person_id；body rag_quiz_id、rag_tab_id、rag_unit_id；可選 for_exam 切換 true／false。
+ * @param {{ rag_quiz_id: number, rag_tab_id?: string, rag_unit_id?: number, for_exam?: boolean }} body
+ * @param {string | number} personId
+ */
+export async function apiMarkRagQuizForExam(body, personId) {
+  const pid = String(personId ?? '').trim();
+  if (!pid) throw new Error('person_id 為必填');
+  const rqid = Number(body?.rag_quiz_id);
+  if (!Number.isFinite(rqid) || rqid < 1) throw new Error('無效的 rag_quiz_id');
+  const tid = body?.rag_tab_id != null ? String(body.rag_tab_id).trim() : '';
+  const uid =
+    body?.rag_unit_id != null && body.rag_unit_id !== ''
+      ? Number(body.rag_unit_id)
+      : 0;
+  if (!Number.isFinite(uid) || uid < 0) throw new Error('無效的 rag_unit_id');
+  /** @type {Record<string, unknown>} */
+  const payload = {
+    rag_quiz_id: rqid,
+    rag_tab_id: tid,
+    rag_unit_id: uid,
+  };
+  if (body?.for_exam !== undefined) {
+    payload.for_exam = !!body.for_exam;
+  }
+  const res = await loggedFetch(`${API_BASE}${API_RAG_TAB_UNIT_QUIZ_FOR_EXAM}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }, { personId: pid });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  if (!text || !text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
 }
 
 /**

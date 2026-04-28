@@ -4,7 +4,7 @@
  *
  * 側欄分頁清單：GET /english_system/tabs（合併同 system_tab_id 之 GET /rag/tabs 詳情）；教材來源為文字／MP3／YouTube。
  * MP3 轉逐字稿：POST /english_system/transcript/audio（Deepgram，見 englishSystemApi）。YouTube：GET /english_system/transcript/youtube。
- * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create。「開始建立題庫」POST /english_system/tab/build-system。教材建置後「設為測驗用」：PUT system-settings english-system-for-exam-* 後 GET /english_system/tab/for-exam（與建立測驗題庫 RAG 之設為測驗用對齊）。測驗階段：新增僅 Phase 用 POST /english_system/tab/phase/quiz/create（無 LLM）；產生題目（LLM）用 POST /english_system/tab/phase/create，帶 content_text（教材）與 quiz_user_prompt_instruction。GET /english_system/tabs 內嵌 phases。確定批改：POST /english_system/tab/phase/quiz/grade。
+ * 按「＋」：POST /rag/tab/create 後即 POST /english_system/tab/create。「開始建立題庫」POST /english_system/tab/build-system。教材建置後「設為測驗用」：PUT system-settings english-system-for-exam-* 後 GET /english_system/tab/for-exam。測驗階段：新增僅 Phase 用 POST /english_system/tab/phase/quiz/create（無 LLM）；產生題目（LLM）用 POST /english_system/tab/phase/create，帶 content_text（教材）與 quiz_user_prompt_instruction。GET /english_system/tabs 內嵌 phases。確定批改：POST /english_system/tab/phase/quiz/grade。
  */
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, reactive } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
@@ -22,9 +22,6 @@ import {
   apiCreateUnit,
   apiDeleteRag,
   apiUpdateRagTabName,
-  apiGetRagForExamSetting,
-  apiSetRagForExam,
-  parseRagIdFromRagForExamSettingPayload,
   apiGetEnglishSystemForExamSetting,
   apiSetEnglishSystemForExamSetting,
   parseEnglishSystemIdFromForExamSettingPayload,
@@ -336,28 +333,10 @@ const currentEnglishSystemId = computed(() => {
   return Number.isFinite(n) && n > 0 ? n : null;
 });
 
-/** GET /system-settings/rag-for-exam-* 的 rag_id（列表未帶 for_exam 時仍可比對） */
-const ragForExamSettingRagId = ref(null);
-
 /** GET /system-settings/english-system-for-exam-* 的 system_id（列表未帶 for_exam 時仍可比對） */
 const englishSystemForExamSettingSystemId = ref(null);
 
-/** 列表 for_exam 或與系統設定 rag_id 相同時視為試題用 RAG（與分頁列綠點／刪除鈕一致） */
-function ragMatchesExamSetting(rag, settingRagId) {
-  if (!rag || typeof rag !== 'object') return false;
-  if (rag.for_exam === true) return true;
-  const rid = rag.rag_id ?? rag.id;
-  if (rid == null || rid === '') return false;
-  if (settingRagId == null) return false;
-  return String(settingRagId) === String(rid);
-}
-
-/** 目前分頁 RAG 是否為試題用（列表 for_exam 或與系統設定 rag_id 相同） */
-const currentRagIsExamRag = computed(() =>
-  ragMatchesExamSetting(currentRagItem.value, ragForExamSettingRagId.value)
-);
-
-/** 列表 for_exam 或與系統設定 english_system_* 相同時視為試題用 English_System */
+/** 列表 for_exam 或與 system-settings english_system_* 相同時視為試題用 English_System */
 function englishSystemMatchesExamSetting(rag, settingSystemId) {
   if (!rag || typeof rag !== 'object') return false;
   if (rag.for_exam === true) return true;
@@ -365,6 +344,14 @@ function englishSystemMatchesExamSetting(rag, settingSystemId) {
   if (sid == null || String(sid).trim() === '') return false;
   if (settingSystemId == null) return false;
   return String(settingSystemId) === String(sid);
+}
+
+/** 分頁列綠點：Rag.for_exam，或英文題庫與試卷用 English_System 設定一致（不再呼叫 system-settings rag-for-exam-*） */
+function ragRowIsExamForTabs(rag) {
+  return (
+    rag?.for_exam === true
+    || englishSystemMatchesExamSetting(rag, englishSystemForExamSettingSystemId.value)
+  );
 }
 
 /** 目前分頁 English_System 是否為試題用（與 GET /english_system/tab/for-exam／列表 for_exam 一致） */
@@ -644,7 +631,7 @@ const ragItems = computed(() =>
     ...r,
     _tabId: r.rag_tab_id ?? r.id ?? r,
     _label: getRagTabLabel(r),
-    _isExamRag: ragMatchesExamSetting(r, ragForExamSettingRagId.value),
+    _isExamRag: ragRowIsExamForTabs(r),
   }))
 );
 /** Tab 列用：新增 tab 項目含 id、label */
@@ -912,15 +899,6 @@ watch(chunkOverlap, (v) => {
   if (n !== v && (v === '' || v == null || Number.isNaN(Number(v)))) chunkOverlap.value = n;
 }, { flush: 'post' });
 
-async function refreshRagForExamSetting() {
-  try {
-    const data = await apiGetRagForExamSetting();
-    ragForExamSettingRagId.value = parseRagIdFromRagForExamSettingPayload(data);
-  } catch {
-    ragForExamSettingRagId.value = null;
-  }
-}
-
 async function refreshEnglishSystemForExamSetting() {
   try {
     const data = await apiGetEnglishSystemForExamSetting();
@@ -928,11 +906,6 @@ async function refreshEnglishSystemForExamSetting() {
   } catch {
     englishSystemForExamSettingSystemId.value = null;
   }
-}
-
-async function refreshAllForExamSettings() {
-  await refreshRagForExamSetting();
-  await refreshEnglishSystemForExamSetting();
 }
 
 /** GET /english_system/tabs（及 /rag/tabs 合併）由 useEnglishExamRagList 內 watch(immediate) 首次載入；onActivated 再抓一次 */
@@ -945,66 +918,15 @@ onActivated(() => {
   fetchRagList();
 });
 
-/** 此處僅試題用設定、檔案欄位 */
+/** 載入試卷用 English_System 對照設定；檔案欄位初值 */
 onMounted(() => {
-  refreshAllForExamSettings();
+  refreshEnglishSystemForExamSetting();
   clearZipFileInput();
 });
 
 onUnmounted(() => {
   clearEnglishTranscriptOverlayTimer();
 });
-
-/** 設為測驗用（PUT system-settings rag-for-exam-*） */
-async function setRagForExam() {
-  const rag = currentRagItem.value;
-  if (!rag || isNewTabId(activeTabId.value)) return;
-  const ragId = rag.rag_id ?? rag.id;
-  if (ragId == null || ragId === '') {
-    const state = getTabState(activeTabId.value);
-    state.forExamError = '無法取得題庫編號，請先建立分頁並上傳教材檔';
-    return;
-  }
-  const personId = getPersonId(authStore);
-  if (!personId) {
-    alert('請先登入');
-    return;
-  }
-  const state = getTabState(activeTabId.value);
-  state.forExamLoading = true;
-  state.forExamError = '';
-  try {
-    await apiSetRagForExam(ragId);
-    await fetchRagList({ silent: true });
-    await refreshAllForExamSettings();
-  } catch (err) {
-    state.forExamError = err.message || String(err);
-  } finally {
-    state.forExamLoading = false;
-  }
-}
-
-/** 取消測驗用（PUT rag_id 空字串） */
-async function clearRagForExam() {
-  if (!currentRagIsExamRag.value || isNewTabId(activeTabId.value)) return;
-  const personId = getPersonId(authStore);
-  if (!personId) {
-    alert('請先登入');
-    return;
-  }
-  const state = getTabState(activeTabId.value);
-  state.forExamLoading = true;
-  state.forExamError = '';
-  try {
-    await apiSetRagForExam(null);
-    await fetchRagList({ silent: true });
-    await refreshAllForExamSettings();
-  } catch (err) {
-    state.forExamError = err.message || String(err);
-  } finally {
-    state.forExamLoading = false;
-  }
-}
 
 /**
  * 設為測驗用（English_System）：PUT system-settings english-system-for-exam-* 寫入 system_id 後，
@@ -1927,7 +1849,7 @@ function applyEnglishPhaseQuizCardFromApi(pst, data, phaseId) {
     quiz: String(data.quiz_content ?? data.quiz ?? '').trim(),
     hint,
     hintVisible: false,
-    quiz_answer: '',
+    quiz_answer: ref,
     confirmed: false,
     gradingResult: '',
     gradingResponseJson: null,
@@ -2768,24 +2690,6 @@ watch(
                   >
                 </div>
               </div>
-              <div
-                v-if="!isNewTabId(activeTabId) && currentRagItem && (currentRagItem.rag_tab_id ?? currentRagItem.id)"
-                class="d-flex flex-wrap justify-content-center align-items-center gap-2"
-              >
-                <button
-                  type="button"
-                  :class="
-                    currentRagIsExamRag
-                      ? 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-btn-outline-green-hollow px-3 py-2'
-                      : 'btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-green px-3 py-2'
-                  "
-                  :disabled="currentState.forExamLoading"
-                  :aria-busy="currentState.forExamLoading"
-                  @click="currentRagIsExamRag ? clearRagForExam() : setRagForExam()"
-                >
-                  {{ currentRagIsExamRag ? '取消設為測驗用' : '設為測驗用' }}
-                </button>
-              </div>
               <div v-if="currentState.forExamError" class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 mt-2">
                 {{ currentState.forExamError }}
               </div>
@@ -2979,6 +2883,13 @@ watch(
                           :disabled="englishGradingSubmittingCardId != null"
                           placeholder="請輸入您的答案..."
                         />
+                        <p
+                          v-if="String(getSlotFormState(activeTestPhaseIdForContent).englishPhaseQuizCard?.referenceAnswer ?? '').trim() !== ''"
+                          class="my-font-sm-400 my-color-gray-4 mb-0 mt-1"
+                          role="note"
+                        >
+                          此欄預設為暫存參考答案，可自行修改。
+                        </p>
                       </div>
                       <div class="d-flex justify-content-center">
                         <button
