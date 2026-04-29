@@ -411,6 +411,13 @@ const hasAnyPhaseCreateLoading = computed(() => {
 /** 英文測驗階段題卡：送出 POST /english_system/tab/phase/quiz/grade 期間（與建立測驗題庫 gradingSubmittingCardId 對齊） */
 const englishGradingSubmittingCardId = ref(null);
 
+/** 出題單元：文字／mp3／YouTube 逐字稿 GET 期間 */
+const hasPackUnitTranscriptLoading = computed(() => {
+  const arr = currentState.value?.packUnitTranscriptLoading;
+  if (!Array.isArray(arr)) return false;
+  return arr.some(Boolean);
+});
+
 /** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／English build-system／建題庫／測驗用設定／建立測驗階段／GET 測驗階段／產生題目／英文 MP3 Deepgram 轉逐字稿／YouTube 字幕 */
 const loadingOverlayVisible = computed(
   () =>
@@ -426,7 +433,8 @@ const loadingOverlayVisible = computed(
     hasAnyPhaseCreateLoading.value ||
     !!currentState.value?.englishTabPhasesLoading ||
     !!currentState.value?.generateQuizLoading ||
-    englishGradingSubmittingCardId.value != null
+    englishGradingSubmittingCardId.value != null ||
+    hasPackUnitTranscriptLoading.value
 );
 
 const loadingOverlayText = computed(() => {
@@ -437,6 +445,7 @@ const loadingOverlayText = computed(() => {
   if (englishGradingSubmittingCardId.value != null) return '批改中...';
   if (st?.englishTranscriptAudioLoading) return '轉換逐字稿中...';
   if (st?.englishTranscriptYoutubeLoading) return '擷取字幕中...';
+  if (hasPackUnitTranscriptLoading.value) return '逐字稿處理中...';
   if (st?.englishBuildSystemLoading) return '建立題庫中...';
   if (st?.packLoading) return '建立題庫中...';
   if (st?.forExamLoading) return '設定中...';
@@ -482,6 +491,15 @@ const loadingOverlaySubText = computed(() => {
       : 0;
     const elapsed = formatTranscribeDurationMs(ms) || '0 秒';
     return `已執行 ${elapsed}`;
+  }
+  if (hasPackUnitTranscriptLoading.value) {
+    const load = st?.packUnitTranscriptLoading;
+    if (!Array.isArray(load)) return '';
+    const gi = load.findIndex(Boolean);
+    if (gi < 0) return '';
+    const group = st.packTasksList?.[gi];
+    const folder = Array.isArray(group) && group.length ? String(group[0]).trim() : '';
+    return folder ? `資料夾：${folder}` : '';
   }
   if (!st?.packLoading) return '';
   if (packBuildOverlayLines.value.length) return packBuildOverlayLines.value.join('\n');

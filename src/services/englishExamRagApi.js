@@ -186,13 +186,16 @@ export async function apiSetEnglishSystemForExamSetting(systemId) {
 }
 
 /**
- * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson 串流；勿用 response.json() 讀 200 本文）
+ * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson；請用 fetch 讀 response.body 逐行解析，勿對 200 本文使用 response.json()）
  *
- * @param {object} body - 含 rag_tab_id, person_id, unit_list, unit_types（逗號字串）, unit_type_list（整數陣列與群組序對齊）, chunk_size, chunk_overlap, system_prompt_instruction 等（person_id 須與 query 一致）
- * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫（start｜building.filename repack 工作檔｜unit.output 含 filename、repack_filename、rag_filename、file_size、rag_error｜complete）
- * @returns {Promise<object>} 成功時回傳與舊版 JSON 相容之物件（outputs、rag_tab_id、unit_list、built_ok 等）
+ * Body／Query／NDJSON 事件與 `./ragApi.js` 之 `apiBuildRagZip` 一致。
+ *
+ * @param {object} body - JSON body
+ * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫
+ * @param {{ repack_only?: boolean }} [streamOptions] - repack_only=true 時於 query 加上 repack_only
+ * @returns {Promise<object>} 成功時回傳 outputs、rag_tab_id、unit_list、total、built_ok、built_failed
  */
-export async function apiBuildRagZip(body, onStreamEvent) {
+export async function apiBuildRagZip(body, onStreamEvent, streamOptions = {}) {
   const personId = body?.person_id;
   if (personId == null || String(personId).trim() === '') {
     throw new Error('person_id 為必填');
@@ -206,6 +209,9 @@ export async function apiBuildRagZip(body, onStreamEvent) {
     u = new URL(urlString, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   }
   u.searchParams.set('person_id', String(personId).trim());
+  if (streamOptions?.repack_only === true) {
+    u.searchParams.set('repack_only', 'true');
+  }
 
   const init = {
     method: 'POST',

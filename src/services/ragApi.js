@@ -205,13 +205,19 @@ export async function apiUpdateRagTabName(ragId, tabName) {
 }
 
 /**
- * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson 串流；勿用 response.json() 讀 200 本文）
+ * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson；請用 fetch 讀 response.body 逐行解析，勿對 200 本文使用 response.json()）
  *
- * @param {object} body - 含 rag_tab_id, person_id, unit_list, unit_types（逗號字串）與 unit_type_list（整數陣列，與 unit_list 群組序對齊：1 rag／2 文字／3 mp3／4 youtube；後端應依類型掃描 rag→pdf 等、文字／YouTube→.md、mp3→.mp3）, chunk_size, chunk_overlap, system_prompt_instruction 等（person_id 須與 query 一致）
- * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫（start｜building.filename repack 工作檔｜unit.output 含 filename、repack_filename、rag_filename、file_size、rag_error｜complete）
- * @returns {Promise<object>} 成功時回傳與舊版 JSON 相容之物件（outputs、rag_tab_id、unit_list、built_ok 等）
+ * Body（節錄）：rag_tab_id、person_id、unit_list；選填 unit_types（逗號字串，與 unit_list 群組對齊）、unit_type_list（整數陣列）、chunk_*、system_prompt_instruction；選填 build_faiss（true 強制允許 FAISS〔仍須 unit_type=1〕；false 等同 repack_only；省略時依使用者類型判定）。
+ * Query：person_id（與 body 一致）；選填 repack_only=true（強制各 unit 不建 FAISS），請傳第三參數 `streamOptions.repack_only`，勿自行拼進 URL。
+ *
+ * NDJSON 事件（每行一物件）：start（total、source_rag_tab_id、unit_list、user_type、build_faiss_request、repack_only、allow_faiss）、building（index、total、completed_before、filename）、unit（…、output：rag_mode 為 faiss｜transcript_md｜repack_copy，以及 rag_filename、transcript_plain、text_file_name、mp3_file_name、youtube_url 等）、complete（success、outputs…）。整批成敗以最後一則 complete.success 為準。
+ *
+ * @param {object} body - JSON body（見上）
+ * @param {(ev: object) => void} [onStreamEvent] - 每收到一列事件即呼叫
+ * @param {{ repack_only?: boolean }} [streamOptions] - repack_only=true 時於 query 加上 repack_only（強制不建 FAISS）
+ * @returns {Promise<object>} 成功時回傳 outputs、rag_tab_id（來源 source_rag_tab_id）、unit_list、total、built_ok、built_failed
  */
-export async function apiBuildRagZip(body, onStreamEvent) {
+export async function apiBuildRagZip(body, onStreamEvent, streamOptions = {}) {
   const personId = body?.person_id;
   if (personId == null || String(personId).trim() === '') {
     throw new Error('person_id 為必填');
@@ -225,6 +231,9 @@ export async function apiBuildRagZip(body, onStreamEvent) {
     u = new URL(urlString, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   }
   u.searchParams.set('person_id', String(personId).trim());
+  if (streamOptions?.repack_only === true) {
+    u.searchParams.set('repack_only', 'true');
+  }
 
   const init = {
     method: 'POST',

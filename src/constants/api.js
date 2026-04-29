@@ -119,7 +119,7 @@ export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
 export const API_RAG_DELETE = '/rag/tab/delete';
 /** 更新 RAG 分頁顯示名稱：PUT /rag/tab/tab-name；body JSON：rag_id、tab_name；以 rag_id 比對，僅更新 deleted=false；回傳 rag_id、rag_tab_id、person_id、tab_name、updated_at */
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
-/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；同上 body；成功時回應 application/x-ndjson 串流（每行 JSON：type start|building|unit|complete），query 須帶 person_id 與 body 一致；整批成敗以 complete.success 為準；寫入 Rag.rag_metadata；不需 llm_api_key */
+/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 含 rag_tab_id、person_id、unit_list；選填 unit_types／unit_type_list、chunk_*、system_prompt_instruction、build_faiss；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
 export const API_BUILD_RAG_ZIP = '/rag/tab/build-rag-zip';
 /** RAG 文字單元逐字稿：GET /rag/transcript/text；query：rag_tab_id、folder_name（unit_type=2，ZIP 內該資料夾所有 .md 依檔名排序合併）、person_id */
 export const API_RAG_TRANSCRIPT_TEXT = '/rag/transcript/text';

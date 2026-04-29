@@ -327,6 +327,13 @@ const hasAnySlotGenerating = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
+/** 出題單元：文字／mp3／YouTube 逐字稿 GET 期間 */
+const hasPackUnitTranscriptLoading = computed(() => {
+  const arr = currentState.value?.packUnitTranscriptLoading;
+  if (!Array.isArray(arr)) return false;
+  return arr.some(Boolean);
+});
+
 /** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／產生題目／批改 */
 const loadingOverlayVisible = computed(
   () =>
@@ -337,7 +344,8 @@ const loadingOverlayVisible = computed(
     !!currentState.value?.zipLoading ||
     !!currentState.value?.packLoading ||
     hasAnySlotGenerating.value ||
-    isGradingSubmitting.value
+    isGradingSubmitting.value ||
+    hasPackUnitTranscriptLoading.value
 );
 
 const loadingOverlayText = computed(() => {
@@ -346,6 +354,7 @@ const loadingOverlayText = computed(() => {
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立題庫中...';
+  if (hasPackUnitTranscriptLoading.value) return '逐字稿處理中...';
   if (deleteRagLoading.value) return '刪除中...';
   if (renameRagTabSaving.value) return '儲存中...';
   if (createRagLoading.value) return '建立中...';
@@ -373,9 +382,20 @@ const packBuildOverlayLines = computed(() => {
 /** 建題庫串流進度（LoadingOverlay subText；全螢幕遮罩會蓋住表單下方進度區） */
 const loadingOverlaySubText = computed(() => {
   const st = currentState.value;
-  if (!st?.packLoading) return '';
-  if (packBuildOverlayLines.value.length) return packBuildOverlayLines.value.join('\n');
-  return '正在連線並準備建置…';
+  if (st?.packLoading) {
+    if (packBuildOverlayLines.value.length) return packBuildOverlayLines.value.join('\n');
+    return '正在連線並準備建置…';
+  }
+  if (hasPackUnitTranscriptLoading.value) {
+    const load = st?.packUnitTranscriptLoading;
+    if (!Array.isArray(load)) return '';
+    const gi = load.findIndex(Boolean);
+    if (gi < 0) return '';
+    const group = st.packTasksList?.[gi];
+    const folder = Array.isArray(group) && group.length ? String(group[0]).trim() : '';
+    return folder ? `資料夾：${folder}` : '';
+  }
+  return '';
 });
 
 /** 用於顯示 file_metadata：上傳回傳的 zipResponseJson、GET /rag/tabs 的 file_metadata；若列表已建題庫但未內嵌 file_metadata，則由 rag 與 unit_list 合成，避免「出題設定」整塊被隱藏 */
