@@ -109,9 +109,9 @@ export const API_REQUEST_QUIZ_CONTENT = 'quiz_content';
 export const API_RAG_QUIZ_GRADE = '/rag/tab/unit/quiz/llm-grade';
 export const API_RAG_QUIZ_GRADE_RESULT = '/rag/tab/unit/quiz/grade-result';
 
-/** Create Tab（RAG）：POST /rag/tab/create；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、tab_name，選填 local（預設 false；本機前端可傳 true）；system_prompt_instruction 請於 POST /rag/tab/build-rag-zip 傳入；回傳建立欄位（尚無檔案時不含 file_size） */
+/** Create Tab（RAG）：POST /rag/tab/create；僅建立一筆 Rag；body 必填 rag_tab_id、person_id、tab_name，選填 local（預設 false；本機前端可傳 true）；回傳建立欄位（尚無檔案時不含 file_size） */
 export const API_CREATE_UNIT = '/rag/tab/create';
-/** 列出 RAG：GET /rag/tabs；回傳 { rags, count }；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam、file_size〔MB〕、file_metadata）、units[]（每單元含 quiz_system_prompt_text、quizzes、for_exam 等）、相容頂層 quizzes／answers */
+/** 列出 RAG：GET /rag/tabs；回傳 { rags, count }；query 可選 local（須與 Rag.local 相符；未傳時後端依連線判定）；僅 deleted=false；每筆含表欄位（含 for_exam、file_size〔MB〕、file_metadata）、units[]（每單元含 transcription〔相容 quiz_system_prompt_text〕、quizzes、for_exam 等）、相容頂層 quizzes／answers */
 export const API_RAG_LIST = '/rag/tabs';
 /** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata（內含 file_size〔MB〕等）並寫入 DB */
 export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
@@ -119,7 +119,7 @@ export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
 export const API_RAG_DELETE = '/rag/tab/delete';
 /** 更新 RAG 分頁顯示名稱：PUT /rag/tab/tab-name；body JSON：rag_id、tab_name；以 rag_id 比對，僅更新 deleted=false；回傳 rag_id、rag_tab_id、person_id、tab_name、updated_at */
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
-/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 含 rag_tab_id、person_id、unit_list；選填 unit_types／unit_type_list、chunk_*、system_prompt_instruction、build_faiss；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
+/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 含 rag_tab_id、person_id、unit_list；選填 unit_types／unit_type_list、chunk_*、build_faiss；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
 export const API_BUILD_RAG_ZIP = '/rag/tab/build-rag-zip';
 /** RAG 文字單元逐字稿：GET /rag/transcript/text；query：rag_tab_id、folder_name（unit_type=2，ZIP 內該資料夾所有 .md 依檔名排序合併）、person_id */
 export const API_RAG_TRANSCRIPT_TEXT = '/rag/transcript/text';

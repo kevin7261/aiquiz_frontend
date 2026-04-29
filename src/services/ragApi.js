@@ -123,7 +123,7 @@ export async function apiRagTranscriptYoutubeByFolder(params) {
 }
 
 /**
- * Create Tab：POST /rag/tab/create（僅建立一筆 Rag；system_prompt_instruction 請於 tab/build-rag-zip 傳入）
+ * Create Tab：POST /rag/tab/create（僅建立一筆 Rag；transcription 請於 tab/build-rag-zip 傳入）
  * @param {string} personId
  * @param {string} ragTabId
  * @param {string} tabName
@@ -207,7 +207,7 @@ export async function apiUpdateRagTabName(ragId, tabName) {
 /**
  * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson；請用 fetch 讀 response.body 逐行解析，勿對 200 本文使用 response.json()）
  *
- * Body（節錄）：rag_tab_id、person_id、unit_list；選填 unit_types（逗號字串，與 unit_list 群組對齊）、unit_type_list（整數陣列）、chunk_*、system_prompt_instruction；選填 build_faiss（true 強制允許 FAISS〔仍須 unit_type=1〕；false 等同 repack_only；省略時依使用者類型判定）。
+ * Body（節錄）：rag_tab_id、person_id、unit_list；選填 unit_types（逗號字串，與 unit_list 群組對齊）、unit_type_list（整數陣列）、chunk_*；選填 build_faiss（true 強制允許 FAISS〔仍須 unit_type=1〕；false 等同 repack_only；省略時依使用者類型判定）。
  * Query：person_id（與 body 一致）；選填 repack_only=true（強制各 unit 不建 FAISS），請傳第三參數 `streamOptions.repack_only`，勿自行拼進 URL。
  *
  * NDJSON 事件（每行一物件）：start（total、source_rag_tab_id、unit_list、user_type、build_faiss_request、repack_only、allow_faiss）、building（index、total、completed_before、filename）、unit（…、output：rag_mode 為 faiss｜transcript_md｜repack_copy，以及 rag_filename、transcript_plain、text_file_name、mp3_file_name、youtube_url 等）、complete（success、outputs…）。整批成敗以最後一則 complete.success 為準。

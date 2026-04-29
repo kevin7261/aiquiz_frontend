@@ -45,7 +45,7 @@ function parseJson(text) {
 }
 
 /**
- * Create Tab：POST /rag/tab/create（僅建立一筆 Rag；system_prompt_instruction 請於 tab/build-rag-zip 傳入）
+ * Create Tab：POST /rag/tab/create（僅建立一筆 Rag；transcription 請於 tab/build-rag-zip 傳入）
  * @param {string} personId
  * @param {string} ragTabId
  * @param {string} tabName

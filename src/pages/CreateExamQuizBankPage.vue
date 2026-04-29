@@ -8,11 +8,11 @@
  * - 列表：GET /rag/tabs?local=（與 tab/create 的 local 一致）；useRagList 首次 watch(immediate) 載入，之後每次從側欄再進入本頁（KeepAlive onActivated）再抓一次
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
- * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、chunk_size、chunk_overlap、system_prompt_instruction 等）
+ * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、chunk_size、chunk_overlap 等；已不再傳 system_prompt_instruction）
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；空白題 POST /rag/tab/unit/quiz/create；LLM 出題 POST /rag/tab/unit/quiz/llm-generate（body: rag_quiz_id、quiz_name、quiz_user_prompt_text）；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）
+ * - 單元子分頁：GET /rag/tab/units；空白題 POST /rag/tab/unit/quiz/create；LLM 出題 POST /rag/tab/unit/quiz/llm-generate（body: rag_quiz_id、quiz_name、quiz_user_prompt_text）；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；「單元基本資訊」：user_type 1／2／234 顯示單元名稱；unit_type≠1 時顯示逐字稿（`transcription`）；來源（unit_type=2 為 `text_file_name`；3／4 為 `mp3_file_name`／`youtube_url`）；RAG（1）僅來源檔案；其餘（如 3）僅單元名稱
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
@@ -60,6 +60,7 @@ import {
   examOrRagAnswerRowKey,
   quizAnswerPresetFromReference,
   serializePackUnitTypesForApi,
+  UNIT_TYPE_RAG,
   UNIT_TYPE_TEXT,
   UNIT_TYPE_MP3,
   UNIT_TYPE_YOUTUBE,
@@ -680,7 +681,7 @@ function ragUnitIdFromRawUnit(unit) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** 來源／RAG ZIP 檔名：後端可能回 rag_file_name（Rag_Unit） */
+/** 來源／RAG ZIP 檔名：後端可能回 rag_file_name（Rag_Unit）；題目產生 fallback 仍會使用 */
 function unitSourceFilename(unit) {
   if (!unit || typeof unit !== 'object') return '';
   const raw =
@@ -691,6 +692,46 @@ function unitSourceFilename(unit) {
     ?? unit.zip_filename;
   if (raw == null || String(raw).trim() === '') return '';
   return String(raw).trim();
+}
+
+/**
+ * 文字單元來源檔名（unit_type=2／POST build-rag-zip output 之 transcript_md）。
+ * 優先後端 `text_file_name`；若缺漏且為文字單元，後端可能將 .md 來源放在 `filename`（非 *_rag.zip）。
+ */
+function unitTextFileName(unit) {
+  if (!unit || typeof unit !== 'object') return '';
+  const raw = unit.text_file_name ?? unit.textFileName;
+  if (raw != null && String(raw).trim() !== '') return String(raw).trim();
+  const ut = Number(unit.unit_type ?? unit.unitType);
+  const mode = String(unit.rag_mode ?? unit.ragMode ?? '').toLowerCase();
+  const isTextUnit = ut === UNIT_TYPE_TEXT || mode === 'transcript_md';
+  if (!isTextUnit) return '';
+  const fn =
+    unit.filename
+    ?? unit.rag_filename
+    ?? unit.rag_file_name
+    ?? unit.ragFileName;
+  if (fn == null || String(fn).trim() === '') return '';
+  const s = String(fn).trim();
+  if (/_rag\.zip$/i.test(s)) return '';
+  return s;
+}
+
+function unitMp3FileName(unit) {
+  if (!unit || typeof unit !== 'object') return '';
+  const raw = unit.mp3_file_name ?? unit.mp3FileName;
+  return raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
+}
+
+function unitYoutubeUrl(unit) {
+  if (!unit || typeof unit !== 'object') return '';
+  const raw = unit.youtube_url ?? unit.youtubeUrl;
+  return raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
+}
+
+function looksLikeHttpUrl(s) {
+  const t = String(s ?? '').trim();
+  return /^https?:\/\//i.test(t);
 }
 
 function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
@@ -707,9 +748,12 @@ function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
   const anchorRagQuizId = firstRagQuizAnchorIdFromUnit(unit);
   const ragUnitId = ragUnitIdFromRawUnit(unit);
   const src = unitSourceFilename(unit);
-  const qptRaw = unit.quiz_system_prompt_text ?? unit.quizSystemPromptText;
-  const quiz_system_prompt_text =
+  const qptRaw =
+    unit.transcription ?? unit.quiz_system_prompt_text ?? unit.quizSystemPromptText;
+  const transcription =
     qptRaw != null && String(qptRaw).trim() !== '' ? String(qptRaw).trim() : '';
+  const ut = Number(unit.unit_type ?? unit.unitType);
+  const rag_mode = unit.rag_mode ?? unit.ragMode;
   return {
     rag_tab_id: tabId || safeName,
     filename: src || `${safeName}_rag.zip`,
@@ -717,7 +761,12 @@ function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
     unit_name: safeName,
     anchor_rag_quiz_id: anchorRagQuizId,
     rag_unit_id: ragUnitId,
-    quiz_system_prompt_text,
+    transcription,
+    ...(Number.isFinite(ut) && ut > 0 ? { unit_type: ut } : {}),
+    ...(rag_mode != null && String(rag_mode).trim() !== '' ? { rag_mode } : {}),
+    text_file_name: unitTextFileName(unit),
+    mp3_file_name: unitMp3FileName(unit),
+    youtube_url: unitYoutubeUrl(unit),
   };
 }
 
@@ -735,7 +784,9 @@ function fallbackUnitsRawFromRag(rag) {
         ? nestedOutputs
         : null;
   if (outputs) {
-    return outputs.map((o) => {
+    const rawUt = rag.unit_types ?? rag.unit_type_list;
+    const typesArr = parsePackUnitTypesFromRag(rawUt, outputs.length);
+    return outputs.map((o, idx) => {
       const derivedName = `${(o.rag_name ?? '').replace(/\+/g, '_')}`;
       const tabId =
         o.rag_tab_id != null && String(o.rag_tab_id).trim() !== ''
@@ -751,11 +802,31 @@ function fallbackUnitsRawFromRag(rag) {
             ? String(o.rag_name).trim()
             : label;
       const unit_name = String(rawUnit || '').replace(/\+/g, '_') || label || sourceTabId;
-      return {
+      const qpt = o.transcription ?? o.quiz_system_prompt_text ?? o.quizSystemPromptText;
+      const transcription =
+        qpt != null && String(qpt).trim() !== '' ? String(qpt).trim() : '';
+      const utMerged = Number(o.unit_type ?? o.unitType ?? typesArr[idx]);
+      const merged = {
+        ...o,
         rag_tab_id: tabId,
         filename: o.filename ?? o.rag_filename ?? `${derivedName || label || 'RAG'}.zip`,
         rag_name: label,
         unit_name,
+        transcription,
+      };
+      if (Number.isFinite(utMerged) && utMerged > 0) merged.unit_type = utMerged;
+      const ragModeOut = merged.rag_mode ?? merged.ragMode;
+      return {
+        rag_tab_id: tabId,
+        filename: merged.filename,
+        rag_name: label,
+        unit_name,
+        transcription,
+        ...(Number.isFinite(utMerged) && utMerged > 0 ? { unit_type: utMerged } : {}),
+        ...(ragModeOut != null && String(ragModeOut).trim() !== '' ? { rag_mode: ragModeOut } : {}),
+        text_file_name: unitTextFileName(merged),
+        mp3_file_name: unitMp3FileName(merged),
+        youtube_url: unitYoutubeUrl(merged),
       };
     });
   }
@@ -782,6 +853,14 @@ function unitsFromRagTabsRow(rag) {
   let rows = extractUnitsFromRag(rag);
   if (!rows.length) {
     rows = fallbackUnitsRawFromRag(rag);
+  } else {
+    const rawUt = rag.unit_types ?? rag.unit_type_list;
+    const typesArr = parsePackUnitTypesFromRag(rawUt, rows.length);
+    rows = rows.map((u, i) => {
+      const utMerged = Number(u.unit_type ?? u.unitType ?? typesArr[i]);
+      if (!Number.isFinite(utMerged) || utMerged <= 0) return u;
+      return { ...u, unit_type: utMerged };
+    });
   }
   return rows
     .map((u) => normalizeUnitFromRagTabsRow(u, fallbackTabId))
@@ -800,6 +879,13 @@ function unitTabLabelFromUnit(unit, index = 0) {
   return raw || `單元 ${index + 1}`;
 }
 
+/** 單元「來源」列類型（與 POST build-rag-zip unit_types 對齊；未知或非 2／3／4 視為 RAG／PDF Office） */
+function tabUnitTypeFromUnit(unit) {
+  const utRaw = Number(unit?.unit_type ?? unit?.unitType);
+  if (utRaw === UNIT_TYPE_TEXT || utRaw === UNIT_TYPE_MP3 || utRaw === UNIT_TYPE_YOUTUBE) return utRaw;
+  return UNIT_TYPE_RAG;
+}
+
 function buildUnitTabItem(unit, index = 0) {
   const ragTabId = String(unit?.rag_tab_id ?? '').trim();
   const unitName = String(unit?.unit_name ?? unit?.rag_name ?? '').trim();
@@ -810,6 +896,7 @@ function buildUnitTabItem(unit, index = 0) {
       : firstRagQuizAnchorIdFromUnit(unit);
   const ragUnitId =
     unit?.rag_unit_id != null ? Number(unit.rag_unit_id) : ragUnitIdFromRawUnit(unit);
+  const unitType = tabUnitTypeFromUnit(unit);
   return {
     id: `${ragTabId || 'tab'}::${keyBase}::${index}`,
     label: unitTabLabelFromUnit(unit, index),
@@ -817,10 +904,14 @@ function buildUnitTabItem(unit, index = 0) {
     unitName: unitName || unitTabLabelFromUnit(unit, index),
     ragName: String(unit?.rag_name ?? '').trim(),
     filename: unitSourceFilename(unit),
+    unitType,
     ragTabId,
     anchorRagQuizId: Number.isFinite(anchorRagQuizId) && anchorRagQuizId > 0 ? anchorRagQuizId : null,
     ragUnitDbId: Number.isFinite(ragUnitId) && ragUnitId > 0 ? ragUnitId : null,
-    quizSystemPromptText: String(unit?.quiz_system_prompt_text ?? '').trim(),
+    transcription: String(unit?.transcription ?? unit?.quiz_system_prompt_text ?? unit?.quizSystemPromptText ?? '').trim(),
+    textFileName: unitTextFileName(unit),
+    mp3FileName: unitMp3FileName(unit),
+    youtubeUrl: unitYoutubeUrl(unit),
   };
 }
 
@@ -919,6 +1010,12 @@ const activeUnitQuizCards = computed(() => {
 });
 
 const hasUnitSubTabs = computed(() => (currentState.value.unitTabOrder ?? []).length > 0);
+
+/** 與 Profile LLM Key／來源一致：user_type 1／2／234 顯示「逐字稿」（僅 unit_type 2／3／4）、來源（依 unit_type）；3 等僅單元名稱 */
+const canSeeRagUnitSourceFilename = computed(() => {
+  const t = Number(authStore.user?.user_type);
+  return t === 1 || t === 2 || t === 234;
+});
 
 /** quiz_content（card.quiz）為空時：該列出題 prompt 可編輯、顯示「產生題目」（不依賴 showGenerateForm／草稿對齊；多筆空白題各自綁 quizUserPromptText） */
 function quizRowQuizEmpty(card) {
@@ -1094,9 +1191,6 @@ function syncRagItemToState(rag, state) {
   if (rag.chunk_overlap != null) chunkOverlap.value = ensureNumber(rag.chunk_overlap, 200);
   const filename = rag.file_metadata?.filename ?? rag.filename;
   if (filename != null && String(filename).trim() !== '') state.zipFileName = String(filename).trim();
-  if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
-    state.systemInstruction = String(rag.system_prompt_instruction).trim();
-  }
   hydrateQuizCardsFromRag(rag, state);
   state._synced = true;
 }
@@ -1318,9 +1412,11 @@ watch(
 watch(activeUnitTabItem, (tab) => {
   if (!tab) return;
   const state = currentState.value;
-  const unitPrompt = String(tab.quizSystemPromptText ?? '').trim();
-  if (unitPrompt) {
-    state.systemInstruction = unitPrompt;
+  if (tab.unitType === UNIT_TYPE_RAG) {
+    state.systemInstruction = DEFAULT_SYSTEM_INSTRUCTION;
+  } else {
+    const unitPrompt = String(tab.transcription ?? '').trim();
+    if (unitPrompt) state.systemInstruction = unitPrompt;
   }
   const slot = getSlotFormState(activeUnitSlotIndex.value);
   if (!slot) return;
@@ -1716,7 +1812,6 @@ async function confirmPack() {
         unit_type_list: unitTypesIntArray,
         chunk_size: ensureNumber(chunkSize.value, 1000),
         chunk_overlap: ensureNumber(chunkOverlap.value, 200),
-        system_prompt_instruction: (state.systemInstruction ?? '').trim() || '',
       },
       (ev) => {
         if (!ev || typeof ev !== 'object') return;
@@ -2886,11 +2981,67 @@ async function confirmAnswer(item) {
             >
               <div class="my-font-md-600 my-color-black mb-3">單元基本資訊</div>
               <div class="row g-3">
-                <div class="col-12 col-md-6 d-flex flex-column gap-1">
+                <div
+                  class="col-12 d-flex flex-column gap-1"
+                >
                   <span class="my-font-sm-400 my-color-gray-1">單元名稱</span>
                   <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.unitName || activeUnitTabItem?.label || '—' }}</span>
                 </div>
-                <div class="col-12 col-md-6 d-flex flex-column gap-1">
+                <div
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType !== UNIT_TYPE_RAG"
+                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                >
+                  <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
+                  <div
+                    class="my-font-md-400 my-color-black text-break rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
+                    style="max-height: 240px; overflow: auto; white-space: pre-wrap"
+                    role="region"
+                    aria-label="單元逐字稿"
+                  >
+                    {{ activeUnitTabItem?.transcription || '—' }}
+                  </div>
+                </div>
+                <div
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_TEXT"
+                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                >
+                  <span class="my-font-sm-400 my-color-gray-1">文字檔</span>
+                  <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.textFileName || '—' }}</span>
+                </div>
+                <div
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_MP3"
+                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                >
+                  <span class="my-font-sm-400 my-color-gray-1">MP3</span>
+                  <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.mp3FileName || '—' }}</span>
+                </div>
+                <div
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_YOUTUBE"
+                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                >
+                  <span class="my-font-sm-400 my-color-gray-1">YouTube</span>
+                  <template v-if="activeUnitTabItem?.youtubeUrl">
+                    <a
+                      v-if="looksLikeHttpUrl(activeUnitTabItem.youtubeUrl)"
+                      class="my-font-md-400 text-break"
+                      :href="activeUnitTabItem.youtubeUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ activeUnitTabItem.youtubeUrl }}</a>
+                    <span
+                      v-else
+                      class="my-font-md-400 my-color-black text-break"
+                    >{{ activeUnitTabItem.youtubeUrl }}</span>
+                  </template>
+                  <span
+                    v-else
+                    class="my-font-md-400 my-color-black text-break"
+                  >—</span>
+                </div>
+                <div
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_RAG"
+                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                >
                   <span class="my-font-sm-400 my-color-gray-1">來源檔案</span>
                   <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.filename || '—' }}</span>
                 </div>

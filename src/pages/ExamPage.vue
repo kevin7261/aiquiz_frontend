@@ -163,7 +163,7 @@ function normalizeExamRagForExamsPayload(data) {
       rag_name: u0.rag_name ?? u0.unit_name,
       units,
       outputs: units.map(unitToOutput),
-      system_prompt_instruction: u0.quiz_system_prompt_text ?? undefined,
+      transcription: u0.transcription ?? u0.quiz_system_prompt_text ?? undefined,
     };
   }
 
@@ -229,7 +229,7 @@ function normalizeExamRagForExamsPayload(data) {
         rag_name: u0.rag_name ?? u0.unit_name,
         units,
         outputs: units.map(unitToOutput),
-        system_prompt_instruction: u0.quiz_system_prompt_text ?? undefined,
+        transcription: u0.transcription ?? u0.quiz_system_prompt_text ?? undefined,
       };
     }
   }
@@ -283,14 +283,14 @@ function normalizeExamRagForExamsPayload(data) {
   }
 
   const sys =
-    unwrap.system_prompt_instruction
-    ?? pickRag?.system_prompt_instruction
+    unwrap.transcription
+    ?? pickRag?.transcription
     ?? null;
   const rootQuizzes = parseArrayMaybeJson(unwrap.quizzes);
 
   if (pickRag != null && typeof pickRag === 'object') {
     const base = { ...pickRag };
-    if (sys != null && base.system_prompt_instruction == null) base.system_prompt_instruction = sys;
+    if (sys != null && base.transcription == null) base.transcription = sys;
     const baseUnits = normalizeUnitRows(base.units ?? base.rag_units);
     const mergedUnits = pickRicherUnitRows(baseUnits, units);
     if (mergedUnits.length > 0) {
@@ -315,7 +315,7 @@ function normalizeExamRagForExamsPayload(data) {
       units,
       outputs: units.map(unitToOutput),
       quizzes: rootQuizzes.length > 0 ? rootQuizzes : undefined,
-      system_prompt_instruction: sys ?? undefined,
+      transcription: sys ?? undefined,
       rag_metadata: unwrap.rag_metadata,
       unit_list: unwrap.unit_list,
       file_metadata: unwrap.file_metadata,
@@ -332,7 +332,7 @@ function normalizeExamRagForExamsPayload(data) {
       units: [],
       outputs: [],
       quizzes: rootQuizzes.length > 0 ? rootQuizzes : undefined,
-      system_prompt_instruction: sys ?? undefined,
+      transcription: sys ?? undefined,
       rag_metadata: unwrap.rag_metadata,
       unit_list: unwrap.unit_list,
       file_metadata: unwrap.file_metadata,
@@ -752,7 +752,7 @@ watch(
     () => forExamLoading.value,
     () => `${currentExamDisplay.value.exam_tab_id}|${currentExamDisplay.value.exam_name}`,
     () => `${forExamRagIdAndTabId.value.rag_id}|${forExamRagIdAndTabId.value.rag_tab_id}`,
-    () => String(forExamRag.value?.system_prompt_instruction ?? ''),
+    () => String(forExamRag.value?.transcription ?? ''),
   ],
   () => {
     if (examList.value.length === 0 || !activeTabId.value) return;
@@ -763,9 +763,9 @@ watch(
       試卷題庫: { ...forExamRagIdAndTabId.value },
       file_size:
         forExamRag.value?.file_metadata?.file_size ?? forExamRag.value?.file_size ?? '—',
-      system_prompt_instruction:
-        forExamRag.value && forExamRag.value.system_prompt_instruction != null
-          ? forExamRag.value.system_prompt_instruction
+      transcription:
+        forExamRag.value != null && forExamRag.value.transcription != null
+          ? forExamRag.value.transcription
           : '—',
     });
   }
@@ -777,8 +777,9 @@ const generateQuizBlocked = computed(() => forExamLoading.value);
 /** 當試卷題庫摘要（forExamRag）載入後，填入 system instruction */
 watch(forExamRag, (rag) => {
   if (!rag || typeof rag !== 'object') return;
-  if (rag.system_prompt_instruction != null && String(rag.system_prompt_instruction).trim() !== '') {
-    forExamState.systemInstruction = String(rag.system_prompt_instruction).trim();
+  const tx = rag.transcription;
+  if (tx != null && String(tx).trim() !== '') {
+    forExamState.systemInstruction = String(tx).trim();
   }
 }, { immediate: true });
 
