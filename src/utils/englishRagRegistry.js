@@ -1,8 +1,7 @@
 /**
- * 英文測驗題庫與一般測驗題庫的前端隔離名單。
+ * 「英文題庫」標記之分頁 id 前端快取（localStorage）。
  *
- * 後端目前同用 /rag/tabs，因此以前端 registry 記錄「哪些 rag_tab_id 屬於英文頁」，
- * 讓英文頁只顯示英文題庫、一般頁排除英文題庫。
+ * GET /rag/tabs 共用同一列表時，用以讓「建立測驗題庫」頁排除以 eng_／名稱標記為英文題庫之分頁。
  */
 
 const ENGLISH_RAG_TAB_IDS_STORAGE_KEY = 'myquiz_english_rag_tab_ids_v1';
@@ -80,30 +79,11 @@ export function writeEnglishRagTabIdSet(idSet) {
 }
 
 /**
- * 以目前列表同步 registry：凡符合英文 marker 的 tab id 都會寫入名單。
+ * 自 GET /rag/tabs 所列同步 registry：符合英文 marker 的 tab id 會寫入名單。
  *
  * @param {object[]} rows
  * @returns {Set<string>} 同步後 registry
  */
-/**
- * 將 GET /english_system/tabs 回傳的列註冊為英文題庫分頁（供一般建立題庫頁排除）。
- *
- * @param {object[]} englishRows
- */
-export function registerEnglishSystemTabIds(englishRows) {
-  if (!Array.isArray(englishRows) || englishRows.length === 0) return;
-  const registry = readEnglishRagTabIdSet();
-  let changed = false;
-  for (const row of englishRows) {
-    if (!row || typeof row !== 'object') continue;
-    const tid = String(row.system_tab_id ?? row.english_system_tab_id ?? row.id ?? '').trim();
-    if (!tid || registry.has(tid)) continue;
-    registry.add(tid);
-    changed = true;
-  }
-  if (changed) writeEnglishRagTabIdSet(registry);
-}
-
 export function syncEnglishRagTabRegistryFromList(rows) {
   const registry = readEnglishRagTabIdSet();
   let changed = false;

@@ -21,7 +21,7 @@ import { loggedFetch } from '../utils/loggedFetch.js';
  * 流程：POST 送出 → 若 202 則取 job_id → 每 2 秒 GET 輪詢結果 → 解析 status ready/error → 寫入 item
  *
  * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
- * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：`gradingMode: 'exam'` 時 body 為 exam_quiz_id／quiz_answer／選填 quiz_content（批改指引由後端自 Rag_Quiz 讀）。
+ * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：`gradingMode: 'exam'` 時 body 為 exam_quiz_id、quiz_content（字串，可 ""）、quiz_answer（對齊 OpenAPI）。
  * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時為 POST /exam/tab/quiz/llm-grade；RAG 預設 POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 僅在有非空白內容時才送，否則由後端自 Rag_Quiz 讀）；`item.gradingPrompt` 非空則併入 answer_user_prompt_text；extraGradeBody 僅合併至 **RAG** 請求
  */
 export async function submitGrade(item, context, options = {}) {
@@ -41,10 +41,11 @@ export async function submitGrade(item, context, options = {}) {
         const n = Number(rawEq);
         const examQuizId =
           Number.isFinite(n) && n >= 1 ? n : rawEq != null ? rawEq : '';
+        const quizContentStr = item.quiz != null ? String(item.quiz) : '';
         return {
           exam_quiz_id: examQuizId,
-          quiz_answer: item.quiz_answer.trim(),
-          quiz_content: item.quiz != null ? String(item.quiz) : '',
+          quiz_content: quizContentStr,
+          quiz_answer: String(item.quiz_answer ?? '').trim(),
         };
       })()
     : (() => {

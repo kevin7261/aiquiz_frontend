@@ -881,7 +881,14 @@ code {
   color: var(--my-color-black);
 }
 
-/* 建立測驗題庫：「出題單元」區塊外主標題（兩側線中間）固定黑字 */
+/* 建立測驗題庫／測驗頁：區塊外主標題（兩側線中間）固定黑字 */
+.my-test-section-heading-line {
+  display: block;
+  border: 0;
+  border-top: 1px solid var(--my-color-gray-2);
+  flex: 1 1 0;
+  min-width: 1rem;
+}
 .my-test-section-heading-title {
   color: var(--my-color-black);
   -webkit-text-fill-color: var(--my-color-black);

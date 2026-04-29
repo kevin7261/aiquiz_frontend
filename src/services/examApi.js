@@ -46,10 +46,10 @@ export async function apiUpdateExamTabName(examId, tabName) {
 /**
  * 空白 Exam_Quiz（不呼叫 LLM）：{@link API_EXAM_CREATE_QUIZ}（OpenAPI: Exam Create Quiz）。
  * - Query（必填）：`person_id`（由 {@link loggedFetch} 第三參數 `personId` 附加於 URL）
- * - Body：`exam_tab_id`（不需上傳 rag_unit_id）
+ * - Body：`exam_tab_id`；**搭配** {@link apiExamTabQuizLlmGenerate} 時應一併傳 `rag_unit_id`、`rag_quiz_id`（皆 >0，與後端寫入列一致）。
  * LLM 出題請改用 {@link apiExamTabQuizLlmGenerate}
  *
- * @param {{ exam_tab_id: string | number }} body
+ * @param {{ exam_tab_id: string | number, rag_unit_id?: number | string, rag_quiz_id?: number | string }} body
  * @param {string | number} personId - 同 query person_id（呼叫者）
  * @param {{ signal?: AbortSignal }} [fetchExtra] - `signal`：中止未完成之草稿請求
  */
@@ -58,13 +58,18 @@ export async function apiExamTabQuizCreate(body, personId, fetchExtra = undefine
   if (!pid) throw new Error('person_id 為必填');
   const examTabId = body?.exam_tab_id != null ? String(body.exam_tab_id).trim() : '';
   if (!examTabId) throw new Error('缺少 exam_tab_id');
+  const ruRaw = body?.rag_unit_id != null && body.rag_unit_id !== '' ? Number(body.rag_unit_id) : NaN;
+  const rqRaw = body?.rag_quiz_id != null && body.rag_quiz_id !== '' ? Number(body.rag_quiz_id) : NaN;
+  const payload = {
+    exam_tab_id: examTabId,
+  };
+  if (Number.isFinite(ruRaw) && ruRaw > 0) payload.rag_unit_id = Math.trunc(ruRaw);
+  if (Number.isFinite(rqRaw) && rqRaw > 0) payload.rag_quiz_id = Math.trunc(rqRaw);
   /** @type {RequestInit} */
   const init = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      exam_tab_id: examTabId,
-    }),
+    body: JSON.stringify(payload),
   };
   if (fetchExtra?.signal != null) {
     init.signal = fetchExtra.signal;
@@ -77,13 +82,13 @@ export async function apiExamTabQuizCreate(body, personId, fetchExtra = undefine
 
 /**
  * 測驗 LLM 批改（非同步）：POST /exam/tab/quiz/llm-grade（Exam Grade Quiz）。
- * Body：`exam_quiz_id`、`quiz_answer`；選填 `quiz_content`。批改指引由後端自 Rag_Quiz（含 answer_user_prompt_text 等）依題目關聯讀取，**勿傳**於 body。
- * 預期 **202** 與 `job_id`；輪詢 GET `/exam/tab/quiz/grade-result/{job_id}`（見 `useQuizGrading` 之 `submitGrade`）。
+ * Body：`exam_quiz_id`、`quiz_content`（字串，可空字串）、`quiz_answer`。以 `exam_quiz_id` 定位題目；RAG+LLM 非同步評分；`unit_type` 2／3／4 改 transcription 純 LLM 批改；完成後更新 Exam_Quiz.answer_content／answer_critique。回傳 **202** + `job_id`；輪詢 GET `/exam/tab/quiz/grade-result/{job_id}`。
+ * 批改指引由後端讀取，**勿傳**於 body。
  *
  * @param {{
  *   exam_quiz_id: number,
+ *   quiz_content: string,
  *   quiz_answer: string,
- *   quiz_content?: string,
  * }} gradeBody
  * @param {string} [submissionPath] - 預設 `API_EXAM_QUIZ_GRADE`（`/exam/tab/quiz/llm-grade`）；與 `submitGrade` 之 `quizGradeSubmissionPath` 一致時傳入
  * @returns {Promise<{ res: Response, text: string }>}
@@ -106,13 +111,14 @@ export async function apiExamTabQuizLlmGrade(gradeBody, submissionPath) {
  * 測驗 LLM 出題：POST /exam/tab/quiz/llm-generate（OpenAPI：Rag LLM Generate Quiz）
  * Query：`person_id`（必填，由 {@link loggedFetch} 第三參數帶入）。
  *
- * Body：`exam_quiz_id` 必填；選填 `rag_unit_id`（正整數，無效或未選時傳 `0`）、`rag_quiz_id`；`unit_name`／`quiz_name` 僅在有非空白值時才加入 JSON（不送空字串）。
- * **勿傳** `quiz_user_prompt_text`：後端僅自 Rag_Quiz（effective `rag_quiz_id`）讀取出題補充。
+ * Body：**`exam_quiz_id`、`rag_tab_id`、`rag_unit_id`、`rag_quiz_id` 皆必填**（三個 RAG 鍵須對應同一個 Tab，後端用 `rag_tab_id` 載入 ZIP）。若題列已有有效 `rag_unit_id`／`rag_quiz_id`，請求兩鍵須與列一致，否則 400；若列尚未寫入則綁定並寫回。**勿傳** `quiz_user_prompt_text`（後端自 Rag_Quiz 讀）。
+ * 選填 `unit_name`、`quiz_name`。`unit_type` 1=RAG ZIP／向量；2–4=transcription 純 LLM。成功後更新該列（含 `rag_tab_id`）並清空作答欄位。
  *
  * @param {{
  *   exam_quiz_id: number | string,
- *   rag_unit_id?: number | string,
- *   rag_quiz_id?: number | string,
+ *   rag_tab_id: string,
+ *   rag_unit_id: number | string,
+ *   rag_quiz_id: number | string,
  *   unit_name?: string,
  *   quiz_name?: string,
  * }} body
@@ -124,14 +130,20 @@ export async function apiExamTabQuizLlmGenerate(body, personId) {
   if (!pid) throw new Error('person_id 為必填');
   const eid = Number(body?.exam_quiz_id);
   if (!Number.isFinite(eid) || eid < 1) throw new Error('無效的 exam_quiz_id');
-  const ru = body?.rag_unit_id != null && body.rag_unit_id !== '' ? Number(body.rag_unit_id) : 0;
+  const ru = body?.rag_unit_id != null && body.rag_unit_id !== '' ? Number(body.rag_unit_id) : NaN;
   const ragUnitId = Number.isFinite(ru) && ru > 0 ? Math.trunc(ru) : 0;
-  const rq = body?.rag_quiz_id != null && body.rag_quiz_id !== '' ? Number(body.rag_quiz_id) : 0;
+  const rq = body?.rag_quiz_id != null && body.rag_quiz_id !== '' ? Number(body.rag_quiz_id) : NaN;
   const ragQuizId = Number.isFinite(rq) && rq > 0 ? Math.trunc(rq) : 0;
+  if (ragUnitId < 1 || ragQuizId < 1) {
+    throw new Error('llm-generate 須提供有效的 rag_unit_id、rag_quiz_id（正整數）');
+  }
+  const ragTabId = String(body?.rag_tab_id ?? '').trim();
+  if (!ragTabId) throw new Error('llm-generate 須提供 rag_tab_id');
   const unitNameTrim = String(body?.unit_name ?? '').trim();
   const quizNameTrim = String(body?.quiz_name ?? '').trim();
   const payload = {
     exam_quiz_id: Math.trunc(eid),
+    rag_tab_id: ragTabId,
     rag_unit_id: ragUnitId,
     rag_quiz_id: ragQuizId,
   };

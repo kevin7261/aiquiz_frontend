@@ -150,49 +150,6 @@ export const API_RAG_FOR_EXAM = '/rag/tab/for-exam';
  */
 export const API_RAG_FOR_EXAMS = '/exam/rag-for-exams';
 
-/** English System：GET /english_system/tabs；query person_id（必填）、local（與 GET /rag/tabs 相同；未傳時後端依連線判定）；僅 deleted=false；回傳 english_systems、count；每筆含 English_System 欄位並併入 phases（每段含 quizzes、quizzes[].answers）、頂層 answers 與 quizzes（phase 已刪時之題）；依 created_at 舊→新 */
-export const API_ENGLISH_SYSTEM_TABS = '/english_system/tabs';
-/** English System：POST /english_system/tab/create；query person_id；body：system_tab_id、tab_name（寫入 system_name）、person_id、local（選填，預設 false；本機前端與 POST /rag/tab/create 一致可傳 true）；回傳 system_id、system_tab_id、tab_name、person_id、local、created_at（對齊 POST /rag/tab/create） */
-export const API_ENGLISH_SYSTEM_TAB_CREATE = '/english_system/tab/create';
-/** English System：POST /english_system/tab/build-system；query person_id；JSON body：system_tab_id、person_id、quiz_type（未傳預設 0）、quiz_text、quiz_mp3_filename、quiz_youtube_url；更新 English_System；「開始建立題庫」呼叫；不建 RAG、不串流 */
-export const API_ENGLISH_SYSTEM_TAB_BUILD_SYSTEM = '/english_system/tab/build-system';
-/**
- * GET /english_system/tab/for-exam — 依連線讀取 System_Setting（本機 english_system_localhost／否則 english_system_deploy）之 value 為 system_id，將該 English_System for_exam=true；query person_id；成功回傳與 build-system 摘要類同
- */
-export const API_ENGLISH_SYSTEM_TAB_FOR_EXAM = '/english_system/tab/for-exam';
-/** 寫入試題用所選 system_id 至 System_Setting（body 見 apiSetEnglishSystemForExamSetting） */
-export const API_PUT_ENGLISH_SYSTEM_FOR_EXAM_LOCALHOST = '/system-settings/english-system-for-exam-localhost';
-export const API_PUT_ENGLISH_SYSTEM_FOR_EXAM_DEPLOY = '/system-settings/english-system-for-exam-deploy';
-/**
- * POST /english_system/tab/phase/quiz/create（OpenAPI：**Create English System Tab Phase (no LLM)**）
- * 建立或更新 English_System_Phase（不呼叫 LLM）。`system_quiz_phase_id === 0` 新增；`> 0` 更新。`person_id` 僅 query。
- * body：`system_id`、`system_tab_id`、`system_quiz_phase_id`、`quiz_phase_name`、`quiz_content`、`content_text`、`quiz_text`、`quiz_user_prompt_instruction`、`quiz_answer_reference`。
- * 若 `quiz_content` 或 `quiz_user_prompt_instruction` 任一非空，須同時 `quiz_answer_reference` 非空才 insert English_System_Quiz。
- * 回傳：`system_quiz_id`、`quiz_content`、`quiz_answer_reference`（無草稿時 system_quiz_id 為 0）。
- */
-export const API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_CREATE = '/english_system/tab/phase/quiz/create';
-/**
- * POST /english_system/tab/phase/create — **LLM 出題**（system=content_text，user=quiz_user_prompt_instruction）；長文教材自動出題用此路徑，非 phase/quiz/create。
- */
-export const API_ENGLISH_SYSTEM_TAB_PHASE_CREATE = '/english_system/tab/phase/create';
-/**
- * POST /english_system/tab/phase/quiz/grade — **English System Phase Quiz Grade**（LLM 批改，無 RAG ZIP，同步 200）。
- * Query：`person_id`（必填，與 phase/create 相同，由 loggedFetch 附加）。Body：`system_id`、`system_tab_id`、`system_quiz_phase_id`、`system_quiz_id`、`quiz_text`、`quiz_content`、`critique_user_prompt_instruction`、`quiz_answer`。
- * 成功時寫入 english_system_answer；回傳 `quiz_grade`、`quiz_comments`、`english_system_answer_id`（寫入失敗時後者可為 null，仍回傳分數與評語）。
- */
-export const API_ENGLISH_SYSTEM_TAB_PHASE_QUIZ_GRADE = '/english_system/tab/phase/quiz/grade';
-/**
- * English System 音訊轉逐字稿：POST /english_system/transcript/audio
- * multipart：file、system_tab_id；query person_id。後端寫入 SUPABASE_ENGLISH_BUCKET 並以 Deepgram 轉逐字稿（DEEPGRAM_API_KEY；可選 DEEPGRAM_MODEL，預設 nova-2）；無對應 English_System 列時可依 system_tab_id 與檔名自動建立。
- */
-export const API_ENGLISH_TRANSCRIPT_AUDIO = '/english_system/transcript/audio';
-/**
- * English System：GET /english_system/transcript/youtube
- * 擷取 YouTube 公開字幕並合併為單一純文字（不依賴 Whisper；行為同 Colab youtube-transcript-api 範例）。
- * Query：video_id（必填，11 字元或完整網址）、person_id（必填，由 loggedFetch 附加）、languages（選填，逗號分隔如 en,zh-TW；未傳則後端等同 en）。
- */
-export const API_ENGLISH_TRANSCRIPT_YOUTUBE = '/english_system/transcript/youtube';
-
 /** 個人答題分析：GET /person-analysis/quizzes/{person_id}；僅含作答有對應之題；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（含 units→quizzes 或扁平 quizzes；頂層 answers／內嵌 answer_*）；另帶 count、weakness_report（有 LLM Key 時） */
 export const API_QUIZZES_BY_PERSON = '/person-analysis/quizzes';
 /** 學生作答分析：GET /course-analysis/quizzes；全部 Exam_Quiz，格式同上；weakness_report 固定 null */
@@ -208,7 +165,7 @@ export const API_EXAM_UNIT_NAME = '/exam/tab/tab-name';
 export const API_EXAM_DELETE = '/exam/tab/delete';
 /**
  * POST /exam/tab/quiz/create（OpenAPI：**Exam Create Quiz (no LLM)**）
- * Query：`person_id`（必填）。Body JSON：`exam_tab_id`（呼叫端不需上傳 rag_unit_id；後端若對齊題庫可自行解析）。
+ * Query：`person_id`（必填）。Body：`exam_tab_id`；與 {@link API_EXAM_TAB_QUIZ_LLM_GENERATE} 銜接時宜一併傳 `rag_unit_id`、`rag_quiz_id`（>0），使題列先綁定試卷題庫。
  * LLM 出題請用 {@link API_EXAM_TAB_QUIZ_LLM_GENERATE}
  */
 export const API_EXAM_CREATE_QUIZ = '/exam/tab/quiz/create';
@@ -218,10 +175,10 @@ export const API_EXAM_GENERATE_QUIZ = API_EXAM_CREATE_QUIZ;
 export const API_TEST_GENERATE_QUIZ = API_EXAM_CREATE_QUIZ;
 /**
  * POST /exam/tab/quiz/llm-generate — Rag LLM Generate Quiz；query：`person_id`（必填）。
- * Body：`exam_quiz_id` 必填；選填 `rag_unit_id`（無選為 `0`）、`rag_quiz_id`；`unit_name`／`quiz_name` 有值才傳，勿送空字串。**勿於 body 傳** `quiz_user_prompt_text`（後端自 Rag_Quiz 讀）。
+ * Body：**`exam_quiz_id`、`rag_tab_id`、`rag_unit_id`、`rag_quiz_id` 皆必填**；三 RAG 鍵須對應同一 Tab（後端用 `rag_tab_id` 載入 ZIP，不依賴 System_Setting）；列已有兩鍵時請求須一致否則 400，列未寫入時自動綁定寫回。`quiz_user_prompt_text` 勿傳（後端自 Rag_Quiz 讀）。選填 `unit_name`、`quiz_name`。`unit_type` 1=RAG ZIP／向量；2–4=transcription 純 LLM。成功後更新該列（含 `rag_tab_id`）並清空作答欄位。
  */
 export const API_EXAM_TAB_QUIZ_LLM_GENERATE = '/exam/tab/quiz/llm-generate';
-/** Exam：POST /exam/tab/quiz/llm-grade（Exam Grade Quiz，對齊 RAG 之 202 + job_id）；body：`exam_quiz_id`、`quiz_answer`、選填 `quiz_content`；批改指引勿傳（後端自 Rag_Quiz 讀）；GET /exam/tab/quiz/grade-result/{job_id} 輪詢 */
+/** Exam：POST /exam/tab/quiz/llm-grade（Exam Grade Quiz，202 + job_id）；body：`exam_quiz_id`、`quiz_content`（可 ""）、`quiz_answer`；query `person_id` 必填；`unit_type` 2／3／4 改 transcription 純 LLM 批改；完成後更新 answer_content／answer_critique；GET /exam/tab/quiz/grade-result/{job_id} 輪詢 */
 export const API_EXAM_QUIZ_GRADE = '/exam/tab/quiz/llm-grade';
 /** @deprecated 舊路徑 POST /exam/tab/quiz/grade；批改請使用 {@link API_EXAM_QUIZ_GRADE}（llm-grade） */
 export const API_EXAM_QUIZ_GRADE_LEGACY = '/exam/tab/quiz/grade';
@@ -236,8 +193,6 @@ export const API_EXAM_RATE_QUIZ = '/exam/tab/quiz/rate';
  * - PUT  /system-settings/course-name   Put Course Name Setting
  * - GET  /system-settings/llm-api-key  Get Llm Api Key
  * - PUT  /system-settings/llm-api-key  Put Llm Api Key
- * - PUT  /system-settings/english-system-for-exam-localhost  English System 試題用 system_id（本機；與 GET /english_system/tab/for-exam 搭配）
- * - PUT  /system-settings/english-system-for-exam-deploy  同上（正式站）
  */
 /** GET：取得課程名稱；回傳含 course_name。 */
 export const API_GET_SYSTEM_SETTING_COURSE_NAME = '/system-settings/course-name';

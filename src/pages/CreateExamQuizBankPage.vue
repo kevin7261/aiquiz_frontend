@@ -3371,14 +3371,6 @@ async function confirmAnswer(item) {
 </template>
 
 <style scoped>
-/* 區塊外標題：────── 出題單元 ────── */
-.my-test-section-heading-line {
-  display: block;
-  border: 0;
-  border-top: 1px solid var(--my-color-gray-2);
-  flex: 1 1 0;
-  min-width: 1rem;
-}
 .my-pack-drop-target.my-pack-drop-active {
   background-color: var(--my-drop-pack-active-bg) !important;
   border-color: var(--my-color-blue) !important;
