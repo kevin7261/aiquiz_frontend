@@ -11,7 +11,7 @@
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_* 等；已不再傳 system_prompt_instruction）
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
- * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
+ * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
  * - 單元子分頁：GET /rag/tab/units；「新增題目」POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id），再填題名／出題 prompt 後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；「單元基本資訊」：user_type 1／2／234 顯示單元名稱；unit_type≠1 時顯示逐字稿（`transcription`）；來源（unit_type=2 為 `text_file_name`；3／4 為 `mp3_file_name`／`youtube_url`）；RAG（1）僅來源檔案；其餘（如 3）僅單元名稱
  * 上述 API 不需 llm_api_key。
  */
@@ -41,6 +41,7 @@ import {
 } from '../services/ragApi.js';
 import { formatGradingResult } from '../utils/grading.js';
 import { formatFileSize } from '../utils/formatFileSize.js';
+import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
 import { submitGrade } from '../composables/useQuizGrading.js';
 import {
   generateTabId,
@@ -934,6 +935,13 @@ const activeUnitTabItem = computed(() => {
   const activeId = String(currentState.value.activeUnitTabId ?? '');
   if (!tabs.length || !activeId) return null;
   return tabs.find((t) => t.id === activeId) ?? null;
+});
+
+/** 單元基本資訊「逐字稿」：以 Markdown 渲染（與全站 renderMarkdown 一致） */
+const activeUnitTranscriptionMdHtml = computed(() => {
+  const tab = activeUnitTabItem.value;
+  const raw = tab?.transcription;
+  return renderMarkdownToSafeHtml(raw != null ? String(raw) : '');
 });
 
 const activeUnitSlotIndex = computed(() => {
@@ -2133,7 +2141,7 @@ async function submitUnitQuizLlmGenerate(slotIndex, quizCardRow = null) {
 
     if (rqid == null || rqid < 1) {
       slotState.unitQuizCreateError =
-        '無法取得 rag_quiz_id。請在空白列填寫題名與出題說明後按「產生題目」，或重新整理頁面。';
+        '無法取得 rag_quiz_id。請在空白列填寫題型名稱與出題說明後按「產生題目」，或重新整理頁面。';
       return;
     }
 
@@ -2389,7 +2397,7 @@ function toggleHint(item) {
   item.hintVisible = !item.hintVisible;
 }
 
-/** 評分：POST /rag/tab/unit/quiz/llm-grade；body: rag_id、rag_tab_id（選填）、rag_quiz_id、quiz_content、quiz_answer；選填 answer_user_prompt_text（題卡 gradingPrompt）；回傳 202 + job_id；輪詢 GET /rag/tab/unit/quiz/grade-result/{job_id}。 */
+/** 評分：POST /rag/tab/unit/quiz/llm-grade；body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略（後端自 Rag_Quiz 讀）；選填 rag_tab_id、answer_user_prompt_text（題卡 gradingPrompt）；回傳 202 + job_id；輪詢 GET /rag/tab/unit/quiz/grade-result/{job_id}。 */
 async function confirmAnswer(item) {
   if (!item.quiz_answer.trim()) return;
   const state = currentState.value;
@@ -3091,12 +3099,20 @@ async function confirmAnswer(item) {
                 >
                   <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
                   <div
-                    class="my-font-md-400 my-color-black text-break rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
-                    style="max-height: 240px; overflow: auto; white-space: pre-wrap"
+                    class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
+                    style="max-height: 240px; overflow: auto;"
                     role="region"
                     aria-label="單元逐字稿"
                   >
-                    {{ activeUnitTabItem?.transcription || '—' }}
+                    <div
+                      v-if="activeUnitTranscriptionMdHtml"
+                      class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                      v-html="activeUnitTranscriptionMdHtml"
+                    />
+                    <span
+                      v-else
+                      class="my-font-md-400 my-color-black"
+                    >—</span>
                   </div>
                 </div>
                 <div
@@ -3154,14 +3170,14 @@ async function confirmAnswer(item) {
                   class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 text-start d-flex flex-column gap-3"
                 >
                   <div class="my-font-md-600 my-color-black">
-                    第 {{ qIdx + 1 }} 題
+                    題型 {{ qIdx + 1 }}
                   </div>
                   <div class="d-flex flex-column gap-2 min-w-0">
                     <label
                       class="my-color-gray-1 my-font-sm-400 mb-0 d-block"
                       :for="quizRowQuizEmpty(quizCard) ? `rag-unit-quiz-name-${activeUnitSlotIndex}-${qIdx}` : undefined"
                     >
-                      題目名稱
+                      題型名稱
                     </label>
                     <input
                       v-if="quizRowQuizEmpty(quizCard)"
@@ -3169,7 +3185,7 @@ async function confirmAnswer(item) {
                       v-model="quizCard.quizName"
                       type="text"
                       class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0"
-                      placeholder="請輸入題目名稱"
+                      placeholder="請輸入題型名稱"
                       maxlength="500"
                       autocomplete="off"
                       required
@@ -3203,6 +3219,7 @@ async function confirmAnswer(item) {
                         v-else
                         :model-value="String(quizCard.quizUserPromptText ?? '')"
                         preview-only
+                        preview-design-dark
                         :textarea-id="`rag-unit-quiz-preview-${activeUnitSlotIndex}-${qIdx}`"
                       />
                     </div>
@@ -3258,7 +3275,7 @@ async function confirmAnswer(item) {
                 class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-3"
               >
                 <div class="my-font-lg-600 my-color-black mb-0">
-                  {{ activeUnitTabItem ? activeUnitTabItem.label : `第 ${activeUnitSlotIndex} 題` }}
+                  {{ activeUnitTabItem ? activeUnitTabItem.label : `題型 ${activeUnitSlotIndex}` }}
                 </div>
                 <div class="text-start w-100 min-w-0">
                   <div
@@ -3371,15 +3388,13 @@ async function confirmAnswer(item) {
 .my-rag-unit-quiz-prompt-editor :deep(.english-exam-md-editor-root) {
   --english-md-preview-max-h: min(60vh, 28rem);
 }
-.my-rag-unit-quiz-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll),
-.my-rag-unit-quiz-prompt-editor :deep(.english-exam-md-preview-panel) {
+.my-rag-unit-quiz-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 400px;
 }
 .my-pack-unit-md-editor :deep(.english-exam-md-editor-root) {
   --english-md-preview-max-h: min(50vh, 22rem);
 }
-.my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll),
-.my-pack-unit-md-editor :deep(.english-exam-md-preview-panel) {
+.my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 200px;
 }
 </style>

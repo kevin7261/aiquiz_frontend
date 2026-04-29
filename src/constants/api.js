@@ -105,7 +105,7 @@ export const API_RESPONSE_QUIZ_LEGACY = 'quiz';
 /** 評分 API 表單欄位：測驗題目內容（與後端 quiz_content、Quiz 表一致） */
 export const API_REQUEST_QUIZ_CONTENT = 'quiz_content';
 
-/** RAG 單元題評分：POST /rag/tab/unit/quiz/llm-grade（Rag LLM Grade Quiz）；body: rag_id、rag_tab_id（選填）、rag_quiz_id、quiz_content、quiz_answer；選填 answer_user_prompt_text（寫入 Rag_Quiz 並併入評分 LLM user）；LLM Key 依 Rag.person_id 自 User；回傳 202 + job_id；GET /rag/tab/unit/quiz/grade-result/{job_id} 輪詢；ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id（同 rag_answer_id 以相容舊前端） */
+/** RAG 單元題評分：POST /rag/tab/unit/quiz/llm-grade（Rag Grade Quiz，非同步）；body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略（後端自 Rag_Quiz 讀）；選填 rag_tab_id、answer_user_prompt_text；unit_type 2／3／4 時以 transcription 純 LLM 批改，其餘依 rag_id 載入 RAG ZIP；回傳 202 + job_id；GET /rag/tab/unit/quiz/grade-result/{job_id} 輪詢；ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id 等 */
 export const API_RAG_QUIZ_GRADE = '/rag/tab/unit/quiz/llm-grade';
 export const API_RAG_QUIZ_GRADE_RESULT = '/rag/tab/unit/quiz/grade-result';
 

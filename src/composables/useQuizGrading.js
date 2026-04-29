@@ -22,7 +22,7 @@ import { loggedFetch } from '../utils/loggedFetch.js';
  *
  * @param {Object} item - 題目卡片物件，會被 mutate（confirmed、gradingResult、gradingResponseJson）
  * @param {Object} context - RAG：{ sourceTabId, ragId }；Exam：`gradingMode: 'exam'` 時 body 為 exam_quiz_id／quiz_answer／選填 quiz_content（批改指引由後端自 Rag_Quiz 讀）。
- * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時為 POST /exam/tab/quiz/llm-grade；RAG 預設 /rag/tab/unit/quiz/llm-grade，`item.gradingPrompt` 非空則併入 answer_user_prompt_text；extraGradeBody 僅合併至 **RAG** 請求
+ * @param {Object} [options] - quizGradeSubmissionPath、quizGradeResultPath；gradingMode: 'exam' 時為 POST /exam/tab/quiz/llm-grade；RAG 預設 POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 僅在有非空白內容時才送，否則由後端自 Rag_Quiz 讀）；`item.gradingPrompt` 非空則併入 answer_user_prompt_text；extraGradeBody 僅合併至 **RAG** 請求
  */
 export async function submitGrade(item, context, options = {}) {
   const isExam = options.gradingMode === 'exam';
@@ -47,18 +47,28 @@ export async function submitGrade(item, context, options = {}) {
           quiz_content: item.quiz != null ? String(item.quiz) : '',
         };
       })()
-    : {
-        rag_id: String(ragId ?? ''),
-        rag_tab_id: sourceTabId != null && String(sourceTabId).trim() !== '' ? String(sourceTabId) : '',
-        rag_quiz_id:
+    : (() => {
+        const ragQuizRaw =
           item.rag_quiz_id != null && String(item.rag_quiz_id).trim() !== ''
-            ? String(item.rag_quiz_id)
+            ? item.rag_quiz_id
             : item.quiz_id != null
-              ? String(item.quiz_id)
-              : '',
-        quiz_content: item.quiz ?? '',
-        quiz_answer: item.quiz_answer.trim(),
-      };
+              ? item.quiz_id
+              : '';
+        const body = {
+          rag_id: String(ragId ?? ''),
+          rag_quiz_id: String(ragQuizRaw),
+          quiz_answer: item.quiz_answer.trim(),
+        };
+        const tabId = sourceTabId != null ? String(sourceTabId).trim() : '';
+        if (tabId !== '') {
+          body.rag_tab_id = tabId;
+        }
+        const quizStr = item.quiz != null ? String(item.quiz) : '';
+        if (quizStr.trim() !== '') {
+          body.quiz_content = quizStr;
+        }
+        return body;
+      })();
 
   if (!isExam) {
     const answerPrompt = String(item.gradingPrompt ?? '').trim();

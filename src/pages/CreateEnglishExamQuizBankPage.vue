@@ -3248,8 +3248,7 @@ watch(
 .my-pack-unit-md-editor :deep(.english-exam-md-editor-root) {
   --english-md-preview-max-h: min(50vh, 22rem);
 }
-.my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll),
-.my-pack-unit-md-editor :deep(.english-exam-md-preview-panel) {
+.my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 200px;
 }
 

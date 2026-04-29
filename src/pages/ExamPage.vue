@@ -42,6 +42,7 @@ import {
   UNIT_TYPE_MP3,
   UNIT_TYPE_YOUTUBE,
 } from '../utils/rag.js';
+import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import QuizCard from '../components/QuizCard.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
@@ -668,6 +669,14 @@ function examSlotUnitTranscriptSection(slotIndex) {
     sourceDisplay: sourceValue || '—',
     youtubeHref,
   };
+}
+
+/** 測驗頁單元逐字稿：Markdown → 安全 HTML（與建立題庫頁單元基本資訊一致） */
+function examSlotUnitTranscriptMdHtml(slotIndex) {
+  const sec = examSlotUnitTranscriptSection(slotIndex);
+  if (!sec) return '';
+  const t = sec.transcription;
+  return renderMarkdownToSafeHtml(t != null ? String(t) : '');
 }
 
 /**
@@ -1991,12 +2000,19 @@ onActivated(() => {
                           <div class="d-flex flex-column gap-1 min-w-0">
                             <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
                             <div
-                              class="my-font-md-400 my-color-black text-break"
-                              style="max-height: 160px; overflow: auto; white-space: pre-wrap"
+                              style="max-height: 160px; overflow: auto;"
                               role="region"
                               aria-label="單元逐字稿"
                             >
-                              {{ examSlotUnitTranscriptSection(slotIndex).transcription || '—' }}
+                              <div
+                                v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                                v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
+                              />
+                              <span
+                                v-else
+                                class="my-font-md-400 my-color-black"
+                              >—</span>
                             </div>
                           </div>
                           <div class="d-flex flex-column gap-1 min-w-0">
@@ -2105,12 +2121,19 @@ onActivated(() => {
                             <div class="d-flex flex-column gap-1 min-w-0">
                               <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
                               <div
-                                class="my-font-md-400 my-color-black text-break"
-                                style="max-height: 160px; overflow: auto; white-space: pre-wrap"
+                                style="max-height: 160px; overflow: auto;"
                                 role="region"
                                 aria-label="單元逐字稿"
                               >
-                                {{ examSlotUnitTranscriptSection(slotIndex).transcription || '—' }}
+                                <div
+                                  v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                  class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                                  v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                />
+                                <span
+                                  v-else
+                                  class="my-font-md-400 my-color-black"
+                                >—</span>
                               </div>
                             </div>
                             <div class="d-flex flex-column gap-1 min-w-0">

@@ -317,6 +317,7 @@ const hasQuizBody = computed(() => String(props.card?.quiz ?? '').trim() !== '')
             :model-value="String(card.gradingPrompt ?? '')"
             :textarea-id="`quiz-grading-prompt-${card.id}`"
             :preview-only="card.confirmed"
+            :preview-design-dark="card.confirmed"
             :disabled="card.confirmed ? false : answerInputDisabled || gradeSubmitting"
             placeholder="輸入批改說明（可含教材重點、評分標準等，支援 Markdown）…"
             @update:model-value="emit('update:grading_prompt', $event)"
@@ -382,15 +383,14 @@ const hasQuizBody = computed(() => String(props.card?.quiz ?? '').trim() !== '')
 </template>
 
 <style scoped>
-/* 與 CreateExamQuizBankPage 「出題prompt」(.my-rag-unit-quiz-prompt-editor) 同高 */
+/* EasyMDE 編輯區與出題 prompt 頁同 min-height；唯讀預覽高度由內容決定 */
 .quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-root) {
   --english-md-preview-max-h: min(60vh, 28rem);
 }
 .quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror) {
   min-height: 400px !important;
 }
-.quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll),
-.quiz-card-grading-prompt-editor :deep(.english-exam-md-preview-panel) {
+.quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 400px;
 }
 </style>

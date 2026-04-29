@@ -1,7 +1,8 @@
 <script setup>
 /**
  * 建立英文測驗題庫「文字內容」用：EasyMDE（工具列含預覽等）。
- * previewOnly：讀入／build-system 完成等唯讀時僅顯示 HTML 預覽（marked + DOMPurify，與全站 renderMarkdown 一致），不掛 EasyMDE
+ * previewOnly：讀入／build-system 完成等唯讀時僅顯示 HTML 預覽（marked + DOMPurify，與全站 renderMarkdown 一致），不掛 EasyMDE。
+ * previewDesignDark：僅在 previewOnly 時生效；黑底白字預覽（與 DesignPage `.my-design-swatch-row` + `my-bgcolor-black` 示範一致）。
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import EasyMDE from 'easymde';
@@ -14,6 +15,8 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   /** 僅預覽：已讀入或 build-system 完成；不掛編輯器 */
   previewOnly: { type: Boolean, default: false },
+  /** 唯讀預覽用：Design 頁同款黑底白字（須併 previewOnly） */
+  previewDesignDark: { type: Boolean, default: false },
   /** 對應外層 <label for="…">，維持無障礙關聯 */
   textareaId: { type: String, default: 'english-bank-paste-text' },
 });
@@ -114,7 +117,12 @@ onBeforeUnmount(() => {
     <template v-if="previewOnly">
       <div
         :id="textareaId"
-        class="english-exam-md-preview-panel my-bgcolor-surface min-w-0 rounded-2 border overflow-auto"
+        class="english-exam-md-preview-panel min-w-0 rounded-2 overflow-x-auto overflow-y-visible"
+        :class="
+          previewDesignDark
+            ? 'english-exam-md-preview-panel--design-dark my-bgcolor-black border border-white'
+            : 'english-exam-md-preview-panel--surface my-bgcolor-surface border'
+        "
         role="region"
         aria-label="Markdown 預覽（僅讀）"
         tabindex="0"
@@ -122,11 +130,13 @@ onBeforeUnmount(() => {
         <div
           v-if="!previewEmpty"
           class="english-exam-md-preview-body px-3 py-2 text-break"
+          :class="previewDesignDark ? 'my-color-white my-font-md-400' : ''"
           v-html="previewHtml"
         />
         <div
           v-else
-          class="english-exam-md-preview-empty px-3 py-4 my-font-sm-400 my-color-gray-4 text-center"
+          class="english-exam-md-preview-empty px-3 py-4 my-font-sm-400 text-center"
+          :class="previewDesignDark ? 'my-color-gray-2' : 'my-color-gray-4'"
         >
           尚無內容可預覽
         </div>
@@ -173,14 +183,56 @@ onBeforeUnmount(() => {
   scrollbar-gutter: stable;
 }
 
-.english-exam-md-preview-panel {
-  min-height: 280px;
-  max-height: var(--english-md-preview-max-h);
+/* 唯讀預覽：高度隨內容伸縮，不設 max-height（出題／批改 prompt 等長文一次看完） */
+.english-exam-md-preview-panel--surface {
   border-color: var(--bs-border-color, #dee2e6) !important;
-  overflow-y: auto;
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
+}
+
+.english-exam-md-preview-panel--design-dark {
+  border-color: var(--my-color-white) !important;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Design 頁黑底示範列：唯讀 Markdown 內嵌元素字色／區塊對比 */
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(h1),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(h2),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(h3) {
+  color: var(--my-color-white);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(p),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(li),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(td),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(th) {
+  color: var(--my-color-white);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(a) {
+  color: var(--my-color-blue-hover);
+  word-break: break-word;
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(pre) {
+  background: color-mix(in srgb, var(--my-color-white) 12%, transparent);
+  color: var(--my-color-white);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(code) {
+  color: var(--my-color-white);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(p code),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(li code) {
+  background: color-mix(in srgb, var(--my-color-white) 14%, transparent);
+  color: var(--my-color-white);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(blockquote) {
+  border-left-color: var(--my-color-gray-2);
+  color: var(--my-color-gray-2);
+}
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(th),
+.english-exam-md-preview-panel--design-dark .english-exam-md-preview-body :deep(td) {
+  border-color: color-mix(in srgb, var(--my-color-white) 35%, transparent);
 }
 
 .english-exam-md-preview-body :deep(h1),
@@ -190,6 +242,11 @@ onBeforeUnmount(() => {
   margin-bottom: 0.35rem;
   font-weight: 600;
   line-height: 1.3;
+}
+.english-exam-md-preview-body :deep(h1:first-child),
+.english-exam-md-preview-body :deep(h2:first-child),
+.english-exam-md-preview-body :deep(h3:first-child) {
+  margin-top: 0;
 }
 .english-exam-md-preview-body :deep(h1) {
   font-size: 1.35rem;
@@ -243,5 +300,9 @@ onBeforeUnmount(() => {
 }
 .english-exam-md-preview-body :deep(a) {
   word-break: break-word;
+}
+/* 置於各區塊 margin 規則之後：最後一個子元素不再留底緣（單一 <p> 不會像多一層 pb-2） */
+.english-exam-md-preview-body :deep(> *:last-child) {
+  margin-bottom: 0;
 }
 </style>
