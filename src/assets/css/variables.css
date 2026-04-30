@@ -52,6 +52,12 @@
   --my-drop-zone-active-bg: color-mix(in srgb, var(--my-color-blue) 8%, var(--my-color-white));
   --my-drop-pack-active-bg: color-mix(in srgb, var(--my-color-blue) 15%, var(--my-color-white));
 
+  /* 淺底區塊輕描邊（勿用 Bootstrap border-secondary／border-opacity-*） */
+  --my-border-muted: color-mix(in srgb, var(--my-color-black) 25%, transparent);
+
+  /* Bootstrap .btn-close：SVG fill 對齊 --my-color-black（#333333） */
+  --my-btn-close-bg-svg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23333333'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+
   /* 捲軸：軌道透明；槽寬 6pt、滑塊可見 4pt（WebKit 以透明邊內縮）；滑塊僅用中性色 */
   --my-scrollbar-track: transparent;
   --my-scrollbar-size: 6pt;

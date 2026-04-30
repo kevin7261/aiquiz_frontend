@@ -3427,7 +3427,7 @@ async function confirmAnswer(item) {
                     </div>
                     <p
                       v-if="currentState.packUnitTranscriptError?.[gi]"
-                      class="my-font-sm-400 text-danger mb-2"
+                      class="my-font-sm-400 my-color-red mb-2"
                     >
                       {{ currentState.packUnitTranscriptError[gi] }}
                     </p>
@@ -3568,7 +3568,7 @@ async function confirmAnswer(item) {
                   <div
                     v-for="row in quizBankSettingReadonlyUnitRows"
                     :key="row.key"
-                    class="rounded-2 p-3 w-100 min-w-0 lh-base text-break my-bgcolor-gray-4 border border-secondary border-opacity-25 d-flex flex-column"
+                    class="rounded-2 p-3 w-100 min-w-0 lh-base text-break my-bgcolor-gray-4 my-border-muted d-flex flex-column"
                   >
                     <div class="mb-2 d-flex flex-column gap-0 w-100 min-w-0">
                       <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">
@@ -3649,7 +3649,7 @@ async function confirmAnswer(item) {
                         </div>
                         <div
                           v-else-if="seg.kind === 'markdown'"
-                          class="my-rag-unit-type-text-scroll rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4 min-w-0"
+                          class="my-rag-unit-type-text-scroll rounded-2 my-border-muted px-3 py-2 my-bgcolor-gray-4 min-w-0"
                           :class="li < row.detailSegments.length - 1 ? 'mb-2' : 'mb-0'"
                           role="region"
                           aria-label="單元逐字稿"
@@ -3680,7 +3680,7 @@ async function confirmAnswer(item) {
                         >
                           <div
                             v-if="seg.embedSrc"
-                            class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden border border-secondary border-opacity-25"
+                            class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden my-border-muted"
                           >
                             <iframe
                               class="border-0"
@@ -3769,7 +3769,7 @@ async function confirmAnswer(item) {
                   class="col-12 d-flex flex-column gap-1 min-w-0"
                 >
                   <div
-                    class="my-rag-unit-type-text-scroll rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4 min-w-0"
+                    class="my-rag-unit-type-text-scroll rounded-2 my-border-muted px-3 py-2 my-bgcolor-gray-4 min-w-0"
                     role="region"
                     aria-label="單元逐字稿"
                   >
@@ -3814,7 +3814,7 @@ async function confirmAnswer(item) {
                 >
                   <div
                     v-if="activeUnitYoutubeEmbedUrl"
-                    class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden border border-secondary border-opacity-25"
+                    class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden my-border-muted"
                   >
                     <iframe
                       class="border-0"

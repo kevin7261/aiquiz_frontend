@@ -188,6 +188,16 @@ code {
   border: 1px solid var(--my-color-gray-2);
 }
 
+/* 四邊輕描邊（--my-border-muted；勿用 Bootstrap border-secondary／border-opacity-*） */
+.my-border-muted {
+  border: 1px solid var(--my-border-muted);
+}
+
+/* Bootstrap 關閉鈕：圖示改為權杖黑（勿用預設 data-uri #000） */
+.btn-close {
+  --bs-btn-close-bg: var(--my-btn-close-bg-svg);
+}
+
 /* 直向分隔（側欄等；勿用 Bootstrap .border-end 預設色） */
 .my-border-end-gray-2 {
   border-inline-end: 1px solid var(--my-color-gray-2);
