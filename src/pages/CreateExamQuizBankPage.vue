@@ -12,7 +12,7 @@
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元題庫內容」：單元僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 逐字稿區（可垂直捲動）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
+ * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 逐字稿區（可垂直捲動）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
@@ -1096,7 +1096,7 @@ const ragUnitTranscriptModalBodyHtml = computed(() => {
   return renderMarkdownToSafeHtml(raw != null ? String(raw) : '');
 });
 
-/** 「單元題庫內容」文字單元：內嵌 Markdown（與唯讀出題設定之 markdown segment 同 render） */
+/** 「單元內容」文字單元：內嵌 Markdown（與唯讀出題設定之 markdown segment 同 render） */
 const activeUnitTranscriptionMdHtml = computed(() => {
   const tab = activeUnitTabItem.value;
   const raw = tab?.transcription;
@@ -1297,7 +1297,7 @@ watch(
   }
 );
 
-/** 與 Profile LLM Key／來源一致：user_type 1／2／234 才顯示「單元題庫內容」區塊（依 unit_type）；其餘僅見上方單元分頁標籤 */
+/** 與 Profile LLM Key／來源一致：user_type 1／2／234 才顯示「單元內容」區塊（依 unit_type）；其餘僅見上方單元分頁標籤 */
 const canSeeRagUnitSourceFilename = computed(() => {
   const t = Number(authStore.user?.user_type);
   return t === 1 || t === 2 || t === 234;
@@ -1516,7 +1516,7 @@ function quizBankReadonlySourceDisplay(tab) {
 }
 
 /**
- * 唯讀「出題設定」細節：MP3／YouTube 與「單元題庫內容」同層級（播放器／嵌入）；逐字稿另以「逐字稿」開 Modal。
+ * 唯讀「出題設定」細節：MP3／YouTube 與「單元內容」同層級（播放器／嵌入）；逐字稿另以「逐字稿」開 Modal。
  * @returns {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', src: string } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]}
  */
 function buildQuizBankReadonlyDetailSegments(tab) {
@@ -1660,7 +1660,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
     } else {
       detailSegments.push({
         kind: 'text',
-        text: `詳細來源請至下方「出題單元」區選擇「${folderLine || `單元 ${i + 1}`}」後，於「單元題庫內容」檢視。`,
+        text: `詳細來源請至下方「出題單元」區選擇「${folderLine || `單元 ${i + 1}`}」後，於「單元內容」檢視。`,
       });
     }
     return {
@@ -3869,7 +3869,7 @@ async function confirmAnswer(item) {
               v-if="(currentState.unitTabOrder || []).length > 0 && canSeeRagUnitSourceFilename"
               class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0"
             >
-              <div class="my-font-md-600 my-color-black mb-3">單元題庫內容</div>
+              <div class="my-font-md-600 my-color-black mb-3">單元內容</div>
               <div class="row g-3">
                 <div
                   v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_TEXT"
@@ -3959,8 +3959,17 @@ async function confirmAnswer(item) {
                 </div>
               </div>
             </div>
-            <!-- ── 單元底下多題：題型 sub-tab + 列末「+」新增題庫；單一內容區（出題規則 + 題卡）── -->
+            <!-- ── 出題題庫：題型 sub-tab + 列末「+」；出題規則 + 題卡 ── -->
             <template v-if="hasUnitSubTabs">
+              <div
+                class="d-flex align-items-center gap-3 w-100 min-w-0"
+                role="heading"
+                aria-level="2"
+              >
+                <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
+                <span class="my-font-lg-600 my-test-section-heading-title flex-shrink-0">出題題庫</span>
+                <div class="my-test-section-heading-line flex-grow-1" aria-hidden="true" />
+              </div>
               <div
                 v-if="!activeUnitQuizCards.length"
                 class="w-100 d-flex justify-content-center align-items-center px-3 py-5 min-w-0"

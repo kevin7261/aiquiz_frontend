@@ -90,6 +90,11 @@ const showRagQuizForExamToolbar = computed(() => {
 /** 題幹有文字才顯示作答／「開始批改」等（後端空白列或未產出題文時不應出現批改流程） */
 const hasQuizBody = computed(() => String(props.card?.quiz ?? '').trim() !== '');
 
+/** 已取得批改結果內容時不再顯示「開始批改」 */
+const hasPersistedGradingResult = computed(
+  () => String(props.card?.gradingResult ?? '').trim() !== ''
+);
+
 /**
  * designUi 時頂區為 flex gap-4 的子項之一；若第 N 題／單元／難度皆隱藏（如測驗頁、建立題庫 embedded），勿渲染空白包住器，否則與「題目」區之間會多出一格 gap。
  */
@@ -196,69 +201,68 @@ const showQuizCardHeaderBand = computed(
         >
           {{ card.quiz }}
         </div>
-        <div
-          v-if="designUi && showExamRating && hasQuizBody"
-          class="d-flex justify-content-end align-items-center w-100 min-w-0"
-          role="group"
-          aria-label="題目評價"
-        >
-          <button
-            type="button"
-            class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle flex-shrink-0 border-0 shadow-none lh-1"
-            title="讚"
-            :aria-pressed="card.quiz_rate === 1"
-            @click="emit('rate-quiz', 'up')"
+        <template v-if="designUi && showExamRating && hasQuizBody">
+          <div
+            class="d-flex flex-row flex-wrap justify-content-between align-items-center gap-2 w-100 min-w-0"
           >
-            <i
-              class="fa-thumbs-up"
-              :class="card.quiz_rate === 1 ? 'fa-solid my-color-black' : 'fa-regular my-color-gray-1'"
-              aria-hidden="true"
-            />
-            <span class="visually-hidden">讚</span>
-          </button>
-          <button
-            type="button"
-            class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle flex-shrink-0 border-0 shadow-none lh-1"
-            title="差"
-            :aria-pressed="card.quiz_rate === -1"
-            @click="emit('rate-quiz', 'down')"
+            <button
+              type="button"
+              class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
+              @click="emit('toggle-hint', card)"
+            >
+              {{ card.hintVisible ? '隱藏提示' : '顯示提示' }}
+            </button>
+            <div
+              class="d-inline-flex justify-content-end align-items-center flex-shrink-0 gap-1"
+              role="group"
+              aria-label="題目評價"
+            >
+              <button
+                type="button"
+                class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle flex-shrink-0 border-0 shadow-none lh-1"
+                title="讚"
+                :aria-pressed="card.quiz_rate === 1"
+                @click="emit('rate-quiz', 'up')"
+              >
+                <i
+                  class="fa-thumbs-up"
+                  :class="card.quiz_rate === 1 ? 'fa-solid my-color-black' : 'fa-regular my-color-gray-1'"
+                  aria-hidden="true"
+                />
+                <span class="visually-hidden">讚</span>
+              </button>
+              <button
+                type="button"
+                class="btn rounded-circle d-flex justify-content-center align-items-center my-font-md-400 my-button-transparent-borderless my-btn-circle flex-shrink-0 border-0 shadow-none lh-1"
+                title="差"
+                :aria-pressed="card.quiz_rate === -1"
+                @click="emit('rate-quiz', 'down')"
+              >
+                <i
+                  class="fa-thumbs-down"
+                  :class="card.quiz_rate === -1 ? 'fa-solid my-color-black' : 'fa-regular my-color-gray-1'"
+                  aria-hidden="true"
+                />
+                <span class="visually-hidden">差</span>
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="card.rateError"
+            class="my-font-sm-400 my-color-red text-end mb-0 w-100"
           >
-            <i
-              class="fa-thumbs-down"
-              :class="card.quiz_rate === -1 ? 'fa-solid my-color-black' : 'fa-regular my-color-gray-1'"
-              aria-hidden="true"
-            />
-            <span class="visually-hidden">差</span>
-          </button>
-        </div>
-        <div
-          v-if="designUi && showExamRating && hasQuizBody && card.rateError"
-          class="my-font-sm-400 my-color-red text-end mb-0 w-100"
-        >
-          {{ card.rateError }}
-        </div>
+            {{ card.rateError }}
+          </div>
+          <div
+            v-show="card.hintVisible"
+            class="my-font-sm-400 form-control my-input-md my-input-md--on-dark my-bgcolor-light-gray rounded-2 w-100 min-w-0 px-3 py-2 my-color-gray-4"
+          >
+            {{ card.hint }}
+          </div>
+        </template>
       </div>
       <div
-        v-if="designUi && showExamRating && hasQuizBody"
-        class="w-100 min-w-0 d-flex flex-column gap-1 mb-0"
-      >
-        <button
-          type="button"
-          class="btn rounded-pill d-inline-flex justify-content-center align-items-center align-self-start flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
-          style="flex: 0 0 auto;"
-          @click="emit('toggle-hint', card)"
-        >
-          {{ card.hintVisible ? '隱藏提示' : '顯示提示' }}
-        </button>
-        <div
-          v-show="card.hintVisible"
-          class="my-font-sm-400 form-control my-input-md my-input-md--on-dark my-bgcolor-light-gray rounded-2 w-100 min-w-0 px-3 py-2 my-color-gray-4"
-        >
-          {{ card.hint }}
-        </div>
-      </div>
-      <div
-        v-else-if="!(designUi && showExamRating)"
+        v-if="!(designUi && showExamRating)"
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
@@ -344,6 +348,7 @@ const showQuizCardHeaderBand = computed(
           />
         </div>
         <div
+          v-if="!hasPersistedGradingResult"
           :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'"
         >
           <button

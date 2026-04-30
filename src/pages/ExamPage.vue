@@ -664,7 +664,7 @@ function examSlotUnitTranscriptSection(slotIndex) {
   };
 }
 
-/** 測驗頁單元逐字稿：Markdown → 安全 HTML（與建立題庫頁「單元題庫內容」區一致） */
+/** 測驗頁單元逐字稿：Markdown → 安全 HTML（與建立題庫頁「單元內容」區一致） */
 function examSlotUnitTranscriptMdHtml(slotIndex) {
   const sec = examSlotUnitTranscriptSection(slotIndex);
   if (!sec) return '';
