@@ -1,7 +1,7 @@
 /**
  * 評分結果格式化工具
  *
- * 將評分 API 回傳的 JSON 轉成易讀的純文字，供題目卡片與分析頁顯示。
+ * 將評分 API 回傳的 JSON 轉成顯示用純文字：不外加標題／項目符號等，依欄位原樣以換行串接。
  * 批改 result 總分欄位為 quiz_score（滿分 5）；相容 quiz_grade、舊版 score。評語陣列欄位為 quiz_comments。
  * GET /exam/tabs、/person-analysis/quizzes 等作答列可能將 quiz_comments 放在 quiz_grade_metadata 內（與頂層 quiz_grade 並存），會一併讀取。其餘為舊制 rubric 等仍相容顯示。
  */
@@ -58,10 +58,10 @@ export function formatQuizGradeDisplay(value) {
 }
 
 /**
- * 將評分 API 回傳的 JSON 字串格式化为易讀文字
+ * 將評分 API 回傳的 JSON 字串转为顯示用文字（無外加【評語】等標籤）。
  *
  * 新制 RAG／測驗批改：總分 quiz_score（0–5 滿分）、quiz_comments（字串陣列）；列表 API 作答列可將兩者放在 quiz_grade_metadata。RAG 輪詢 result 另含 rag_answer_id（不列入純文字批改區塊）。
- * 舊制：另含 level、rubric、strengths、weaknesses 等（總分仍為／5）。
+ * 舊制：另含 level、rubric、strengths、weaknesses 等。
  *
  * @param {string} [text] - API 回傳的 JSON 字串或一般文字
  * @returns {string} 格式化後的文字，非 JSON 或解析失敗時回傳原 text
@@ -94,53 +94,51 @@ export function formatGradingResult(text) {
           : gradeMeta;
     }
 
-    // 新制：總分 0–5 與評語陣列 quiz_comments
+    // 新制：總分與評語陣列（原樣串接，不加標題或項目符號）
     const quizComments = getQuizCommentsArray(data);
     if (quizComments) {
-      const lines = [];
+      const parts = [];
       const overall = getOverallQuizScore(data);
-      if (overall != null) {
-        lines.push(`總分：${overall} / 5`);
+      if (overall != null && String(overall).trim() !== '') {
+        parts.push(String(overall).trim());
       }
       const nonEmptyComments = quizComments.filter((c) => c != null && String(c).trim() !== '');
       if (nonEmptyComments.length > 0) {
-        if (lines.length) lines.push('');
-        lines.push('【評語】');
-        nonEmptyComments.forEach((c) => lines.push(`• ${String(c).trim()}`));
+        parts.push(nonEmptyComments.map((c) => String(c).trim()).join('\n'));
       }
-      return lines.join('\n').trim() || text;
+      return parts.join('\n').trim() || text;
     }
 
-    const lines = [];
+    const chunks = [];
     const overallLegacy = getOverallQuizScore(data);
-    if (overallLegacy != null) lines.push(`總分：${overallLegacy} / 5`);
-    if (data.level) lines.push(`等級：${data.level}`);
-    if (lines.length) lines.push('');
+    if (overallLegacy != null && String(overallLegacy).trim() !== '') {
+      chunks.push(String(overallLegacy).trim());
+    }
+    if (data.level != null && String(data.level).trim() !== '') {
+      chunks.push(String(data.level).trim());
+    }
 
     const rubric = data.rubric;
     if (Array.isArray(rubric) && rubric.length > 0) {
-      lines.push('【評分項目】');
-      rubric.forEach((r) => {
+      const rubricLines = rubric.map((r) => {
         const criteria = r.criteria ?? '';
-        const score = r.score != null ? ` (${r.score}分)` : '';
-        const comment = r.comment ? `\n  ${r.comment}` : '';
-        lines.push(`• ${criteria}${score}${comment}`);
+        const scorePart = r.score != null ? ` (${r.score}分)` : '';
+        const comment = r.comment != null && String(r.comment).trim() !== '' ? `\n${String(r.comment).trim()}` : '';
+        return `${criteria}${scorePart}${comment}`;
       });
-      lines.push('');
+      chunks.push(rubricLines.join('\n'));
     }
 
-    const section = (title, arr) => {
+    const joinLines = (arr) => {
       if (!Array.isArray(arr) || arr.length === 0) return;
-      lines.push(`【${title}】`);
-      arr.forEach((s) => lines.push(`• ${s}`));
-      lines.push('');
+      chunks.push(arr.map((s) => String(s).trim()).filter((s) => s !== '').join('\n'));
     };
-    section('優點', data.strengths);
-    section('待改進', data.weaknesses);
-    section('遺漏項目', data.missing_items);
-    section('建議後續', data.action_items);
+    joinLines(data.strengths);
+    joinLines(data.weaknesses);
+    joinLines(data.missing_items);
+    joinLines(data.action_items);
 
-    return lines.join('\n').trim() || text;
+    return chunks.filter(Boolean).join('\n\n').trim() || text;
   } catch (_) {
     return text;
   }
