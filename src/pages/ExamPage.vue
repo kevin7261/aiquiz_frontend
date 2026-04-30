@@ -2133,19 +2133,6 @@ onActivated(() => {
               <div
                 class="d-flex flex-column gap-4 w-100 min-w-0"
               >
-                <div
-                  v-if="
-                    activeTabId &&
-                      !forExamLoading &&
-                      !forExamError &&
-                      getCurrentPersonId() &&
-                      examUnitTabItems.length === 0
-                  "
-                  class="my-alert-warning-soft my-font-sm-400 py-2 px-3 mb-0"
-                  role="status"
-                >
-                  試卷題庫目前沒有可用的測驗單元。常見原因：GET /exam/rag-for-exams 只回傳已標為測驗用（for_exam）的教材／題目；請至「建立測驗題庫」完成標記，並在開發者工具 Network 確認該 API 的 units 是否非空。
-                </div>
                 <template v-for="(slotIndex) in currentState.quizSlotsCount" :key="slotIndex">
                   <template v-if="currentState.cardList[slotIndex - 1]">
                     <div

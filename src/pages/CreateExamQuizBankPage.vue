@@ -12,7 +12,7 @@
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id），再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元題庫內容」：單元名稱僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 逐字稿區（可垂直捲動）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
+ * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元題庫內容」：單元名稱僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 逐字稿區（可垂直捲動）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
@@ -335,6 +335,23 @@ const hasAnySlotGenerating = computed(() => {
   return false;
 });
 
+/** 題型列「+」與「產生題目」共用 unitQuizCreateLoading，由此區分全螢幕 overlay 主文案 */
+const activeUnitQuizLoadingOverlayKind = computed(() => {
+  const state = currentState.value;
+  const n = Number(state.quizSlotsCount) || 0;
+  for (let i = 1; i <= n; i++) {
+    const slot = state.slotFormState[i];
+    if (!slot?.unitQuizCreateLoading) continue;
+    if (slot.unitQuizLoadingOverlayKind === 'add-row') return 'add-row';
+  }
+  for (let i = 1; i <= n; i++) {
+    const slot = state.slotFormState[i];
+    if (!slot?.unitQuizCreateLoading) continue;
+    if (slot.unitQuizLoadingOverlayKind === 'llm-generate') return 'llm-generate';
+  }
+  return null;
+});
+
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
 /** 出題單元：文字／mp3／YouTube 逐字稿 GET 期間 */
@@ -362,6 +379,7 @@ const loadingOverlayVisible = computed(
 
 const loadingOverlayText = computed(() => {
   if (isGradingSubmitting.value) return '批改中...';
+  if (activeUnitQuizLoadingOverlayKind.value === 'add-row') return '產生題型中';
   if (hasAnySlotGenerating.value) return '產生題目中...';
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
@@ -1144,7 +1162,7 @@ async function onMarkRagQuizForExam(card) {
   }
 }
 
-/** 與 QuizCard showRagQuizForExamToolbar 一致：有批改結果、有效 rag_quiz_id、非批改送出中時，於目前題型 sub-tab 內容區右上角顯示 for-exam 鈕 */
+/** 與 QuizCard showRagQuizForExamToolbar 一致：有批改結果、有效 rag_quiz_id、非批改送出中時，於目前題型 sub-tab 內容區塊下方置中顯示 for-exam 鈕 */
 function showRagQuizForExamToolbarRow(card) {
   if (!card || typeof card !== 'object') return false;
   if (String(card.gradingResult ?? '').trim() === '') return false;
@@ -1161,6 +1179,25 @@ function showRagQuizForExamToolbarRow(card) {
 
 /** 單元題型列／草稿預設名稱（無後端 quiz_name、使用者未填時） */
 const DEFAULT_UNIT_QUIZ_DISPLAY_NAME = '未命名題型';
+
+/**
+ * POST /rag/tab/unit/quiz/create 未附 quiz_name 時，後端常將 quiz_name 設為 unit_name；
+ * 與前端草稿一致：建立後立刻 PUT quiz-name（失敗則略過，不阻斷新增／出題）。
+ */
+async function persistDefaultUnitQuizNameAfterCreate(ragQuizId, personId) {
+  const id = Number(ragQuizId);
+  if (!Number.isFinite(id) || id < 1) return;
+  const pid = String(personId ?? '').trim();
+  if (!pid) return;
+  try {
+    await apiUpdateRagQuizName(
+      { rag_quiz_id: id, quiz_name: DEFAULT_UNIT_QUIZ_DISPLAY_NAME },
+      pid
+    );
+  } catch {
+    /* 後端不支援或網路錯誤時保留後端預設題名 */
+  }
+}
 
 const activeUnitQuizCards = computed(() => {
   const state = currentState.value;
@@ -2413,6 +2450,8 @@ function getSlotFormState(slotIndex) {
       /** 目前此槽位在「所屬單元」內的第幾題（按題型列「+」推入草稿列時遞增） */
       unitPromptOrdinalInUnit: null,
       unitQuizCreateLoading: false,
+      /** LoadingOverlay 文案：`add-row`＝題型列「+」；`llm-generate`＝單元內「產生題目」 */
+      unitQuizLoadingOverlayKind: null,
       unitQuizCreateError: '',
       loading: false,
       error: '',
@@ -2424,6 +2463,7 @@ function getSlotFormState(slotIndex) {
   if (slot.lastSuccessfulCreatedRagQuizId === undefined) slot.lastSuccessfulCreatedRagQuizId = null;
   if (slot.unitPromptOrdinalInUnit === undefined) slot.unitPromptOrdinalInUnit = null;
   if (slot.unitQuizCreateLoading === undefined) slot.unitQuizCreateLoading = false;
+  if (slot.unitQuizLoadingOverlayKind === undefined) slot.unitQuizLoadingOverlayKind = null;
   if (slot.unitQuizCreateError === undefined) slot.unitQuizCreateError = '';
   return slot;
 }
@@ -2506,6 +2546,7 @@ async function createBlankUnitQuiz(slotIndex) {
     return;
   }
   slotState.unitQuizCreateLoading = true;
+  slotState.unitQuizLoadingOverlayKind = 'add-row';
   try {
     const createData = await apiCreateRagUnitQuiz(
       { rag_tab_id: ragTabId, rag_unit_id: ragUnitId },
@@ -2516,6 +2557,7 @@ async function createBlankUnitQuiz(slotIndex) {
     if (newRq == null) {
       throw new Error('後端未回傳有效的 rag_quiz_id');
     }
+    await persistDefaultUnitQuizNameAfterCreate(newRq, personId);
     slotState.showGenerateForm = true;
     slotState.quizUserPromptText = String(slotState.quizUserPromptText ?? '');
     if (tab?.generateQuizTabId) {
@@ -2555,6 +2597,7 @@ async function createBlankUnitQuiz(slotIndex) {
     slotState.unitQuizCreateError = err?.message || String(err) || '新增題庫失敗';
   } finally {
     slotState.unitQuizCreateLoading = false;
+    slotState.unitQuizLoadingOverlayKind = null;
   }
 }
 
@@ -2607,6 +2650,7 @@ async function submitUnitQuizLlmGenerate(slotIndex, quizCardRow = null) {
   const quizNameOut =
     quizNameRaw !== '' ? quizNameRaw : DEFAULT_UNIT_QUIZ_DISPLAY_NAME;
   slotState.unitQuizCreateLoading = true;
+  slotState.unitQuizLoadingOverlayKind = 'llm-generate';
   slotState.unitQuizCreateError = '';
   try {
     if (
@@ -2639,6 +2683,7 @@ async function submitUnitQuizLlmGenerate(slotIndex, quizCardRow = null) {
       if (newRq == null) {
         throw new Error('後端未回傳有效的 rag_quiz_id');
       }
+      await persistDefaultUnitQuizNameAfterCreate(newRq, personId);
       quizCardRow.rag_quiz_id = newRq;
       if (quizCardRow.rag_tab_id == null || String(quizCardRow.rag_tab_id).trim() === '') {
         quizCardRow.rag_tab_id = ragTabIdCreate;
@@ -2712,6 +2757,7 @@ async function submitUnitQuizLlmGenerate(slotIndex, quizCardRow = null) {
     slotState.unitQuizCreateError = err.message || '產生題目失敗';
   } finally {
     slotState.unitQuizCreateLoading = false;
+    slotState.unitQuizLoadingOverlayKind = null;
   }
 }
 
@@ -3971,31 +4017,6 @@ async function confirmAnswer(item) {
                 v-if="activeUnitQuizCard"
                 class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 text-start d-flex flex-column gap-3"
               >
-                <div
-                  v-if="showRagQuizForExamToolbarRow(activeUnitQuizCard)"
-                  class="d-flex flex-row justify-content-end w-100 min-w-0"
-                >
-                  <button
-                    type="button"
-                    :class="
-                      activeUnitQuizCard?.rag_quiz_for_exam === true
-                        ? 'btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-btn-outline-green-hollow flex-shrink-0 px-3 py-1'
-                        : 'btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-green flex-shrink-0 px-3 py-1'
-                    "
-                    :disabled="activeUnitQuizCard.ragQuizForExamLoading"
-                    :aria-busy="activeUnitQuizCard.ragQuizForExamLoading"
-                    @click="onMarkRagQuizForExam(activeUnitQuizCard)"
-                  >
-                    {{ activeUnitQuizCard?.rag_quiz_for_exam === true ? '取消設為測驗用' : '設為測驗用' }}
-                  </button>
-                </div>
-                <div
-                  v-if="showRagQuizForExamToolbarRow(activeUnitQuizCard) && String(activeUnitQuizCard.ragQuizForExamError ?? '').trim()"
-                  class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 w-100 text-break"
-                  role="alert"
-                >
-                  {{ activeUnitQuizCard.ragQuizForExamError }}
-                </div>
                 <div class="d-flex flex-column gap-0 min-w-0">
                   <label
                     class="form-label my-color-gray-1 my-font-sm-400 mb-0 d-block"
@@ -4055,6 +4076,31 @@ async function confirmAnswer(item) {
                   @update:quiz_answer="(val) => { activeUnitQuizCard.quiz_answer = val }"
                   @update:grading_prompt="(val) => { activeUnitQuizCard.gradingPrompt = val }"
                 />
+                <template v-if="showRagQuizForExamToolbarRow(activeUnitQuizCard)">
+                  <div class="d-flex flex-column align-items-center gap-2 w-100 min-w-0 pt-1">
+                    <button
+                      type="button"
+                      :class="
+                        activeUnitQuizCard?.rag_quiz_for_exam === true
+                          ? 'btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-btn-outline-green-hollow px-3 py-2'
+                          : 'btn rounded-pill d-flex justify-content-center align-items-center my-font-md-400 my-button-green px-3 py-2'
+                      "
+                      :disabled="activeUnitQuizCard.ragQuizForExamLoading"
+                      :aria-busy="activeUnitQuizCard.ragQuizForExamLoading"
+                      @click="onMarkRagQuizForExam(activeUnitQuizCard)"
+                    >
+                      {{ activeUnitQuizCard?.rag_quiz_for_exam === true ? '取消設為測驗用' : '設為測驗用' }}
+                    </button>
+                    <div
+                      v-if="String(activeUnitQuizCard.ragQuizForExamError ?? '').trim()"
+                      class="my-alert-danger-soft my-font-sm-400 py-2 mb-0 w-100 text-break text-center"
+                      style="max-width: 42rem"
+                      role="alert"
+                    >
+                      {{ activeUnitQuizCard.ragQuizForExamError }}
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
             <template v-else-if="!hasUnitSubTabs">
