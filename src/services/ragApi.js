@@ -15,6 +15,7 @@ import {
   API_RAG_TRANSCRIPT_AUDIO,
   API_RAG_TRANSCRIPT_YOUTUBE,
   API_RAG_TAB_UNITS,
+  API_RAG_TAB_UNIT_MP3_FILE,
   API_RAG_TAB_UNIT_QUIZ_CREATE,
   API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE,
   API_RAG_TAB_UNIT_QUIZ_FOR_EXAM,
@@ -120,6 +121,33 @@ export async function apiRagTranscriptYoutubeByFolder(params) {
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
+}
+
+/**
+ * GET /rag/tab/unit/mp3-file — 音訊單元（Rag_Unit.unit_type=3）原始音訊。
+ * 組出含 query（rag_tab_id、rag_unit_id、person_id）的完整 URL，供 `<audio :src>` 等直接 GET 使用。
+ * @param {{ rag_tab_id: string, rag_unit_id: number, personId?: string | null }} params
+ * @returns {string} 參數不全或 rag_unit_id 非正整數時回傳空字串
+ */
+export function buildRagTabUnitMp3FileUrl(params) {
+  const rag_tab_id = String(params.rag_tab_id ?? '').trim();
+  const rag_unit_id = Number(params.rag_unit_id);
+  const personRaw = params.personId;
+  const personId =
+    personRaw != null && String(personRaw).trim() !== '' ? String(personRaw).trim() : '';
+  if (!rag_tab_id || !personId) return '';
+  if (!Number.isFinite(rag_unit_id) || rag_unit_id < 1) return '';
+  const base = String(API_BASE).replace(/\/$/, '');
+  let u;
+  try {
+    u = new URL(`${base}${API_RAG_TAB_UNIT_MP3_FILE}`);
+  } catch {
+    return '';
+  }
+  u.searchParams.set('rag_tab_id', rag_tab_id);
+  u.searchParams.set('rag_unit_id', String(rag_unit_id));
+  u.searchParams.set('person_id', personId);
+  return u.toString();
 }
 
 /**

@@ -12,7 +12,7 @@
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；「新增題目」POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id），再填題名／出題 prompt 後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；「單元基本資訊」：user_type 1／2／234 顯示單元名稱；unit_type≠1 時顯示逐字稿（`transcription`）；來源（unit_type=2 為 `text_file_name`；3／4 為 `mp3_file_name`／`youtube_url`）；RAG（1）僅來源檔案；其餘（如 3）僅單元名稱
+ * - 單元子分頁：GET /rag/tab/units；「新增題目」POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id），再填題名／出題 prompt 後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為測驗用 Rag_Quiz POST /rag/tab/unit/quiz/for-exam（body: rag_quiz_id、rag_tab_id、rag_unit_id；for_exam 可切 true／false）；「單元題庫內容」：單元名稱僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 區（不另標「逐字稿」、可垂直捲動，不顯示檔名）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
@@ -37,11 +37,13 @@ import {
   apiRagUnitQuizLlmGenerate,
   apiMarkRagQuizForExam,
   apiGenerateQuiz,
+  buildRagTabUnitMp3FileUrl,
   is504OrNetworkError,
 } from '../services/ragApi.js';
 import { formatGradingResult } from '../utils/grading.js';
 import { formatFileSize } from '../utils/formatFileSize.js';
 import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
+import { youtubeEmbedUrlFromInput } from '../utils/youtubeEmbed.js';
 import { submitGrade } from '../composables/useQuizGrading.js';
 import {
   generateTabId,
@@ -731,11 +733,6 @@ function unitYoutubeUrl(unit) {
   return raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
 }
 
-function looksLikeHttpUrl(s) {
-  const t = String(s ?? '').trim();
-  return /^https?:\/\//i.test(t);
-}
-
 function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
   if (!unit || typeof unit !== 'object') return null;
   const rawName =
@@ -937,12 +934,41 @@ const activeUnitTabItem = computed(() => {
   return tabs.find((t) => t.id === activeId) ?? null;
 });
 
-/** 單元基本資訊「逐字稿」：以 Markdown 渲染（與全站 renderMarkdown 一致） */
+/** 「單元題庫內容」區：文字單元內嵌 Markdown（與全站 renderMarkdown 一致） */
 const activeUnitTranscriptionMdHtml = computed(() => {
   const tab = activeUnitTabItem.value;
   const raw = tab?.transcription;
   return renderMarkdownToSafeHtml(raw != null ? String(raw) : '');
 });
+
+/** unit_type=3：GET /rag/tab/unit/mp3-file 之 `<audio src>`（須 rag_tab_id、rag_unit_id、person_id） */
+const activeUnitMp3PlaybackUrl = computed(() => {
+  const tab = activeUnitTabItem.value;
+  if (!tab || tab.unitType !== UNIT_TYPE_MP3) return '';
+  const rag_tab_id = String(tab.ragTabId ?? '').trim();
+  const ru = tab.ragUnitDbId != null ? Number(tab.ragUnitDbId) : 0;
+  const personId = getPersonId(authStore);
+  if (!personId) return '';
+  return buildRagTabUnitMp3FileUrl({ rag_tab_id, rag_unit_id: ru, personId });
+});
+
+/** unit_type=4：內嵌播放器用 embed URL */
+const activeUnitYoutubeEmbedUrl = computed(() => {
+  const tab = activeUnitTabItem.value;
+  if (!tab || tab.unitType !== UNIT_TYPE_YOUTUBE) return '';
+  const raw = tab.youtubeUrl != null ? String(tab.youtubeUrl).trim() : '';
+  return youtubeEmbedUrlFromInput(raw);
+});
+
+const ragUnitTranscriptModalOpen = ref(false);
+
+function openRagUnitTranscriptModal() {
+  ragUnitTranscriptModalOpen.value = true;
+}
+
+function closeRagUnitTranscriptModal() {
+  ragUnitTranscriptModalOpen.value = false;
+}
 
 const activeUnitSlotIndex = computed(() => {
   const tabs = currentState.value.unitTabOrder ?? [];
@@ -1019,13 +1045,13 @@ const activeUnitQuizCards = computed(() => {
 
 const hasUnitSubTabs = computed(() => (currentState.value.unitTabOrder ?? []).length > 0);
 
-/** 與 Profile LLM Key／來源一致：user_type 1／2／234 顯示「逐字稿」（僅 unit_type 2／3／4）、來源（依 unit_type）；3 等僅單元名稱 */
+/** 與 Profile LLM Key／來源一致：user_type 1／2／234 才顯示「單元題庫內容」區塊（依 unit_type）；其餘僅見上方單元分頁標籤 */
 const canSeeRagUnitSourceFilename = computed(() => {
   const t = Number(authStore.user?.user_type);
   return t === 1 || t === 2 || t === 234;
 });
 
-/** quiz_content（card.quiz）為空時：該列出題 prompt 可編輯、顯示「產生題目」（不依賴 showGenerateForm／草稿對齊；多筆空白題各自綁 quizUserPromptText） */
+/** quiz_content（card.quiz）為空與否：出題 prompt 皆為編輯器；空白列顯示「產生題目」等仍用此判斷（不依賴 showGenerateForm／草稿對齊；多筆各自綁 quizUserPromptText） */
 function quizRowQuizEmpty(card) {
   return !String(card?.quiz ?? '').trim();
 }
@@ -2447,6 +2473,45 @@ async function confirmAnswer(item) {
       title="修改名稱"
       @save="onRenameRagTabSave"
     />
+    <Teleport to="body">
+      <div
+        v-if="ragUnitTranscriptModalOpen"
+        class="modal fade show d-block my-modal-backdrop"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rag-unit-transcript-modal-title"
+        @click.self="closeRagUnitTranscriptModal"
+      >
+        <div
+          class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
+          @click.stop
+        >
+          <div class="modal-content border-0 my-bgcolor-gray-3 p-4 d-flex flex-column gap-3">
+            <div class="modal-header border-bottom-0 p-0">
+              <h5 id="rag-unit-transcript-modal-title" class="modal-title my-color-black">逐字稿</h5>
+              <button
+                type="button"
+                class="btn-close"
+                aria-label="關閉"
+                @click="closeRagUnitTranscriptModal"
+              />
+            </div>
+            <div class="modal-body p-0" style="max-height: 70vh; overflow: auto;">
+              <div
+                v-if="activeUnitTranscriptionMdHtml"
+                class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                v-html="activeUnitTranscriptionMdHtml"
+              />
+              <span
+                v-else
+                class="my-font-md-400 my-color-black"
+              >—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <header class="flex-shrink-0 my-bgcolor-gray-4 p-4">
       <div class="container-fluid px-0 text-center">
         <p class="my-font-xl-400 my-color-black text-break mb-0">{{ pageTitle }}</p>
@@ -3082,25 +3147,17 @@ async function confirmAnswer(item) {
               </div>
             </div>
             <div
-              v-if="(currentState.unitTabOrder || []).length > 0"
+              v-if="(currentState.unitTabOrder || []).length > 0 && canSeeRagUnitSourceFilename"
               class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0"
             >
-              <div class="my-font-md-600 my-color-black mb-3">單元基本資訊</div>
+              <div class="my-font-md-600 my-color-black mb-3">單元題庫內容</div>
               <div class="row g-3">
                 <div
-                  class="col-12 d-flex flex-column gap-1"
-                >
-                  <span class="my-font-sm-400 my-color-gray-1">單元名稱</span>
-                  <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.unitName || activeUnitTabItem?.label || '—' }}</span>
-                </div>
-                <div
-                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType !== UNIT_TYPE_RAG"
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_TEXT"
                   class="col-12 d-flex flex-column gap-1 min-w-0"
                 >
-                  <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
                   <div
-                    class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
-                    style="max-height: 240px; overflow: auto;"
+                    class="my-rag-unit-type-text-scroll rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4 min-w-0"
                     role="region"
                     aria-label="單元逐字稿"
                   >
@@ -3116,41 +3173,63 @@ async function confirmAnswer(item) {
                   </div>
                 </div>
                 <div
-                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_TEXT"
-                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_MP3 && activeUnitMp3PlaybackUrl"
+                  class="col-12 min-w-0"
                 >
-                  <span class="my-font-sm-400 my-color-gray-1">文字檔</span>
-                  <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.textFileName || '—' }}</span>
+                  <audio
+                    :key="activeUnitMp3PlaybackUrl"
+                    controls
+                    class="w-100"
+                    preload="none"
+                    :src="activeUnitMp3PlaybackUrl"
+                  />
                 </div>
                 <div
                   v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_MP3"
-                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                  class="col-12 d-flex justify-content-center w-100 min-w-0 pt-1"
                 >
-                  <span class="my-font-sm-400 my-color-gray-1">MP3</span>
-                  <span class="my-font-md-400 my-color-black text-break">{{ activeUnitTabItem?.mp3FileName || '—' }}</span>
+                  <button
+                    type="button"
+                    class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                    @click="openRagUnitTranscriptModal"
+                  >
+                    逐字稿
+                  </button>
                 </div>
                 <div
                   v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_YOUTUBE"
-                  class="col-12 d-flex flex-column gap-1 min-w-0"
+                  class="col-12 d-flex flex-column gap-2 min-w-0"
                 >
-                  <span class="my-font-sm-400 my-color-gray-1">YouTube</span>
-                  <template v-if="activeUnitTabItem?.youtubeUrl">
-                    <a
-                      v-if="looksLikeHttpUrl(activeUnitTabItem.youtubeUrl)"
-                      class="my-font-md-400 text-break"
-                      :href="activeUnitTabItem.youtubeUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >{{ activeUnitTabItem.youtubeUrl }}</a>
-                    <span
-                      v-else
-                      class="my-font-md-400 my-color-black text-break"
-                    >{{ activeUnitTabItem.youtubeUrl }}</span>
-                  </template>
+                  <div
+                    v-if="activeUnitYoutubeEmbedUrl"
+                    class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden border border-secondary border-opacity-25"
+                  >
+                    <iframe
+                      class="border-0"
+                      title="YouTube 影片"
+                      :src="activeUnitYoutubeEmbedUrl"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerpolicy="strict-origin-when-cross-origin"
+                      allowfullscreen
+                    />
+                  </div>
                   <span
-                    v-else
+                    v-if="!activeUnitYoutubeEmbedUrl && activeUnitTabItem?.youtubeUrl"
+                    class="my-font-md-400 my-color-black text-break"
+                  >{{ activeUnitTabItem.youtubeUrl }}</span>
+                  <span
+                    v-else-if="!activeUnitYoutubeEmbedUrl"
                     class="my-font-md-400 my-color-black text-break"
                   >—</span>
+                  <div class="d-flex justify-content-center w-100 pt-1">
+                    <button
+                      type="button"
+                      class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                      @click="openRagUnitTranscriptModal"
+                    >
+                      逐字稿
+                    </button>
+                  </div>
                 </div>
                 <div
                   v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_RAG"
@@ -3162,7 +3241,7 @@ async function confirmAnswer(item) {
               </div>
             </div>
             <!-- ── 單元底下多題：每題獨立一區塊（prompt + 題卡）── -->
-            <template v-if="hasUnitSubTabs && (getSlotFormState(activeUnitSlotIndex).showGenerateForm || activeUnitQuizCards.length > 0)">
+            <template v-if="hasUnitSubTabs">
               <div class="d-flex flex-column align-items-stretch gap-4 w-100">
                 <div
                   v-for="(quizCard, qIdx) in activeUnitQuizCards"
@@ -3202,51 +3281,35 @@ async function confirmAnswer(item) {
                   <div class="d-flex flex-column gap-2 min-w-0">
                     <label
                       class="my-color-gray-1 my-font-sm-400 mb-0 d-block"
-                      :for="quizRowQuizEmpty(quizCard) ? `rag-unit-quiz-prompt-${activeUnitSlotIndex}-${qIdx}` : undefined"
+                      :for="`rag-unit-quiz-prompt-${activeUnitSlotIndex}-${qIdx}`"
                     >
                       出題prompt
                     </label>
                     <div class="my-rag-unit-quiz-prompt-editor min-w-0">
                       <EnglishExamMarkdownEditor
-                        v-if="quizRowQuizEmpty(quizCard)"
                         v-model="quizCard.quizUserPromptText"
                         :preview-only="false"
                         placeholder="貼上或輸入出題 Markdown…"
                         :textarea-id="`rag-unit-quiz-prompt-${activeUnitSlotIndex}-${qIdx}`"
                         :disabled="!!getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading"
                       />
-                      <EnglishExamMarkdownEditor
-                        v-else
-                        :model-value="String(quizCard.quizUserPromptText ?? '')"
-                        preview-only
-                        preview-design-dark
-                        :textarea-id="`rag-unit-quiz-preview-${activeUnitSlotIndex}-${qIdx}`"
-                      />
                     </div>
                   </div>
-                  <template v-if="quizRowQuizEmpty(quizCard)">
-                    <div class="d-flex justify-content-center">
-                      <button
-                        type="button"
-                        class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
-                        :disabled="
-                          getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading ||
-                          !promptTextForQuizRow(quizCard, activeUnitSlotIndex) ||
-                          !String(quizCard?.quizName ?? '').trim().length
-                        "
-                        :aria-busy="getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading"
-                        @click="submitUnitQuizLlmGenerate(activeUnitSlotIndex, quizCard)"
-                      >
-                        產生題目
-                      </button>
-                    </div>
-                    <div
-                      v-if="getSlotFormState(activeUnitSlotIndex).unitQuizCreateError"
-                      class="my-alert-danger-soft my-font-sm-400 py-2 mb-0"
+                  <div class="d-flex justify-content-center">
+                    <button
+                      type="button"
+                      class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
+                      :disabled="
+                        getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading ||
+                        !promptTextForQuizRow(quizCard, activeUnitSlotIndex) ||
+                        !String(quizCard?.quizName ?? '').trim().length
+                      "
+                      :aria-busy="getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading"
+                      @click="submitUnitQuizLlmGenerate(activeUnitSlotIndex, quizCard)"
                     >
-                      {{ getSlotFormState(activeUnitSlotIndex).unitQuizCreateError }}
-                    </div>
-                  </template>
+                      產生題目
+                    </button>
+                  </div>
                   <QuizCard
                     v-if="String(quizCard.quiz ?? '').trim().length > 0"
                     :card="quizCard"
@@ -3388,5 +3451,32 @@ async function confirmAnswer(item) {
 }
 .my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 200px;
+}
+/* unit_type=2：單元題庫內容 Markdown 區；淺底區塊內捲軸需較深 thumb，否則貼近全站預設會過淡 */
+.my-rag-unit-type-text-scroll {
+  max-height: min(40vh, 20rem);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--my-color-gray-1) var(--my-color-gray-2);
+}
+.my-rag-unit-type-text-scroll::-webkit-scrollbar {
+  width: var(--my-scrollbar-size);
+}
+.my-rag-unit-type-text-scroll::-webkit-scrollbar-track {
+  background: var(--my-color-gray-2);
+  border-radius: calc(var(--my-scrollbar-size) / 2);
+}
+.my-rag-unit-type-text-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--my-color-gray-1);
+  background-clip: padding-box;
+  border: var(--my-scrollbar-thumb-inset) solid transparent;
+  border-radius: calc(var(--my-scrollbar-size) / 2 - var(--my-scrollbar-thumb-inset));
+}
+.my-rag-unit-type-text-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--my-color-black);
 }
 </style>

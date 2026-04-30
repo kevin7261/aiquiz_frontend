@@ -6,7 +6,7 @@
  *
  * 資料來源：
  * - 試卷題庫／單元選項：GET /exam/rag-for-exams（units[]：unit_type、transcription、text_file_name 等；內嵌 quizzes 時出題／批改 prompt 為預覽）；不呼叫 GET /rag/tab/for-exam
- * - GET /exam/tabs?local=&person_id=：person_id 為必填 query；local 與 GET /rag/tabs 相同；每筆 Exam 含 units[]（Exam_Unit），每單元 quizzes[]（Exam_Quiz）；作答可為頂層 answers[] 或題列內嵌 answer_content／quiz_score（或 quiz_grade）／answer_critique；mergeQuizzesWithTopLevelAnswers 展平後 syncExamItemToTabState 灌入卡片
+ * - GET /exam/tabs?local=&person_id=：person_id 為必填 query；local 與 GET /rag/tabs 相同；每筆 Exam 含 units[]（Exam_Unit），每單元 quizzes[]（Exam_Quiz）；作答可為頂層 answers[] 或題列內嵌 answer_content／quiz_score（或 quiz_grade）／answer_critique；mergeQuizzesWithTopLevelAnswers 展平後 syncExamItemToTabState 灌入卡片；題型區塊內 unit_type=2 內嵌 Markdown（不標「逐字稿」）＋文字檔；3 僅 `<audio>` 與逐字稿 Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）
  * 出題：須選單元＋題名；尚無列時 POST /exam/tab/quiz/create（exam_tab_id + rag_unit_id + rag_quiz_id）；再 POST llm-generate（同上三鍵 + 選填 unit_name／quiz_name；勿傳 quiz_user_prompt_text）。評分：POST /exam/tab/quiz/llm-grade（body：exam_quiz_id、quiz_content、quiz_answer）、GET …/grade-result/{job_id}；題目讚／差：POST /exam/tab/quiz/rate；分頁更名：PUT /exam/tab/tab-name；刪除：POST /exam/tab/delete/{exam_tab_id}
  *
  * 試題資料表 public."Exam_Quiz"（與 GET/POST 題目 payload 對齊）：exam_quiz_id、exam_id、exam_tab_id、person_id、rag_id、unit_name、file_name、quiz_content、quiz_hint、quiz_answer_reference、quiz_rate（-1／0／1）、quiz_metadata、updated_at、created_at。畫面「單元」優先 unit_name；難度優先 quiz_level，否則 quiz_metadata.quiz_level。
@@ -43,6 +43,7 @@ import {
   UNIT_TYPE_YOUTUBE,
 } from '../utils/rag.js';
 import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
+import { youtubeEmbedUrlFromInput } from '../utils/youtubeEmbed.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import QuizCard from '../components/QuizCard.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
@@ -55,6 +56,7 @@ import {
 import { formatGradingResult } from '../utils/grading.js';
 import { submitGrade } from '../composables/useQuizGrading.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
+import { buildRagTabUnitMp3FileUrl } from '../services/ragApi.js';
 
 defineProps({
   tabId: { type: String, required: true },
@@ -648,7 +650,7 @@ function examYoutubeLooksLikeUrl(s) {
   return /^https?:\/\//i.test(String(s ?? '').trim());
 }
 
-/** 選定單元為 unit_type 2／3／4 時：逐字稿 + 檔名／連結（資料來自 GET /exam/rag-for-exams units[]） */
+/** 選定單元為 unit_type 2／3／4 時：內容與來源欄位（資料來自 GET /exam/rag-for-exams units[]；畫面不另標「逐字稿」／mp3 檔名／YouTube 字樣） */
 function examSlotUnitTranscriptSection(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const uid = String(slotState.examUnitSelectId ?? '').trim();
@@ -664,6 +666,7 @@ function examSlotUnitTranscriptSection(slotIndex) {
   const youtubeHref =
     ut === UNIT_TYPE_YOUTUBE && examYoutubeLooksLikeUrl(sourceValue) ? sourceValue.trim() : '';
   return {
+    unitType: ut,
     transcription,
     sourceTitle,
     sourceDisplay: sourceValue || '—',
@@ -671,13 +674,56 @@ function examSlotUnitTranscriptSection(slotIndex) {
   };
 }
 
-/** 測驗頁單元逐字稿：Markdown → 安全 HTML（與建立題庫頁單元基本資訊一致） */
+/** 測驗頁單元逐字稿：Markdown → 安全 HTML（與建立題庫頁「單元題庫內容」區一致） */
 function examSlotUnitTranscriptMdHtml(slotIndex) {
   const sec = examSlotUnitTranscriptSection(slotIndex);
   if (!sec) return '';
   const t = sec.transcription;
   return renderMarkdownToSafeHtml(t != null ? String(t) : '');
 }
+
+/** 選定單元為 unit_type=3 時：GET /rag/tab/unit/mp3-file 之 `<audio src>`（rag_tab_id、rag_unit_id、person_id） */
+function examSlotMp3PlaybackUrl(slotIndex) {
+  const slotState = getSlotFormState(slotIndex);
+  const uid = String(slotState.examUnitSelectId ?? '').trim();
+  if (!uid) return '';
+  const uitem = examUnitTabItems.value.find((it) => examUnitSelectValue(it) === uid);
+  if (!uitem) return '';
+  const raw = uitem.examRagUnitSource;
+  if (!raw || typeof raw !== 'object') return '';
+  const ut = Number(raw.unit_type ?? raw.unitType);
+  if (ut !== UNIT_TYPE_MP3) return '';
+  const rag_tab_id = String(uitem.ragTabId ?? '').trim();
+  const ru = uitem.ragUnitId != null ? Number(uitem.ragUnitId) : 0;
+  const personId = getCurrentPersonId();
+  if (!personId) return '';
+  return buildRagTabUnitMp3FileUrl({ rag_tab_id, rag_unit_id: ru, personId });
+}
+
+/** unit_type=4：iframe 用 embed URL */
+function examSlotYoutubeEmbedUrl(slotIndex) {
+  const sec = examSlotUnitTranscriptSection(slotIndex);
+  if (!sec || sec.unitType !== UNIT_TYPE_YOUTUBE) return '';
+  const raw = (sec.youtubeHref || sec.sourceDisplay || '').trim();
+  return youtubeEmbedUrlFromInput(raw);
+}
+
+/** MP3／YouTube 單元：逐字稿改以 Modal 顯示（槽位 1-based） */
+const examUnitTranscriptModalSlotIndex = ref(null);
+
+function openExamUnitTranscriptModal(slotIndex) {
+  examUnitTranscriptModalSlotIndex.value = slotIndex;
+}
+
+function closeExamUnitTranscriptModal() {
+  examUnitTranscriptModalSlotIndex.value = null;
+}
+
+const examUnitTranscriptModalMdHtml = computed(() => {
+  const idx = examUnitTranscriptModalSlotIndex.value;
+  if (idx == null || !Number.isFinite(Number(idx)) || Number(idx) < 1) return '';
+  return examSlotUnitTranscriptMdHtml(Number(idx));
+});
 
 /**
  * 草稿 POST（同槽位連打時中止上一個請求；鍵須含 exam_tab_id 以免切換測驗分頁時誤.abort 他頁）
@@ -1938,6 +1984,45 @@ onActivated(() => {
       title="修改名稱"
       @save="onExamRenameSave"
     />
+    <Teleport to="body">
+      <div
+        v-if="examUnitTranscriptModalSlotIndex != null"
+        class="modal fade show d-block my-modal-backdrop"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exam-unit-transcript-modal-title"
+        @click.self="closeExamUnitTranscriptModal"
+      >
+        <div
+          class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
+          @click.stop
+        >
+          <div class="modal-content border-0 my-bgcolor-gray-3 p-4 d-flex flex-column gap-3">
+            <div class="modal-header border-bottom-0 p-0">
+              <h5 id="exam-unit-transcript-modal-title" class="modal-title my-color-black">逐字稿</h5>
+              <button
+                type="button"
+                class="btn-close"
+                aria-label="關閉"
+                @click="closeExamUnitTranscriptModal"
+              />
+            </div>
+            <div class="modal-body p-0" style="max-height: 70vh; overflow: auto;">
+              <div
+                v-if="examUnitTranscriptModalMdHtml"
+                class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                v-html="examUnitTranscriptModalMdHtml"
+              />
+              <span
+                v-else
+                class="my-font-md-400 my-color-black"
+              >—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <header class="flex-shrink-0 my-bgcolor-gray-4 p-4">
       <div class="container-fluid px-0 text-center">
         <p class="my-font-xl-400 my-color-black text-break mb-0">{{ pageTitle }}</p>
@@ -2090,43 +2175,94 @@ onActivated(() => {
                             @update:model-value="onExamSlotUnitChange(slotIndex)"
                           />
                         </div>
-                        <div
-                          v-if="examSlotUnitTranscriptSection(slotIndex)"
-                          class="row g-3 w-100 m-0"
-                        >
-                          <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
-                            <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
-                            <div
-                              class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
-                              style="max-height: 240px; overflow: auto;"
-                              role="region"
-                              aria-label="單元逐字稿"
-                            >
+                        <template v-if="examSlotUnitTranscriptSection(slotIndex)">
+                          <div
+                            v-if="examSlotUnitTranscriptSection(slotIndex).unitType === UNIT_TYPE_TEXT"
+                            class="row g-3 w-100 m-0"
+                          >
+                            <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
                               <div
-                                v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
-                                class="my-markdown-rendered my-font-md-400 my-color-black text-break"
-                                v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
-                              />
-                              <span
-                                v-else
-                                class="my-font-md-400 my-color-black"
-                              >—</span>
+                                class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
+                                style="max-height: 240px; overflow: auto;"
+                                role="region"
+                                aria-label="單元逐字稿"
+                              >
+                                <div
+                                  v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                  class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                                  v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                />
+                                <span
+                                  v-else
+                                  class="my-font-md-400 my-color-black"
+                                >—</span>
+                              </div>
+                            </div>
+                            <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
+                              <span class="my-font-sm-400 my-color-gray-1">{{ examSlotUnitTranscriptSection(slotIndex).sourceTitle }}</span>
+                              <span class="my-font-md-400 my-color-black text-break">{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</span>
                             </div>
                           </div>
-                          <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
-                            <span class="my-font-sm-400 my-color-gray-1">{{ examSlotUnitTranscriptSection(slotIndex).sourceTitle }}</span>
-                            <a
-                              v-if="examSlotUnitTranscriptSection(slotIndex).youtubeHref"
-                              class="my-font-md-400 text-break"
-                              :href="examSlotUnitTranscriptSection(slotIndex).youtubeHref"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</a>
+                          <div
+                            v-else-if="examSlotUnitTranscriptSection(slotIndex).unitType === UNIT_TYPE_YOUTUBE"
+                            class="d-flex flex-column gap-2 w-100 min-w-0"
+                          >
+                            <div
+                              v-if="examSlotYoutubeEmbedUrl(slotIndex)"
+                              class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden border border-secondary border-opacity-25"
+                            >
+                              <iframe
+                                class="border-0"
+                                title="YouTube 影片"
+                                :src="examSlotYoutubeEmbedUrl(slotIndex)"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerpolicy="strict-origin-when-cross-origin"
+                                allowfullscreen
+                              />
+                            </div>
                             <span
-                              v-else
+                              v-if="!examSlotYoutubeEmbedUrl(slotIndex)"
                               class="my-font-md-400 my-color-black text-break"
                             >{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</span>
+                            <div class="d-flex justify-content-center w-100 pt-1">
+                              <button
+                                type="button"
+                                class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                                @click="openExamUnitTranscriptModal(slotIndex)"
+                              >
+                                逐字稿
+                              </button>
+                            </div>
                           </div>
+                        </template>
+                        <template
+                          v-for="examMp3Url in [examSlotMp3PlaybackUrl(slotIndex)]"
+                          :key="examMp3Url ? `exam-mp3-${slotIndex}-${examMp3Url.slice(-24)}` : `exam-mp3-empty-${slotIndex}`"
+                        >
+                          <div
+                            v-if="examMp3Url"
+                            class="w-100 min-w-0"
+                          >
+                            <audio
+                              :key="examMp3Url"
+                              controls
+                              class="w-100"
+                              preload="none"
+                              :src="examMp3Url"
+                            />
+                          </div>
+                        </template>
+                        <div
+                          v-if="examSlotUnitTranscriptSection(slotIndex)?.unitType === UNIT_TYPE_MP3"
+                          class="d-flex justify-content-center w-100 min-w-0 pt-1"
+                        >
+                          <button
+                            type="button"
+                            class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                            @click="openExamUnitTranscriptModal(slotIndex)"
+                          >
+                            逐字稿
+                          </button>
                         </div>
                         <div class="d-flex flex-column gap-0 w-100 min-w-0">
                           <label
@@ -2215,43 +2351,94 @@ onActivated(() => {
                               @update:model-value="onExamSlotUnitChange(slotIndex)"
                             />
                           </div>
-                          <div
-                            v-if="examSlotUnitTranscriptSection(slotIndex)"
-                            class="row g-3 w-100 m-0"
-                          >
-                            <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
-                              <span class="my-font-sm-400 my-color-gray-1">逐字稿</span>
-                              <div
-                                class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
-                                style="max-height: 240px; overflow: auto;"
-                                role="region"
-                                aria-label="單元逐字稿"
-                              >
+                          <template v-if="examSlotUnitTranscriptSection(slotIndex)">
+                            <div
+                              v-if="examSlotUnitTranscriptSection(slotIndex).unitType === UNIT_TYPE_TEXT"
+                              class="row g-3 w-100 m-0"
+                            >
+                              <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
                                 <div
-                                  v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
-                                  class="my-markdown-rendered my-font-md-400 my-color-black text-break"
-                                  v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
-                                />
-                                <span
-                                  v-else
-                                  class="my-font-md-400 my-color-black"
-                                >—</span>
+                                  class="rounded-2 border border-secondary border-opacity-25 px-3 py-2 my-bgcolor-gray-4"
+                                  style="max-height: 240px; overflow: auto;"
+                                  role="region"
+                                  aria-label="單元逐字稿"
+                                >
+                                  <div
+                                    v-if="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                    class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                                    v-html="examSlotUnitTranscriptMdHtml(slotIndex)"
+                                  />
+                                  <span
+                                    v-else
+                                    class="my-font-md-400 my-color-black"
+                                  >—</span>
+                                </div>
+                              </div>
+                              <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
+                                <span class="my-font-sm-400 my-color-gray-1">{{ examSlotUnitTranscriptSection(slotIndex).sourceTitle }}</span>
+                                <span class="my-font-md-400 my-color-black text-break">{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</span>
                               </div>
                             </div>
-                            <div class="col-12 d-flex flex-column gap-1 min-w-0 px-0">
-                              <span class="my-font-sm-400 my-color-gray-1">{{ examSlotUnitTranscriptSection(slotIndex).sourceTitle }}</span>
-                              <a
-                                v-if="examSlotUnitTranscriptSection(slotIndex).youtubeHref"
-                                class="my-font-md-400 text-break"
-                                :href="examSlotUnitTranscriptSection(slotIndex).youtubeHref"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</a>
+                            <div
+                              v-else-if="examSlotUnitTranscriptSection(slotIndex).unitType === UNIT_TYPE_YOUTUBE"
+                              class="d-flex flex-column gap-2 w-100 min-w-0"
+                            >
+                              <div
+                                v-if="examSlotYoutubeEmbedUrl(slotIndex)"
+                                class="ratio ratio-16x9 w-100 rounded-2 overflow-hidden border border-secondary border-opacity-25"
+                              >
+                                <iframe
+                                  class="border-0"
+                                  title="YouTube 影片"
+                                  :src="examSlotYoutubeEmbedUrl(slotIndex)"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  referrerpolicy="strict-origin-when-cross-origin"
+                                  allowfullscreen
+                                />
+                              </div>
                               <span
-                                v-else
+                                v-if="!examSlotYoutubeEmbedUrl(slotIndex)"
                                 class="my-font-md-400 my-color-black text-break"
                               >{{ examSlotUnitTranscriptSection(slotIndex).sourceDisplay }}</span>
+                              <div class="d-flex justify-content-center w-100 pt-1">
+                                <button
+                                  type="button"
+                                  class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                                  @click="openExamUnitTranscriptModal(slotIndex)"
+                                >
+                                  逐字稿
+                                </button>
+                              </div>
                             </div>
+                          </template>
+                          <template
+                            v-for="examMp3Url in [examSlotMp3PlaybackUrl(slotIndex)]"
+                            :key="examMp3Url ? `exam-mp3-${slotIndex}-${examMp3Url.slice(-24)}` : `exam-mp3-empty-${slotIndex}`"
+                          >
+                            <div
+                              v-if="examMp3Url"
+                              class="w-100 min-w-0"
+                            >
+                              <audio
+                                :key="examMp3Url"
+                                controls
+                                class="w-100"
+                                preload="none"
+                                :src="examMp3Url"
+                              />
+                            </div>
+                          </template>
+                          <div
+                            v-if="examSlotUnitTranscriptSection(slotIndex)?.unitType === UNIT_TYPE_MP3"
+                            class="d-flex justify-content-center w-100 min-w-0 pt-1"
+                          >
+                            <button
+                              type="button"
+                              class="btn rounded-pill d-flex justify-content-center align-items-center my-font-sm-400 my-button-white-border flex-shrink-0 px-3 py-1"
+                              @click="openExamUnitTranscriptModal(slotIndex)"
+                            >
+                              逐字稿
+                            </button>
                           </div>
                           <div
                             v-if="examUnitTabItems.length > 0"

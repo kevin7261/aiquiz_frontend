@@ -129,6 +129,8 @@ export const API_RAG_TRANSCRIPT_AUDIO = '/rag/transcript/audio';
 export const API_RAG_TRANSCRIPT_YOUTUBE = '/rag/transcript/youtube';
 /** 列出指定 tab 下所有未刪除 Rag_Unit（含關聯 quizzes）：GET /rag/tab/units；query: rag_tab_id、person_id（必填）；依 created_at 舊→新 */
 export const API_RAG_TAB_UNITS = '/rag/tab/units';
+/** 音訊單元原始 MP3：GET /rag/tab/unit/mp3-file；query：rag_tab_id、rag_unit_id、person_id（皆必填）；僅 Rag_Unit.unit_type=3 時回傳音訊本體 */
+export const API_RAG_TAB_UNIT_MP3_FILE = '/rag/tab/unit/mp3-file';
 /**
  * 依 rag_tab_id／rag_unit_id 建立空白 Rag_Quiz（不呼叫 LLM）；rag_quiz_id 由後端於回應中帶出。
  * POST /rag/tab/unit/quiz/create；query person_id；body: { rag_tab_id, rag_unit_id }
