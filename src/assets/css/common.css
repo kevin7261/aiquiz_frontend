@@ -856,7 +856,7 @@ code {
   border: none;
   box-sizing: border-box;
 }
-/* 啟用步驟：黑底白字（highlight） */
+/* 已到達／目前步驟：黑底白字（無框） */
 .my-create-rag-stepper-num--on {
   background-color: var(--my-color-black);
   color: var(--my-color-white);
@@ -867,6 +867,7 @@ code {
   color: var(--my-color-black);
   border: none;
 }
+
 .my-create-rag-stepper-line {
   flex: 1 1 1rem;
   min-width: 0.35rem;
