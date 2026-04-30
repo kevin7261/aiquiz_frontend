@@ -8,7 +8,7 @@
  * - 列表：GET /rag/tabs?local=（與 tab/create 的 local 一致）；useRagList 首次 watch(immediate) 載入，之後每次從側欄再進入本頁（KeepAlive onActivated）再抓一次
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
- * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_* 等；已不再傳 system_prompt_instruction）
+ * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_sizes／chunk_overlaps〔與出題單元群組同序〕；已不再傳 system_prompt_instruction）
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_grade、quiz_comments、rag_quiz_id、rag_answer_id
@@ -70,12 +70,15 @@ import {
   UNIT_TYPE_TEXT,
   UNIT_TYPE_MP3,
   UNIT_TYPE_YOUTUBE,
+  DEFAULT_PACK_CHUNK_SIZE,
+  DEFAULT_PACK_CHUNK_OVERLAP,
 } from '../utils/rag.js';
 import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
 import { usePackTasks } from '../composables/usePackTasks.js';
 import QuizCard from '../components/QuizCard.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
+import Design08OptionDropdown from '../components/Design08OptionDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
@@ -276,10 +279,6 @@ function ensureNumber(val, defaultVal) {
   const n = Number(val);
   return (n === n && isFinite(n)) ? n : defaultVal;
 }
-
-/** chunk 參數（共用）；chunk_size / chunk_overlap 一律為數字 */
-const chunkSize = ref(1000);
-const chunkOverlap = ref(200);
 
 /** 當前 tab 對應的 RAG 項目（來自 GET /rag/tabs），僅在非「新增」tab 時有值 */
 const currentRagItem = computed(() => {
@@ -519,14 +518,45 @@ function packUnitTypeAt(gi) {
   return 1;
 }
 
-function onPackUnitTypeChange(ev, gi) {
-  const v = Number(ev?.target?.value);
+/** 出題單元類型：Design 08 下拉選項（數值與 API unit_type_list 對齊） */
+const PACK_UNIT_TYPE_OPTIONS = [
+  { value: 0, label: '未選擇' },
+  { value: 1, label: 'rag' },
+  { value: 2, label: '文字' },
+  { value: 3, label: 'mp3' },
+  { value: 4, label: 'youtube' },
+];
+
+function onPackUnitTypePick(gi, rawVal) {
+  const v = Number(rawVal);
   if (!(v === 0 || v === 1 || v === 2 || v === 3 || v === 4)) return;
   const state = currentState.value;
   const n = state.packTasksList?.length ?? 0;
   const next = parsePackUnitTypesFromRag(state.packUnitTypes, n);
   next[gi] = v;
   state.packUnitTypes = next;
+}
+
+function onPackChunkSizeInput(gi, ev) {
+  const state = currentState.value;
+  ensurePackUnitSidecarArrays();
+  const raw = ev?.target?.value;
+  const arr = [...(state.packChunkSizes || [])];
+  arr[gi] = raw === '' || raw == null
+    ? DEFAULT_PACK_CHUNK_SIZE
+    : Math.max(1, Math.floor(ensureNumber(raw, DEFAULT_PACK_CHUNK_SIZE)));
+  state.packChunkSizes = arr;
+}
+
+function onPackChunkOverlapInput(gi, ev) {
+  const state = currentState.value;
+  ensurePackUnitSidecarArrays();
+  const raw = ev?.target?.value;
+  const arr = [...(state.packChunkOverlaps || [])];
+  arr[gi] = raw === '' || raw == null
+    ? DEFAULT_PACK_CHUNK_OVERLAP
+    : Math.max(0, Math.floor(ensureNumber(raw, DEFAULT_PACK_CHUNK_OVERLAP)));
+  state.packChunkOverlaps = arr;
 }
 
 function ensurePackUnitSidecarArrays() {
@@ -542,6 +572,8 @@ function ensurePackUnitSidecarArrays() {
   stretch('packUnitYoutubeUrls', '');
   stretch('packUnitTranscriptLoading', false);
   stretch('packUnitTranscriptError', '');
+  stretch('packChunkSizes', DEFAULT_PACK_CHUNK_SIZE);
+  stretch('packChunkOverlaps', DEFAULT_PACK_CHUNK_OVERLAP);
 }
 
 watch(
@@ -1292,6 +1324,36 @@ function hydrateQuizCardsFromRag(rag, state) {
   state.unitSlotQuizCards = [];
 }
 
+/**
+ * 自 GET /rag/tabs 欄位還原 chunk_sizes／chunk_overlaps（與 unit_list 群組同序）；
+ * 若僅有舊版 chunk_size／chunk_overlap 則每群填入同值。
+ * @returns {{ sizes: number[], overs: number[] }}
+ */
+function hydratePackChunkArraysFromRag(rag, groupCount) {
+  const count = Math.max(0, Math.floor(Number(groupCount)) || 0);
+  let sizes = [];
+  let overs = [];
+  if (Array.isArray(rag?.chunk_sizes) && rag.chunk_sizes.length) {
+    sizes = rag.chunk_sizes.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_SIZE));
+  } else if (rag?.chunk_size != null && count > 0) {
+    const v = ensureNumber(rag.chunk_size, DEFAULT_PACK_CHUNK_SIZE);
+    sizes = Array(count).fill(v);
+  }
+  if (Array.isArray(rag?.chunk_overlaps) && rag.chunk_overlaps.length) {
+    overs = rag.chunk_overlaps.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_OVERLAP));
+  } else if (rag?.chunk_overlap != null && count > 0) {
+    const v = ensureNumber(rag.chunk_overlap, DEFAULT_PACK_CHUNK_OVERLAP);
+    overs = Array(count).fill(v);
+  }
+  if (count === 0) return { sizes: [], overs: [] };
+  while (sizes.length < count) sizes.push(DEFAULT_PACK_CHUNK_SIZE);
+  while (overs.length < count) overs.push(DEFAULT_PACK_CHUNK_OVERLAP);
+  return {
+    sizes: sizes.slice(0, count),
+    overs: overs.slice(0, count),
+  };
+}
+
 /** 從 Rag 項目同步到 tab state（packTasks、ragMetadata、chunk、quizzes 等） */
 function syncRagItemToState(rag, state) {
   if (!rag || typeof rag !== 'object') return;
@@ -1306,8 +1368,10 @@ function syncRagItemToState(rag, state) {
   if (rag.rag_metadata != null) {
     state.ragMetadata = typeof rag.rag_metadata === 'string' ? rag.rag_metadata : JSON.stringify(rag.rag_metadata, null, 2);
   }
-  if (rag.chunk_size != null) chunkSize.value = ensureNumber(rag.chunk_size, 1000);
-  if (rag.chunk_overlap != null) chunkOverlap.value = ensureNumber(rag.chunk_overlap, 200);
+  const nGroups = Array.isArray(state.packTasksList) ? state.packTasksList.length : 0;
+  const chunkHL = hydratePackChunkArraysFromRag(rag, nGroups);
+  state.packChunkSizes = chunkHL.sizes;
+  state.packChunkOverlaps = chunkHL.overs;
   const filename = rag.file_metadata?.filename ?? rag.filename;
   if (filename != null && String(filename).trim() !== '') state.zipFileName = String(filename).trim();
   hydrateQuizCardsFromRag(rag, state);
@@ -1576,16 +1640,6 @@ function clearZipFileInput() {
 watch(activeTabId, (id) => {
   if (id && isNewTabId(id)) clearZipFileInput();
 });
-
-/** chunk_size / chunk_overlap 一律為數字；無效輸入時還原為預設 */
-watch(chunkSize, (v) => {
-  const n = ensureNumber(v, 1000);
-  if (n !== v && (v === '' || v == null || Number.isNaN(Number(v)))) chunkSize.value = n;
-}, { flush: 'post' });
-watch(chunkOverlap, (v) => {
-  const n = ensureNumber(v, 200);
-  if (n !== v && (v === '' || v == null || Number.isNaN(Number(v)))) chunkOverlap.value = n;
-}, { flush: 'post' });
 
 async function refreshUnitSubTabsFromApi(tabId) {
   const state = getTabState(tabId);
@@ -2025,6 +2079,12 @@ async function confirmPack() {
       unitTypesNormalized,
       state.packUnitMarkdownTexts ?? []
     );
+    ensurePackUnitSidecarArrays();
+    const nUnits = state.packTasksList?.length ?? 0;
+    const chunkSizesForApi = (state.packChunkSizes || []).slice(0, nUnits).map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_SIZE));
+    const chunkOverlapsForApi = (state.packChunkOverlaps || []).slice(0, nUnits).map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_OVERLAP));
+    while (chunkSizesForApi.length < nUnits) chunkSizesForApi.push(DEFAULT_PACK_CHUNK_SIZE);
+    while (chunkOverlapsForApi.length < nUnits) chunkOverlapsForApi.push(DEFAULT_PACK_CHUNK_OVERLAP);
     state.packResponseJson = await apiBuildRagZip(
       {
         rag_tab_id: fileId,
@@ -2032,8 +2092,8 @@ async function confirmPack() {
         unit_list: unitList,
         unit_types: serializePackUnitTypesForApi(unitTypesNormalized),
         unit_type_list: unitTypesIntArray,
-        chunk_size: ensureNumber(chunkSize.value, 1000),
-        chunk_overlap: ensureNumber(chunkOverlap.value, 200),
+        chunk_sizes: chunkSizesForApi,
+        chunk_overlaps: chunkOverlapsForApi,
         transcriptions,
       },
       (ev) => {
@@ -2981,7 +3041,7 @@ async function confirmAnswer(item) {
           </div>
 
           <!-- 出題單元：可放置課程標籤（與其他 input 同 form-control + px-3 py-2） -->
-          <div class="mb-3 d-flex flex-column gap-2 w-100 min-w-0">
+          <div class="mb-3 d-flex flex-column gap-0 w-100 min-w-0">
             <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">出題單元</div>
             <div
               class="d-flex flex-wrap align-items-stretch justify-content-start gap-2 w-100 min-w-0"
@@ -3031,20 +3091,57 @@ async function confirmAnswer(item) {
                     </div>
                     <div class="d-flex align-items-center gap-1 flex-shrink-0">
                       <span class="my-font-sm-400 my-color-gray-1 text-nowrap">類型</span>
-                      <div class="my-form-select-wrap flex-shrink-0" style="width: 7.25rem; max-width: 100%;">
-                        <select
-                          class="my-form-select my-font-sm-400 py-1"
-                          :aria-label="`出題單元 ${gi + 1} 類型`"
-                          :value="packUnitTypeAt(gi)"
-                          @change="onPackUnitTypeChange($event, gi)"
+                      <Design08OptionDropdown
+                        :menu-id="`pack-unit-type-${gi}`"
+                        :model-value="packUnitTypeAt(gi)"
+                        :options="PACK_UNIT_TYPE_OPTIONS"
+                        trigger-width="7.25rem"
+                        :aria-label="`出題單元 ${gi + 1} 類型`"
+                        @update:model-value="onPackUnitTypePick(gi, $event)"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    v-if="packUnitTypeAt(gi) === UNIT_TYPE_RAG"
+                    class="w-100 min-w-0 ps-0 border-start ps-3 ms-1"
+                    style="border-left-width: 2px !important; border-color: var(--my-color-gray-2) !important;"
+                  >
+                    <div class="d-flex flex-nowrap align-items-end gap-2 w-100 min-w-0">
+                      <div class="d-flex flex-column gap-0 min-w-0" style="flex: 1 1 0;">
+                        <label
+                          class="form-label my-font-sm-400 my-color-gray-1 mb-0"
+                          :for="'rag-pack-chunk-size-' + gi"
+                        >分段長度（字元）</label>
+                        <input
+                          :id="'rag-pack-chunk-size-' + gi"
+                          type="number"
+                          min="1"
+                          step="1"
+                          class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-font-md-400"
+                          :disabled="packGroupsEditBlocked"
+                          :value="ensureNumber(currentState.packChunkSizes?.[gi], DEFAULT_PACK_CHUNK_SIZE)"
+                          :aria-label="`出題單元 ${gi + 1} 分段長度（字元）`"
+                          autocomplete="off"
+                          @input="onPackChunkSizeInput(gi, $event)"
                         >
-                          <option :value="0">未選擇</option>
-                          <option :value="1">rag</option>
-                          <option :value="2">文字</option>
-                          <option :value="3">mp3</option>
-                          <option :value="4">youtube</option>
-                        </select>
-                        <i class="fa-solid fa-chevron-down my-form-select-caret" aria-hidden="true" />
+                      </div>
+                      <div class="d-flex flex-column gap-0 min-w-0" style="flex: 1 1 0;">
+                        <label
+                          class="form-label my-font-sm-400 my-color-gray-1 mb-0"
+                          :for="'rag-pack-chunk-overlap-' + gi"
+                        >分段重疊（字元）</label>
+                        <input
+                          :id="'rag-pack-chunk-overlap-' + gi"
+                          type="number"
+                          min="0"
+                          step="1"
+                          class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 my-font-md-400"
+                          :disabled="packGroupsEditBlocked"
+                          :value="ensureNumber(currentState.packChunkOverlaps?.[gi], DEFAULT_PACK_CHUNK_OVERLAP)"
+                          :aria-label="`出題單元 ${gi + 1} 分段重疊（字元）`"
+                          autocomplete="off"
+                          @input="onPackChunkOverlapInput(gi, $event)"
+                        >
                       </div>
                     </div>
                   </div>
@@ -3104,7 +3201,7 @@ async function confirmAnswer(item) {
                 </div>
               </template>
             </div>
-            <div class="d-flex flex-wrap align-items-center gap-2 w-100 min-w-0">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100 min-w-0 mt-2">
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <button
                   type="button"
@@ -3152,40 +3249,6 @@ async function confirmAnswer(item) {
             </div>
           </div>
 
-          <div class="d-flex flex-row flex-wrap align-items-end gap-3 mb-2">
-            <div class="d-flex flex-column gap-0 flex-grow-1 min-w-0 my-rag-pack-chunk-col">
-              <label
-                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                for="rag-pack-chunk-size"
-              >分段長度（字元）</label>
-              <input
-                id="rag-pack-chunk-size"
-                v-model.number="chunkSize"
-                type="number"
-                min="1"
-                step="1"
-                class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                placeholder="1000"
-                autocomplete="off"
-              >
-            </div>
-            <div class="d-flex flex-column gap-0 flex-grow-1 min-w-0 my-rag-pack-chunk-col">
-              <label
-                class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                for="rag-pack-chunk-overlap"
-              >分段重疊（字元）</label>
-              <input
-                id="rag-pack-chunk-overlap"
-                v-model.number="chunkOverlap"
-                type="number"
-                min="0"
-                step="1"
-                class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                placeholder="200"
-                autocomplete="off"
-              >
-            </div>
-          </div>
           <div class="d-flex justify-content-center mt-3">
             <button
               type="button"
@@ -3261,36 +3324,6 @@ async function confirmAnswer(item) {
                   {{ ragListReadonlyGroups.length ? ragListReadonlyInlineText : '—' }}
                 </div>
               </div>
-              <div class="d-flex flex-row flex-wrap align-items-end gap-3 mb-3">
-                <div class="d-flex flex-column gap-0 flex-grow-1 min-w-0 my-rag-pack-chunk-col">
-                  <label
-                    class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                    for="rag-pack-chunk-size-ro"
-                  >分段長度（字元）</label>
-                  <input
-                    id="rag-pack-chunk-size-ro"
-                    type="text"
-                    class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                    :value="String(chunkSize)"
-                    readonly
-                    autocomplete="off"
-                  >
-                </div>
-                <div class="d-flex flex-column gap-0 flex-grow-1 min-w-0 my-rag-pack-chunk-col">
-                  <label
-                    class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0"
-                    for="rag-pack-chunk-overlap-ro"
-                  >分段重疊（字元）</label>
-                  <input
-                    id="rag-pack-chunk-overlap-ro"
-                    type="text"
-                    class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                    :value="String(chunkOverlap)"
-                    readonly
-                    autocomplete="off"
-                  >
-                </div>
-              </div>
           </div>
           </section>
         </div>
@@ -3315,7 +3348,7 @@ async function confirmAnswer(item) {
           >
             <div
               v-if="(currentState.unitTabOrder || []).length > 0"
-              class="w-100 min-w-0 d-flex flex-column gap-2"
+              class="w-100 min-w-0 d-flex flex-column gap-0"
             >
               <label
                 class="my-color-gray-1 my-font-sm-400 mb-0 d-block"
@@ -3547,9 +3580,9 @@ async function confirmAnswer(item) {
                 >
                   {{ activeUnitQuizCard.ragQuizForExamError }}
                 </div>
-                <div class="d-flex flex-column gap-2 min-w-0">
+                <div class="d-flex flex-column gap-0 min-w-0">
                   <label
-                    class="my-color-gray-1 my-font-sm-400 mb-0 d-block"
+                    class="form-label my-color-gray-1 my-font-sm-400 mb-0 d-block"
                     :for="activeUnitQuizCard.rag_quiz_for_exam === true ? undefined : `rag-unit-quiz-prompt-${activeUnitSlotIndex}-${activeUnitQuizTypeIdxResolved}`"
                   >
                     出題規則

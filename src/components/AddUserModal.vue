@@ -179,7 +179,7 @@ async function submit() {
             </div>
             <div class="mb-0">
               <label for="user-single-type-dd-btn" class="form-label my-font-sm-400 my-color-gray-1 mb-0">類型</label>
-              <div class="dropdown w-100 min-w-0 my-design-08-dropdown" data-bs-popper="static">
+              <div class="dropdown w-100 min-w-0 my-design-08-dropdown" data-bs-display="static">
                 <button
                   id="user-single-type-dd-btn"
                   type="button"
@@ -188,7 +188,7 @@ async function submit() {
                   aria-expanded="false"
                   :disabled="saving"
                 >
-                  <span class="flex-grow-1 overflow-hidden text-truncate text-start pe-2">{{ currentUserTypeLabel }}</span>
+                  <span class="text-truncate flex-grow-1 pe-2 text-start">{{ currentUserTypeLabel }}</span>
                   <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0" aria-hidden="true" />
                 </button>
                 <ul class="dropdown-menu dropdown-menu-start w-100" aria-labelledby="user-single-type-dd-btn">

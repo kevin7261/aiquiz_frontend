@@ -4,7 +4,7 @@
  * 職責：
  * - 從 currentState 與 fileMetadataToShow 衍生 secondFoldersFull、ragListDisplayGroups
  * - 拖曳事件：以模組層級變數儲存 payload，避免 dataTransfer 跨瀏覽器問題
- * - 群組操作：removeFromRagList、removeRagListGroup、addRagListGroup、clearAllRagListGroups、addAllSecondFoldersAsGroups、setAllSecondFoldersAsSingleGroup（追加含全部單元之一群組）
+ * - 群組操作：removeFromRagList、removeRagListGroup、addRagListGroup、clearAllRagListGroups、addAllSecondFoldersAsGroups、setAllSecondFoldersAsSingleGroup（追加含全部單元之一群組）；packChunkSizes／packChunkOverlaps 與群組序對齊
  * - 以 watch 同步 packTasks 字串與 packTasksList 陣列
  */
 import { computed, watch } from 'vue';
@@ -12,8 +12,11 @@ import {
   parsePackTasksList,
   parsePackUnitTypesFromRag,
   remapPackUnitTypes,
+  remapPackParallelNumbers,
   serializePackTasksList,
   UNIT_TYPE_RAG,
+  DEFAULT_PACK_CHUNK_SIZE,
+  DEFAULT_PACK_CHUNK_OVERLAP,
 } from '../utils/rag.js';
 
 /** 模組層級：拖曳中攜帶的資料，不依賴 dataTransfer */
@@ -101,6 +104,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const state = currentState.value;
     const prevList = JSON.parse(JSON.stringify(state.packTasksList || []));
     const prevTypes = [...(state.packUnitTypes || [])];
+    const prevChunkSizes = [...(state.packChunkSizes || [])];
+    const prevChunkOverlaps = [...(state.packChunkOverlaps || [])];
     let list = [...(state.packTasksList || [])];
 
     if (fromRagList && groupIdx >= 0) {
@@ -121,12 +126,16 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     list = list.filter((g) => g != null && (Array.isArray(g) ? g.length > 0 : g));
     state.packTasksList = list;
     state.packUnitTypes = remapPackUnitTypes(prevList, prevTypes, list);
+    state.packChunkSizes = remapPackParallelNumbers(prevList, prevChunkSizes, list, DEFAULT_PACK_CHUNK_SIZE);
+    state.packChunkOverlaps = remapPackParallelNumbers(prevList, prevChunkOverlaps, list, DEFAULT_PACK_CHUNK_OVERLAP);
   }
 
   function removeFromRagList(groupIdx, tagIdx) {
     const state = currentState.value;
     const prevList = JSON.parse(JSON.stringify(state.packTasksList || []));
     const prevTypes = [...(state.packUnitTypes || [])];
+    const prevChunkSizes = [...(state.packChunkSizes || [])];
+    const prevChunkOverlaps = [...(state.packChunkOverlaps || [])];
     const list = [...(state.packTasksList || [])];
     const g = list[groupIdx];
     if (!Array.isArray(g)) return;
@@ -135,6 +144,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const nextList = list.filter((x) => x != null && (Array.isArray(x) ? x.length > 0 : x));
     state.packTasksList = nextList;
     state.packUnitTypes = remapPackUnitTypes(prevList, prevTypes, nextList);
+    state.packChunkSizes = remapPackParallelNumbers(prevList, prevChunkSizes, nextList, DEFAULT_PACK_CHUNK_SIZE);
+    state.packChunkOverlaps = remapPackParallelNumbers(prevList, prevChunkOverlaps, nextList, DEFAULT_PACK_CHUNK_OVERLAP);
   }
 
   function removeRagListGroup(groupIdx) {
@@ -142,22 +153,34 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const list = [...(state.packTasksList || [])];
     const types = [...(state.packUnitTypes || [])];
     while (types.length < list.length) types.push(UNIT_TYPE_RAG);
+    const sizes = [...(state.packChunkSizes || [])];
+    const overs = [...(state.packChunkOverlaps || [])];
+    while (sizes.length < list.length) sizes.push(DEFAULT_PACK_CHUNK_SIZE);
+    while (overs.length < list.length) overs.push(DEFAULT_PACK_CHUNK_OVERLAP);
     list.splice(groupIdx, 1);
     types.splice(groupIdx, 1);
+    sizes.splice(groupIdx, 1);
+    overs.splice(groupIdx, 1);
     state.packTasksList = list.filter((x) => x != null && (Array.isArray(x) ? x.length > 0 : x));
     state.packUnitTypes = types;
+    state.packChunkSizes = sizes;
+    state.packChunkOverlaps = overs;
   }
 
   function addRagListGroup() {
     const state = currentState.value;
     state.packTasksList = [...(state.packTasksList || []), []];
     state.packUnitTypes = [...(state.packUnitTypes || []), UNIT_TYPE_RAG];
+    state.packChunkSizes = [...(state.packChunkSizes || []), DEFAULT_PACK_CHUNK_SIZE];
+    state.packChunkOverlaps = [...(state.packChunkOverlaps || []), DEFAULT_PACK_CHUNK_OVERLAP];
   }
 
   function clearAllRagListGroups() {
     if (packAndGenerateDisabled.value) return;
     currentState.value.packTasksList = [];
     currentState.value.packUnitTypes = [];
+    currentState.value.packChunkSizes = [];
+    currentState.value.packChunkOverlaps = [];
   }
 
   function addAllSecondFoldersAsGroups() {
@@ -168,6 +191,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const newGroups = names.map((name) => [name]);
     state.packTasksList = [...existing, ...newGroups];
     state.packUnitTypes = [...(state.packUnitTypes || []), ...names.map(() => UNIT_TYPE_RAG)];
+    state.packChunkSizes = [...(state.packChunkSizes || []), ...names.map(() => DEFAULT_PACK_CHUNK_SIZE)];
+    state.packChunkOverlaps = [...(state.packChunkOverlaps || []), ...names.map(() => DEFAULT_PACK_CHUNK_OVERLAP)];
   }
 
   /** 在現有出題單元之後新增一個出題單元，內含全部單元（unit_list：a+b+c），不覆寫既有出題單元 */
@@ -178,6 +203,8 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
     const existing = state.packTasksList ?? [];
     state.packTasksList = [...existing, [...names]];
     state.packUnitTypes = [...(state.packUnitTypes || []), UNIT_TYPE_RAG];
+    state.packChunkSizes = [...(state.packChunkSizes || []), DEFAULT_PACK_CHUNK_SIZE];
+    state.packChunkOverlaps = [...(state.packChunkOverlaps || []), DEFAULT_PACK_CHUNK_OVERLAP];
   }
 
   watch(
@@ -188,6 +215,9 @@ export function usePackTasks(currentState, fileMetadataToShow, packAndGenerateDi
       if (JSON.stringify(parsed) !== JSON.stringify(current)) {
         currentState.value.packTasksList = parsed;
         currentState.value.packUnitTypes = parsePackUnitTypesFromRag(undefined, parsed.length);
+        const n = parsed.length;
+        currentState.value.packChunkSizes = Array(n).fill(DEFAULT_PACK_CHUNK_SIZE);
+        currentState.value.packChunkOverlaps = Array(n).fill(DEFAULT_PACK_CHUNK_OVERLAP);
       }
     }
   );

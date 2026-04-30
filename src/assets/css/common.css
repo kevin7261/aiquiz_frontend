@@ -1081,21 +1081,17 @@ code {
   border-radius: 50%;
 }
 
-/* 欄位標題與輸入／選單：與 Bootstrap .mt-1 同距（0.25rem）；標題側勿再疊 mb-1，父層直向 flex 與控件之間請 gap-0 以免與本規則疊加 */
-label.form-label:not(.btn) + .form-control,
-label.form-label:not(.btn) + input.form-control,
-label.form-label:not(.btn) + textarea.form-control,
-label.form-label:not(.btn) + select.form-control,
-label.form-label:not(.btn) + .dropdown,
-label.form-label:not(.btn) + .btn-group,
+/* 欄位標題與下一個控件：間距 variables --my-field-label-input-gap；標題側勿疊 mb-1；直向父層與控件間請 gap-0。label[for]+div 供下拉外層／編輯器包裝（勿用 label[for]+* 以免橫列 label+說明 span 被誤加 margin） */
+label.form-label:not(.btn) + *,
+div.form-label + *,
 label[for]:not(.btn) + .form-control,
 label[for]:not(.btn) + input.form-control,
 label[for]:not(.btn) + textarea.form-control,
 label[for]:not(.btn) + select.form-control,
 label[for]:not(.btn) + .dropdown,
 label[for]:not(.btn) + .btn-group,
-div.form-label + * {
-  margin-top: 0.25rem;
+label[for]:not(.btn) + div {
+  margin-top: var(--my-field-label-input-gap);
 }
 
 /* 文字輸入（併 .form-control）：白底、邊線 --my-color-gray-2；字級／內距同中型按鈕；.my-input-md--on-dark 與預設同視覺（相容舊 class） */

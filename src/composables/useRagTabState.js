@@ -47,6 +47,10 @@ export function useRagTabState(activeTabId, newTabIds, ragList, authStore, optio
         packUnitYoutubeUrls: [],
         packUnitTranscriptLoading: [],
         packUnitTranscriptError: [],
+        /** 與 packTasksList 每群一筆：分段長度（字元） */
+        packChunkSizes: [],
+        /** 與 packTasksList 每群一筆：分段重疊（字元） */
+        packChunkOverlaps: [],
         ragMetadata: '',
         withRag: true,
         packResponseJson: null,

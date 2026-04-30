@@ -72,8 +72,8 @@ function select(val) {
   >
     <button
       :id="toggleId"
-      class="btn dropdown-toggle w-100 d-flex justify-content-between align-items-center my-unit-select-dd-toggle my-dropdown-caret my-font-md-400 my-button-white px-3 py-2 rounded-2 text-start"
       type="button"
+      class="btn rounded-2 d-flex justify-content-between align-items-center dropdown-toggle my-dropdown-caret my-font-md-400 my-button-white w-100 min-w-0 px-3 py-2 text-start my-unit-select-dd-toggle"
       data-bs-toggle="dropdown"
       aria-expanded="false"
       :disabled="disabled"

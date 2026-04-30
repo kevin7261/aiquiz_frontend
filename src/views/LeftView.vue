@@ -4,7 +4,7 @@
    *
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、主要導覽（測驗、作答弱點分析）
-   * - 左下角使用者名下拉：Design 08 同款（my-design-08-dropdown、rounded-2 my-button-white、無箭頭）；出題／學生作答分析／使用者管理／系統設定、分隔線、設定、登出（/design 不列於選單，僅網址進入）
+   * - 左下角使用者名下拉：Design 頁「08 · 下拉選單」同款（my-design-08-dropdown、dropdown-toggle · my-dropdown-caret · rounded-2 · my-button-white · chevron）；出題／學生作答分析／使用者管理／系統設定／系統紀錄、分隔線、設定、登出（/design 不列於選單，僅網址進入）
    * - 依 user_type 顯示允許的項目（canSeeNavLink）
    */
   import { ref, computed, onMounted } from 'vue';
@@ -86,11 +86,13 @@
       <div class="my-design-08-dropdown dropdown dropup w-100 min-w-0">
         <button
           type="button"
-          class="btn rounded-2 d-flex justify-content-start align-items-center my-font-md-400 my-button-white w-100 min-w-0 px-3 py-2 text-start"
+          class="btn rounded-2 d-flex justify-content-between align-items-center dropdown-toggle my-dropdown-caret my-font-md-400 my-button-white w-100 min-w-0 px-3 py-2 text-start"
           data-bs-toggle="dropdown"
           aria-expanded="false"
+          aria-haspopup="true"
         >
-          <span class="flex-grow-1 overflow-hidden text-truncate text-start">{{ userName || '—' }}</span>
+          <span class="flex-grow-1 overflow-hidden text-truncate text-start pe-2">{{ userName || '—' }}</span>
+          <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0" aria-hidden="true" />
         </button>
         <ul class="dropdown-menu dropdown-menu-start w-100">
           <li v-if="canSeeNavLink(userType, 'create-test-bank')">

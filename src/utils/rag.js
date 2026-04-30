@@ -262,6 +262,10 @@ export const UNIT_TYPE_TEXT = 2;
 export const UNIT_TYPE_MP3 = 3;
 export const UNIT_TYPE_YOUTUBE = 4;
 
+/** 出題單元預設分段長度／重疊（與 POST build-rag-zip chunk_* 對齊；每群一筆） */
+export const DEFAULT_PACK_CHUNK_SIZE = 1000;
+export const DEFAULT_PACK_CHUNK_OVERLAP = 200;
+
 /**
  * POST /rag/tab/build-rag-zip 的 body.transcriptions：與 unit_list 逗號分段同序、同數量（每個出題單元一筆）。
  * unit_type 為 2／3／4 時為該單元逐字稿全文（前端 Markdown 編輯區字串，JSON UTF-8 原樣送出，不剝格式）；其餘型別傳空字串。
@@ -320,6 +324,38 @@ export function remapPackUnitTypes(oldList, oldTypes, newList) {
       }
     }
     return UNIT_TYPE_RAG;
+  });
+}
+
+/**
+ * 拖放／刪除標籤後，依群組資料夾集合對齊與 unit_types 同序之數值陣列（如 chunk_size）
+ * @param {string[][]} oldList
+ * @param {unknown[]} oldVals
+ * @param {string[][]} newList
+ * @param {number} defaultVal
+ * @returns {number[]}
+ */
+export function remapPackParallelNumbers(oldList, oldVals, newList, defaultVal) {
+  const ol = oldList || [];
+  const nl = newList || [];
+  const ov = [...(oldVals || [])];
+  while (ov.length < ol.length) ov.push(defaultVal);
+  ov.length = ol.length;
+  const def = Number(defaultVal);
+  const d = Number.isFinite(def) ? def : 0;
+  const used = new Set();
+  return nl.map((g) => {
+    const s = groupSig(g);
+    if (!s) return d;
+    for (let i = 0; i < ol.length; i++) {
+      if (used.has(i)) continue;
+      if (groupSig(ol[i]) === s) {
+        used.add(i);
+        const n = Number(ov[i]);
+        return Number.isFinite(n) ? n : d;
+      }
+    }
+    return d;
   });
 }
 

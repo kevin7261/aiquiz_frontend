@@ -1,11 +1,13 @@
 /**
  * 設計權杖 — 僅保留目前前端實際用到的變數：
- * - body 預設字體／等寬 Courier（--my-font-family-courier）／字級／字距／色（common.css；中性灰階 #333／gray-1～gray-4／#fff＋紅綠藍；淺底次要字色見 common .my-color-gray-4 等混色；表單欄位標題併 --my-color-gray-1；中型輸入／原生 select 等邊線併 --my-color-gray-2）
+ * - body 預設字體／等寬 Courier（--my-font-family-courier）／字級／字距／色（common.css；中性灰階 #333／gray-1～gray-4／#fff＋紅綠藍；淺底次要字色見 common .my-color-gray-4 等混色；表單欄位標題併 --my-color-gray-1；中型輸入邊線併 --my-color-gray-2）
  * - 字級 rem 僅在此定義 --my-font-size-*；版面字級／字重僅併 common `.my-font-{xl|lg|md|sm}-{400|600}`（勿另造 `.my-font-size-*` 等純字級 class，與變數前綴區隔）
  * - 字重：僅 --my-font-weight-regular（400）、--my-font-weight-semibold（600）；common 內用 var(--my-font-weight-*)，禁止字面量 400／600
  * - common：字階 .my-font-*-{400|600}（僅字級字重）；網頁標題（頂欄品牌等）.my-font-xl-400；區塊子標題 .my-font-lg-600 預設字色 --my-color-black（次色另併 .my-color-gray-1）；字色 .my-color-*；底 .my-bgcolor-*；全頁 canvas 為 body gray-4；業務內容區塊 .my-bgcolor-page-block（同 --my-color-gray-3）、rounded-3、p-3 p-lg-4、mb-4；淺灰三階底 .my-bgcolor-gray-2／.my-bgcolor-gray-3／.my-bgcolor-gray-4；描邊鈕 .my-button-white-border、黑底填色 .my-button-black、填色「白」.my-button-white（淺頁為黑底白字；黑底稿內例外淺底）、黑無框 .my-button-transparent-borderless；32×32 圓形圖示鈕 .my-btn-circle（分頁「+」、稿頁複製等）
  * - 主要區塊縱向間距：common .my-page-block-spacing（業務頁內文區多區塊用）
- * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；原生 select 見 common .my-form-select；與中型按鈕同高文字欄見 common .form-control.my-input-md；深底黑底白字併 .my-input-md--on-dark；textarea／符合條件之 input／div.form-control 寬度同 .w-100（common 全寬規則）
+ * - 欄位標題與其下第一個控件：--my-field-label-input-gap（common 鄰接選擇器；直向父層請 gap-0）
+ * - 下拉選單（有限選項）：Design 頁「08 · 下拉選單」— .my-design-08-dropdown；觸發 btn rounded-2 · dropdown-toggle · my-dropdown-caret · my-font-md-400 · my-button-white · px-3 py-2；選單 Bootstrap .dropdown-menu；可重用 Design08OptionDropdown、UnitSelectDropdown
+ * - 表格：common .my-table（併 .table）表頭混色等；儲存格內距依 Bootstrap；勿疊 .table-sm；與中型按鈕同高文字欄見 common .form-control.my-input-md；深底黑底白字併 .my-input-md--on-dark；textarea／符合條件之 input／div.form-control 寬度同 .w-100（common 全寬規則）
  * - 載入圓環：common `.spinner-border.my-app-spinner`／`my-app-spinner--sm`；LoadingOverlay 僅版面 scoped（`data-bs-theme="dark"` 不覆寫此檔變數）
  * - 捲軸樣式（common.css 全域）；下拉選單項目用 Bootstrap `.dropdown-menu` 預設，觸發箭頭見 common `.my-dropdown-caret`
  * - 撰寫 CSS 時：同一規則內最後先 padding 再 margin；Vue／HTML 的 `class` 字串：`p-*`／`m-*` 等間距類別整串置末、之後不得再接其它 class（先 p 後 m）
@@ -56,6 +58,9 @@
   --my-scrollbar-thumb-inset: 1pt; /* 左右／上下各 1pt → 6 − 2 = 4pt */
   --my-scrollbar-thumb: color-mix(in srgb, var(--my-color-gray-4) 55%, var(--my-color-white));
   --my-scrollbar-thumb-hover: color-mix(in srgb, var(--my-color-gray-4) 78%, var(--my-color-black));
+
+  /* 欄位標題（label.form-label／div.form-label／label[for]）與下一個控件或包裝 div 的垂直間距 */
+  --my-field-label-input-gap: 0.25rem;
 
   /* 關閉 Bootstrap shadow（.shadow／.shadow-sm／.shadow-lg 與引用 --bs-box-shadow* 的元件） */
   --bs-box-shadow: none;
