@@ -74,6 +74,8 @@ export function useRagTabState(activeTabId, newTabIds, ragList, authStore, optio
         quizSlotsCount: 0,
         unitTabOrder: [],
         activeUnitTabId: null,
+        /** 目前單元下「題型」子分頁索引（0-based → unitSlotQuizCards[slot-1][index]） */
+        activeUnitQuizTypeIndex: 0,
         /** 同一測驗題庫分頁內，依單元子分頁 id 累計題號（create 成功時 +1，僅本頁會話） */
         unitPromptOrdinalByUnitTabId: {},
         /** 建立測驗題庫「單元子分頁」：每個 slot 對應一個單元，內為該單元底下多題 Card[]（與後端 quizzes[] 對齊） */

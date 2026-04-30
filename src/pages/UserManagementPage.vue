@@ -7,7 +7,7 @@
  * 批次：POST /user/users/batch；body 為 [{ person_id, name }]；query 為呼叫者 person_id（loggedFetch 預設）。
  * Excel 匯入後即檢查檔內重複與與列表重複；有則禁用「批次新增學生」按鈕。單筆送出前亦會檢查重複。
  * 單筆 Modal：輸入 ID 時即時比對列表；須 ID、姓名、類型皆填且未重複才可按「新增使用者」。類型為 Bootstrap 5 dropdown（同 Design 08／UnitSelectDropdown）。
- * 刪除：POST /user/users/delete，body 為被刪 person_id；query 為呼叫者（loggedFetch 預設）。
+ * 刪除：PUT /user/users/delete，body 為被刪 person_id；query 為呼叫者（loggedFetch 預設）。
  */
 import { ref, computed, onActivated } from 'vue';
 import { API_BASE, API_USER_USERS, API_USER_DELETE } from '../constants/api.js';
@@ -75,7 +75,7 @@ async function deleteUser(u) {
   deleteUserError.value = '';
   try {
     const res = await loggedFetch(`${API_BASE}${API_USER_DELETE}`, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person_id: targetPid }),
     });

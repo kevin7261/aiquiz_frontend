@@ -18,7 +18,9 @@ import {
   API_RAG_TAB_UNIT_MP3_FILE,
   API_RAG_TAB_UNIT_QUIZ_CREATE,
   API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE,
+  API_RAG_TAB_UNIT_QUIZ_QUIZ_NAME,
   API_RAG_TAB_UNIT_QUIZ_FOR_EXAM,
+  API_RAG_TAB_QUIZ_DELETE,
   API_GENERATE_QUIZ,
   isFrontendLocalHost,
 } from '../constants/api.js';
@@ -195,12 +197,12 @@ export async function apiUploadZip(file, ragTabId, personId) {
 }
 
 /**
- * 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}（後端依連線／session 識別 person，不需 X-Person-Id）
+ * 刪除 RAG：PUT /rag/tab/delete/{rag_tab_id}（後端依連線／session 識別 person，不需 X-Person-Id）
  * @param {string} ragTabId
  */
 export async function apiDeleteRag(ragTabId) {
   const res = await loggedFetch(`${API_BASE}${API_RAG_DELETE}/${encodeURIComponent(String(ragTabId))}`, {
-    method: 'POST',
+    method: 'PUT',
   });
   if (!res.ok) {
     const text = await res.text();
@@ -416,6 +418,58 @@ export async function apiCreateRagUnitQuiz(body, personId) {
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);
+}
+
+/**
+ * 更新 Rag_Quiz 題名：PUT /rag/tab/unit/quiz/quiz-name；query person_id（必填）。
+ * Body：`rag_quiz_id`、`quiz_name`。
+ * @param {{ rag_quiz_id: number, quiz_name: string }} body
+ * @param {string | number} personId
+ * @returns {Promise<object>}
+ */
+export async function apiUpdateRagQuizName(body, personId) {
+  const pid = String(personId ?? '').trim();
+  if (!pid) throw new Error('person_id 為必填');
+  const rqid = Number(body?.rag_quiz_id);
+  if (!Number.isFinite(rqid) || rqid < 1) throw new Error('無效的 rag_quiz_id');
+  const qname = body?.quiz_name != null ? String(body.quiz_name).trim() : '';
+  if (!qname) throw new Error('請輸入題型名稱');
+  const res = await loggedFetch(`${API_BASE}${API_RAG_TAB_UNIT_QUIZ_QUIZ_NAME}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rag_quiz_id: rqid,
+      quiz_name: qname,
+    }),
+  }, { personId: pid });
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  return parseJson(text);
+}
+
+/**
+ * 軟刪除 Rag_Quiz：PUT /rag/tab/quiz/delete/{rag_quiz_id}；query person_id（必填）。
+ * @param {number | string} ragQuizId
+ * @param {string | number} personId
+ */
+export async function apiDeleteRagQuiz(ragQuizId, personId) {
+  const pid = String(personId ?? '').trim();
+  if (!pid) throw new Error('person_id 為必填');
+  const rqid = Number(ragQuizId);
+  if (!Number.isFinite(rqid) || rqid < 1) throw new Error('無效的 rag_quiz_id');
+  const res = await loggedFetch(
+    `${API_BASE}${API_RAG_TAB_QUIZ_DELETE}/${encodeURIComponent(String(rqid))}`,
+    { method: 'PUT' },
+    { personId: pid }
+  );
+  const text = await res.text();
+  if (!res.ok) throw new Error(parseFetchError(res, text));
+  if (!text || !text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
 }
 
 /**

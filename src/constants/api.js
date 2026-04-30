@@ -93,7 +93,7 @@ export const API_USER_USERS = '/user/users';
 export const API_USER_BATCH = '/user/users/batch';
 
 /**
- * 軟刪除使用者：POST /user/users/delete；body { person_id } 為欲刪除者；
+ * 軟刪除使用者：PUT /user/users/delete；body { person_id } 為欲刪除者；
  * query person_id 為呼叫者（必填），由 loggedFetch 自動帶入，勿覆寫為被刪者。
  */
 export const API_USER_DELETE = '/user/users/delete';
@@ -115,8 +115,10 @@ export const API_CREATE_UNIT = '/rag/tab/create';
 export const API_RAG_LIST = '/rag/tabs';
 /** 上傳教材檔：POST /rag/tab/upload-zip，需先 POST /rag/tab/create；Form: file、rag_tab_id、person_id（必填）；file 可為 .pdf、.doc、.docx、.ppt、.pptx 等後端可解析格式；不需 llm_api_key；回傳 file_metadata（內含 file_size〔MB〕等）並寫入 DB */
 export const API_UPLOAD_ZIP = '/rag/tab/upload-zip';
-/** 刪除 RAG：POST /rag/tab/delete/{rag_tab_id}；不需 X-Person-Id */
+/** 刪除 RAG：PUT /rag/tab/delete/{rag_tab_id}；不需 X-Person-Id */
 export const API_RAG_DELETE = '/rag/tab/delete';
+/** 軟刪除 Rag_Quiz：PUT /rag/tab/quiz/delete/{rag_quiz_id} */
+export const API_RAG_TAB_QUIZ_DELETE = '/rag/tab/quiz/delete';
 /** 更新 RAG 分頁顯示名稱：PUT /rag/tab/tab-name；body JSON：rag_id、tab_name；以 rag_id 比對，僅更新 deleted=false；回傳 rag_id、rag_tab_id、person_id、tab_name、updated_at */
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
 /** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 含 rag_tab_id、person_id、unit_list；選填 unit_types／unit_type_list、transcriptions（與逗號分段同序；2／3／4 為 MD 全文）、chunk_*、build_faiss；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
@@ -138,6 +140,8 @@ export const API_RAG_TAB_UNIT_MP3_FILE = '/rag/tab/unit/mp3-file';
 export const API_RAG_TAB_UNIT_QUIZ_CREATE = '/rag/tab/unit/quiz/create';
 /** POST /rag/tab/unit/quiz/llm-generate — body：`rag_quiz_id`、`quiz_name`、`quiz_user_prompt_text`（後兩者可 ""）；query：`person_id`（必填）。`rag_tab_id`／`rag_unit_id` 不需傳，後端依 rag_quiz_id 解析 */
 export const API_RAG_TAB_UNIT_QUIZ_LLM_GENERATE = '/rag/tab/unit/quiz/llm-generate';
+/** 更新 Rag_Quiz 題名：PUT /rag/tab/unit/quiz/quiz-name；body 以 rag_quiz_id 比對（僅 deleted=false）；回傳 rag_quiz_id、rag_tab_id、rag_unit_id、person_id、quiz_name、updated_at 等 */
+export const API_RAG_TAB_UNIT_QUIZ_QUIZ_NAME = '/rag/tab/unit/quiz/quiz-name';
 /** Rag_Quiz 單題測驗用標記：POST /rag/tab/unit/quiz/for-exam — query person_id；body：`rag_quiz_id`、`rag_tab_id`、`rag_unit_id`（可 ""／0）；可選 `for_exam` 切換 true／false（與後端 OpenAPI 一致時） */
 export const API_RAG_TAB_UNIT_QUIZ_FOR_EXAM = '/rag/tab/unit/quiz/for-exam';
 /** 設為使用中 RAG：PATCH /rag/applied/{rag_tab_id}，Header X-Person-Id；該 rag_tab_id applied=true，同 person 其餘 applied=false */
@@ -163,7 +167,7 @@ export const API_EXAM_TESTS = '/exam/tabs';
 export const API_CREATE_EXAM = '/exam/tab/create';
 /** 更新測驗分頁顯示名稱：PUT /exam/tab/tab-name；body JSON：exam_id、tab_name；以 exam_id 比對，僅更新 deleted=false；回傳 exam_id、exam_tab_id、person_id、tab_name、updated_at */
 export const API_EXAM_UNIT_NAME = '/exam/tab/tab-name';
-/** Exam：POST /exam/tab/delete/{exam_tab_id} Delete Exam；不需 X-Person-Id */
+/** Exam：PUT /exam/tab/delete/{exam_tab_id} Delete Exam；不需 X-Person-Id */
 export const API_EXAM_DELETE = '/exam/tab/delete';
 /**
  * POST /exam/tab/quiz/create（OpenAPI：**Exam Create Quiz (no LLM)**）
