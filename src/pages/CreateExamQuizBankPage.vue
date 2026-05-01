@@ -15,7 +15,7 @@
  * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；unit_type=2 內嵌 Markdown 逐字稿區（可垂直捲動）；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與「逐字稿」Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
-import { ref, computed, watch, onMounted, onActivated, reactive } from 'vue';
+import { ref, computed, watch, onMounted, onActivated, reactive, nextTick } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
 import {
   API_RESPONSE_QUIZ_CONTENT,
@@ -141,6 +141,100 @@ const showFormWhenNoData = ref(false);
 const newTabIds = ref([]);
 
 const { getTabState, currentState, isNewTabId } = useRagTabState(activeTabId, newTabIds, ragList, authStore);
+
+/** 重新整理後還原主 tab／單元子分頁／題型子分頁（sessionStorage，依使用者分鍵） */
+const CREATE_BANK_TAB_UI_STORAGE_PREFIX = 'myquiz:createBankTabUI:v1:';
+
+function createBankTabUiStorageKey(personId) {
+  const p = String(personId ?? '').trim();
+  return `${CREATE_BANK_TAB_UI_STORAGE_PREFIX}${p || 'anon'}`;
+}
+
+function readCreateBankTabUiPersisted(personId) {
+  try {
+    const raw = sessionStorage.getItem(createBankTabUiStorageKey(personId));
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return null;
+    return {
+      rag_tab_id: o.rag_tab_id != null ? String(o.rag_tab_id) : '',
+      unit_tab_id: o.unit_tab_id != null ? String(o.unit_tab_id) : '',
+      quiz_type_index: Number(o.quiz_type_index) || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCreateBankTabUiPersisted(personId, payload) {
+  try {
+    sessionStorage.setItem(
+      createBankTabUiStorageKey(personId),
+      JSON.stringify({
+        v: 1,
+        rag_tab_id: payload.rag_tab_id,
+        unit_tab_id: payload.unit_tab_id,
+        quiz_type_index: payload.quiz_type_index,
+      })
+    );
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function ragTabIdExistsInBankLists(ragTabId, list, newIds) {
+  const id = String(ragTabId ?? '').trim();
+  if (!id) return false;
+  if (Array.isArray(newIds) && newIds.some((x) => String(x) === id)) return true;
+  if (!Array.isArray(list)) return false;
+  return list.some((r) => String(r?.rag_tab_id ?? r?.id ?? r) === id);
+}
+
+function persistCreateBankTabUiSelection() {
+  const personId = getPersonId(authStore);
+  if (!personId) return;
+  const ragTab = String(activeTabId.value ?? '').trim();
+  if (!ragTab) return;
+  const state = currentState.value;
+  writeCreateBankTabUiPersisted(personId, {
+    rag_tab_id: ragTab,
+    unit_tab_id: String(state.activeUnitTabId ?? '').trim(),
+    quiz_type_index: Number(state.activeUnitQuizTypeIndex ?? 0) || 0,
+  });
+}
+
+/**
+ * 若目前選中的頂層 tab 為 tabId，則依 session 還原單元與題型子分頁（需在 unitTabOrder／題卡 hydrate 之後呼叫）
+ */
+function applyPersistedUnitSubTabsIfActive(tabId) {
+  const id = String(tabId ?? '').trim();
+  if (!id || String(activeTabId.value ?? '').trim() !== id) return;
+  const personId = getPersonId(authStore);
+  if (!personId) return;
+  const persisted = readCreateBankTabUiPersisted(personId);
+  if (!persisted || String(persisted.rag_tab_id) !== id) return;
+  const state = getTabState(id);
+  const tabs = state.unitTabOrder ?? [];
+  const wantUnit = String(persisted.unit_tab_id ?? '').trim();
+  if (wantUnit && tabs.some((t) => t.id === wantUnit)) {
+    state.activeUnitTabId = wantUnit;
+  }
+  const qiPersist = Number(persisted.quiz_type_index);
+  nextTick(() => {
+    if (String(activeTabId.value ?? '').trim() !== id) return;
+    const s = getTabState(id);
+    const tabsNow = s.unitTabOrder ?? [];
+    const activeId = String(s.activeUnitTabId ?? '');
+    const slotIdx = tabsNow.findIndex((t) => t.id === activeId);
+    const i = slotIdx >= 0 ? slotIdx : 0;
+    const stacks = s.unitSlotQuizCards;
+    const row = Array.isArray(stacks) && stacks[i] ? stacks[i] : [];
+    const cards = Array.isArray(row) ? row : [];
+    let qi = Number.isFinite(qiPersist) ? qiPersist : 0;
+    if (!Number.isFinite(qi) || qi < 0 || qi >= cards.length) qi = 0;
+    s.activeUnitQuizTypeIndex = qi;
+  });
+}
 
 const zipFileInputAccept = UPLOAD_ACCEPT_ATTR;
 
@@ -888,6 +982,13 @@ function unitYoutubeUrl(unit) {
   return raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
 }
 
+/** 後端資料夾組合字串（GET units／rag 內嵌 units 等；與 unit_list 之 + 連接語意一致） */
+function folderCombinationFromUnitRaw(unit) {
+  if (!unit || typeof unit !== 'object') return '';
+  const raw = unit.folder_combination ?? unit.folderCombination;
+  return raw != null && String(raw).trim() !== '' ? String(raw).trim() : '';
+}
+
 /** Rag_Unit／GET /rag/tab/units／build-rag-zip output：逐字稿欄位（含 NDJSON output.transcript_plain） */
 function rawUnitTranscriptionString(unit) {
   if (!unit || typeof unit !== 'object') return '';
@@ -948,6 +1049,7 @@ function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
     ...(coRaw != null && String(coRaw).trim() !== '' && !Number.isNaN(Number(coRaw))
       ? { chunk_overlap: ensureNumber(coRaw, DEFAULT_PACK_CHUNK_OVERLAP) }
       : {}),
+    folder_combination: folderCombinationFromUnitRaw(unit),
   };
 }
 
@@ -995,6 +1097,7 @@ function fallbackUnitsRawFromRag(rag) {
       };
       if (Number.isFinite(utMerged) && utMerged > 0) merged.unit_type = utMerged;
       const ragModeOut = merged.rag_mode ?? merged.ragMode;
+      const folderCombo = folderCombinationFromUnitRaw(o);
       return {
         rag_tab_id: tabId,
         filename: merged.filename,
@@ -1006,6 +1109,7 @@ function fallbackUnitsRawFromRag(rag) {
         text_file_name: unitTextFileName(merged),
         mp3_file_name: unitMp3FileName(merged),
         youtube_url: unitYoutubeUrl(merged),
+        ...(folderCombo !== '' ? { folder_combination: folderCombo } : {}),
       };
     });
   }
@@ -1101,6 +1205,7 @@ function buildUnitTabItem(unit, index = 0) {
     youtubeUrl: unitYoutubeUrl(unit),
     chunkSize,
     chunkOverlap,
+    folderCombination: folderCombinationFromUnitRaw(unit),
   };
 }
 
@@ -1656,15 +1761,23 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
 
   if (nTabs > 0) {
     const chunkHL = rag ? hydratePackChunkArraysFromRag(rag, nTabs) : { sizes: [], overs: [] };
+    const groupsRo = ragListReadonlyGroups.value;
     return tabs.map((t, i) => {
       const tResolved = tabWithResolvedTranscription(t, i, state, rag);
       const srcDisp = quizBankReadonlySourceDisplay(tResolved);
       const ut = Number(t.unitType ?? UNIT_TYPE_RAG);
       const cs = t.chunkSize != null ? t.chunkSize : chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
       const co = t.chunkOverlap != null ? t.chunkOverlap : chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
+      const folderLineRo =
+        Array.isArray(groupsRo[i]) && groupsRo[i].length
+          ? groupsRo[i].filter(Boolean).join(' + ')
+          : '';
+      const fc = String(t.folderCombination ?? '').trim();
+      const folderComboTitle =
+        fc || folderLineRo || String(t?.label ?? `單元 ${i + 1}`).trim() || `單元 ${i + 1}`;
       return {
         key: String(t?.id ?? `idx-${i}`),
-        title: String(t?.label ?? `單元 ${i + 1}`).trim() || `單元 ${i + 1}`,
+        title: folderComboTitle,
         unitNameDisplay: String(t.unitName ?? t.label ?? '').trim() || '—',
         unitType: t.unitType,
         typeLabel: packUnitTypeDisplayLabel(t.unitType),
@@ -1686,6 +1799,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
 
   return groups.map((g, i) => {
     const folderLine = Array.isArray(g) ? g.filter(Boolean).join(' + ') : '';
+    const fcRow = String(unitsRow[i]?.folder_combination ?? '').trim();
     const rawT = Number(types[i]);
     const ut = rawT === 0 || rawT === 1 || rawT === 2 || rawT === 3 || rawT === 4 ? rawT : UNIT_TYPE_RAG;
     const chunkSize = chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
@@ -1693,8 +1807,9 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
 
     const synTab = unitsRow[i] != null ? buildUnitTabItem(unitsRow[i], i) : null;
     /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', src: string } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
-    let detailSegments = [{ kind: 'field', label: '資料夾', value: folderLine.trim() ? folderLine : '—' }];
-    let sourceDisplay = folderLine.trim() ? folderLine : '—';
+    const folderFieldLine = fcRow || (folderLine.trim() ? folderLine : '');
+    let detailSegments = [{ kind: 'field', label: '資料夾', value: folderFieldLine || '—' }];
+    let sourceDisplay = folderFieldLine || '—';
     /** @type {{ label: string, value: string }[]} */
     let outlineChunkFields = [];
     if (synTab) {
@@ -1706,7 +1821,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
       const utSyn = Number(synResolved.unitType ?? UNIT_TYPE_RAG);
       if (utSyn === UNIT_TYPE_RAG) outlineChunkFields = quizBankReadonlyOutlineChunkFields(cs, co);
       detailSegments = [
-        { kind: 'field', label: '資料夾', value: folderLine.trim() ? folderLine : '—' },
+        { kind: 'field', label: '資料夾', value: folderFieldLine || '—' },
         ...buildQuizBankReadonlyDetailSegments(synResolved),
       ];
     } else if (ut === UNIT_TYPE_RAG) {
@@ -1723,7 +1838,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
     const unitNameDisplay = synUnitName || unitFromRow || unitNameFromState || '—';
     return {
       key: `fb-${i}-${String(folderLine).slice(0, 32)}`,
-      title: folderLine || `設定單元 ${i + 1}`,
+      title: fcRow || folderLine || `設定單元 ${i + 1}`,
       unitNameDisplay,
       unitType: ut,
       typeLabel: packUnitTypeDisplayLabel(ut),
@@ -1767,6 +1882,7 @@ function syncRagItemToState(rag, state) {
   if (filename != null && String(filename).trim() !== '') state.zipFileName = String(filename).trim();
   hydrateQuizCardsFromRag(rag, state);
   state._synced = true;
+  applyPersistedUnitSubTabsIfActive(String(rag?.rag_tab_id ?? rag?.id ?? '').trim());
 }
 
 /** 僅在首次切換到該 RAG 分頁時自列表灌入狀態；已同步過的 tab 不再覆寫，保留使用者輸入 */
@@ -2000,12 +2116,30 @@ watch(
   { deep: true, immediate: true }
 );
 
-/** 有 RAG 資料時預設選第一個 tab */
+/** 有 RAG 資料時預設選第一個 tab；若 session 有合法上次選擇則還原該頂層 tab */
 watch(ragList, (list) => {
-  if (list.length > 0 && activeTabId.value == null) {
-    activeTabId.value = list[0].rag_tab_id ?? list[0].id ?? list[0];
-  }
+  if (list.length === 0 || activeTabId.value != null) return;
+  const personId = getPersonId(authStore);
+  const persisted = personId ? readCreateBankTabUiPersisted(personId) : null;
+  const pick =
+    persisted?.rag_tab_id
+    && ragTabIdExistsInBankLists(persisted.rag_tab_id, list, newTabIds.value)
+      ? persisted.rag_tab_id
+      : null;
+  activeTabId.value = pick ?? (list[0].rag_tab_id ?? list[0].id ?? list[0]);
 }, { immediate: true });
+
+watch(
+  [
+    activeTabId,
+    () => currentState.value.activeUnitTabId,
+    () => currentState.value.activeUnitQuizTypeIndex,
+  ],
+  () => {
+    persistCreateBankTabUiSelection();
+  },
+  { flush: 'post' }
+);
 
 /** 上傳 ZIP 的 <input type="file"> ref，用於進入頁面／新增 tab 時清空，讓欄位一開始是空的 */
 const zipFileInputRef = ref(null);
@@ -2047,6 +2181,7 @@ async function refreshUnitSubTabsFromApi(tabId) {
   ) {
     hydrateQuizCardsFromRag({ ...ragRow, units }, state);
   }
+  applyPersistedUnitSubTabsIfActive(String(tabId));
   return units;
 }
 
