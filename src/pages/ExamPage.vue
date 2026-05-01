@@ -7,7 +7,7 @@
  * 資料來源：
  * - 試卷題庫／單元選項：GET /exam/rag-for-exams（units[]：unit_type、transcription、text_file_name 等；內嵌 quizzes 時出題／批改規則為預覽）；不呼叫 GET /rag/tab/for-exam
  * - GET /exam/tabs?local=&person_id=：person_id 為必填 query；local 與 GET /rag/tabs 相同；每筆 Exam 含 units[]（Exam_Unit），每單元 quizzes[]（Exam_Quiz）；作答可為頂層 answers[] 或題列內嵌 answer_content／quiz_score／answer_critique；mergeQuizzesWithTopLevelAnswers 展平後 syncExamItemToTabState 灌入卡片；題型區塊內 unit_type=2 內嵌 Markdown（不標「逐字稿」，不列文字檔名）；3 僅 `<audio>` 與逐字稿 Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）
- * 出題：須選單元＋題名；尚無列時 POST /exam/tab/quiz/create（exam_tab_id + rag_unit_id + rag_quiz_id）；再 POST llm-generate（body 僅 exam_quiz_id、rag_tab_id、rag_unit_id、rag_quiz_id；提示自 Rag_Quiz 讀勿傳）。評分：POST /exam/tab/quiz/llm-grade（body：exam_quiz_id、quiz_content、quiz_answer）、GET …/grade-result/{job_id}；題目讚／差：POST /exam/tab/quiz/rate；分頁更名：PUT /exam/tab/tab-name；刪除：PUT /exam/tab/delete/{exam_tab_id}
+ * 出題：須選單元＋題名；尚無列時 POST /exam/tab/quiz/create（body 僅 exam_tab_id）；再 POST llm-generate（body 僅 exam_quiz_id、rag_tab_id、rag_unit_id、rag_quiz_id；提示自 Rag_Quiz 讀勿傳）。評分：POST /exam/tab/quiz/llm-grade（body：exam_quiz_id、quiz_content、quiz_answer）、GET …/grade-result/{job_id}；題目讚／差：POST /exam/tab/quiz/rate；分頁更名：PUT /exam/tab/tab-name；刪除：PUT /exam/tab/delete/{exam_tab_id}
  *
  * 試題資料表 public."Exam_Quiz"（與 GET/POST 題目 payload 對齊）：exam_quiz_id、exam_id、exam_tab_id、person_id、rag_id、unit_name、file_name、quiz_content、quiz_hint、quiz_answer_reference、quiz_rate（-1／0／1）、quiz_metadata、updated_at、created_at。畫面「單元」優先 unit_name。
  */
@@ -1272,7 +1272,7 @@ async function onExamRenameSave(name) {
   }
 }
 
-/** 按「＋」新增試卷分頁：POST /exam/tab/create，query 需帶 person_id；body 含 exam_tab_id、person_id、tab_name、local（與 RAG tab/create 一致） */
+/** 按「＋」新增試卷分頁：POST /exam/tab/create，query 需帶 person_id；body 含 exam_tab_id、tab_name、person_id、local（依 OpenAPI 順序） */
 async function addNewTab() {
   const personId = getCurrentPersonId();
   if (!personId) {
@@ -1291,8 +1291,8 @@ async function addNewTab() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         exam_tab_id: examTabId,
-        person_id: personId,
         tab_name: tabName,
+        person_id: personId,
         local,
       }),
     });
@@ -1568,7 +1568,7 @@ function onExamSlotQuizPickChange(slotIndex) {
 }
 
 /**
- * POST /exam/tab/quiz/create（不呼叫 LLM）；出題流程須一併送 **rag_unit_id、rag_quiz_id**（>0）以使後端 llm-generate 能直接查到列上兩鍵。
+ * POST /exam/tab/quiz/create（不呼叫 LLM）；body 僅送 exam_tab_id。
  * @param {number} ragUnitId
  * @param {number} ragQuizId
  */
@@ -1598,8 +1598,6 @@ async function tryCreateDraftExamQuizForSlot(slotIndex, ragUnitId, ragQuizId) {
     const createJson = await apiExamTabQuizCreate(
       {
         exam_tab_id: examTabStr,
-        rag_unit_id: Math.trunc(ru),
-        rag_quiz_id: Math.trunc(rq),
       },
       personId,
       { signal: ac.signal }
@@ -1686,7 +1684,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
 
 /**
  * 「產生題目」：POST /exam/tab/quiz/llm-generate；body **僅** exam_quiz_id、rag_tab_id、rag_unit_id、rag_quiz_id；列已存有效兩鍵時須與請求一致否則 400，列未寫入則後端以請求綁定；勿傳出題／批改提示文字。
- * - 尚無列：POST /exam/tab/quiz/create（exam_tab_id + rag_unit_id + rag_quiz_id）再 llm-generate。
+ * - 尚無列：POST /exam/tab/quiz/create（exam_tab_id）再 llm-generate。
  * - 題幹空白且列已錨定：若列已有兩鍵則檢查 UI 選取與列一致；缺鍵則直接送 LLM 由後端綁定。
  */
 async function generateQuiz(slotIndex) {

@@ -170,8 +170,8 @@ export async function apiCreateUnit(personId, ragTabId, tabName) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       rag_tab_id: ragTabId,
-      person_id: personId,
       tab_name: tabName,
+      person_id: personId,
       local: isFrontendLocalHost(),
     }),
   });
@@ -244,7 +244,8 @@ export async function apiUpdateRagTabName(ragId, tabName) {
 /**
  * 建 RAG ZIP：POST /rag/tab/build-rag-zip（application/x-ndjson；請用 fetch 讀 response.body 逐行解析，勿對 200 本文使用 response.json()）
  *
- * Body（節錄）：rag_tab_id、person_id、unit_list；選填 unit_types（逗號字串，與 unit_list 群組對齊）、unit_type_list（整數陣列）、chunk_size／chunk_overlap（相容舊版）及 chunk_sizes／chunk_overlaps（逗號字串與群組同序；非 unit_type 1 建議 0）；選填 transcriptions（string[]，與 unit_list 逗號分段同序；unit_type 2／3／4 索引為 Markdown 全文 UTF-8 原樣，供寫入 Rag_Unit.transcription／transcript.md）；選填 build_faiss（true 強制允許 FAISS〔仍須 unit_type=1〕；false 等同 repack_only；省略時依使用者類型判定）。
+ * Body（OpenAPI PackRequest）：rag_tab_id、person_id、unit_list、chunk_size、chunk_overlap、chunk_sizes、chunk_overlaps、unit_types、build_faiss、transcriptions。
+ * chunk_sizes／chunk_overlaps 為逗號字串或陣列，與 unit_list 群組同序；transcriptions 與 unit_list 逗號分段同序，unit_type 2／3／4 索引為 Markdown 全文 UTF-8 原樣，供寫入 Rag_Unit.transcription／transcript.md。
  * Query：person_id（與 body 一致）；選填 repack_only=true（強制各 unit 不建 FAISS），請傳第三參數 `streamOptions.repack_only`，勿自行拼進 URL。
  *
  * NDJSON 事件（每行一物件）：start（total、source_rag_tab_id、unit_list、user_type、build_faiss_request、repack_only、allow_faiss）、building（index、total、completed_before、filename）、unit（…、output：rag_mode 為 faiss｜transcript_md｜repack_copy，以及 rag_filename、transcript_plain、text_file_name、mp3_file_name、youtube_url 等）、complete（success、outputs…）。整批成敗以最後一則 complete.success 為準。
@@ -519,9 +520,9 @@ export async function apiRagUnitQuizLlmGenerate(body, personId) {
 
 /**
  * 更新 Rag_Quiz.for_exam：POST /rag/tab/unit/quiz/for-exam — query person_id（必填）。
- * Body **僅** `rag_quiz_id`、`for_exam`（true＝測驗用、false＝取消）；以 rag_quiz_id 定位列。
+ * Body：`rag_quiz_id`、選填 `rag_tab_id`／`rag_unit_id`、`for_exam`（true＝測驗用、false＝取消）；以 rag_quiz_id 定位列。
  *
- * @param {{ rag_quiz_id: number, for_exam: boolean }} body
+ * @param {{ rag_quiz_id: number, rag_tab_id?: string, rag_unit_id?: number, for_exam: boolean }} body
  * @param {string | number} personId
  */
 export async function apiMarkRagQuizForExam(body, personId) {
@@ -531,8 +532,12 @@ export async function apiMarkRagQuizForExam(body, personId) {
   if (!Number.isFinite(rqid) || rqid < 1) throw new Error('無效的 rag_quiz_id');
   const payload = {
     rag_quiz_id: Math.trunc(rqid),
-    for_exam: !!body?.for_exam,
   };
+  const ragTabId = body?.rag_tab_id != null ? String(body.rag_tab_id).trim() : '';
+  if (ragTabId) payload.rag_tab_id = ragTabId;
+  const ragUnitId = Number(body?.rag_unit_id);
+  if (Number.isFinite(ragUnitId) && ragUnitId > 0) payload.rag_unit_id = Math.trunc(ragUnitId);
+  payload.for_exam = !!body?.for_exam;
   const res = await loggedFetch(`${API_BASE}${API_RAG_TAB_UNIT_QUIZ_FOR_EXAM}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

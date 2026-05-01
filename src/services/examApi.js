@@ -54,10 +54,10 @@ export async function apiUpdateExamTabName(examId, tabName) {
 /**
  * 空白 Exam_Quiz（不呼叫 LLM）：{@link API_EXAM_CREATE_QUIZ}（OpenAPI: Exam Create Quiz）。
  * - Query（必填）：`person_id`（由 {@link loggedFetch} 第三參數 `personId` 附加於 URL）
- * - Body：`exam_tab_id`；**搭配** {@link apiExamTabQuizLlmGenerate} 時應一併傳 `rag_unit_id`、`rag_quiz_id`（皆 >0，與後端寫入列一致）。
+ * - Body：`exam_tab_id`。
  * LLM 出題請改用 {@link apiExamTabQuizLlmGenerate}
  *
- * @param {{ exam_tab_id: string | number, rag_unit_id?: number | string, rag_quiz_id?: number | string }} body
+ * @param {{ exam_tab_id: string | number }} body
  * @param {string | number} personId - 同 query person_id（呼叫者）
  * @param {{ signal?: AbortSignal }} [fetchExtra] - `signal`：中止未完成之草稿請求
  */
@@ -66,13 +66,9 @@ export async function apiExamTabQuizCreate(body, personId, fetchExtra = undefine
   if (!pid) throw new Error('person_id 為必填');
   const examTabId = body?.exam_tab_id != null ? String(body.exam_tab_id).trim() : '';
   if (!examTabId) throw new Error('缺少 exam_tab_id');
-  const ruRaw = body?.rag_unit_id != null && body.rag_unit_id !== '' ? Number(body.rag_unit_id) : NaN;
-  const rqRaw = body?.rag_quiz_id != null && body.rag_quiz_id !== '' ? Number(body.rag_quiz_id) : NaN;
   const payload = {
     exam_tab_id: examTabId,
   };
-  if (Number.isFinite(ruRaw) && ruRaw > 0) payload.rag_unit_id = Math.trunc(ruRaw);
-  if (Number.isFinite(rqRaw) && rqRaw > 0) payload.rag_quiz_id = Math.trunc(rqRaw);
   /** @type {RequestInit} */
   const init = {
     method: 'POST',

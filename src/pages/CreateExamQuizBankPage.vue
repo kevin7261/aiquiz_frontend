@@ -53,7 +53,6 @@ import {
   deriveRagName,
   getRagUnitListString,
   parsePackTasksList,
-  packUnitTypesIntArrayForApi,
   parsePackUnitTypesFromRag,
   parseRagMetadataObject,
   unitSelectValue,
@@ -1164,7 +1163,7 @@ const activeUnitSlotIndex = computed(() => {
   return idx >= 0 ? idx + 1 : 1;
 });
 
-/** 目前單元槽對應之 rag_tab_id／rag_unit_id（供題卡狀態與其他 API；for-exam 僅送 rag_quiz_id／for_exam） */
+/** 目前單元槽對應之 rag_tab_id／rag_unit_id（供題卡狀態與 for-exam API 對齊 Rag_Quiz 關聯欄） */
 function getRagQuizUnitMeta(slotIndex) {
   const state = currentState.value;
   const tabs = state.unitTabOrder ?? [];
@@ -1200,6 +1199,8 @@ async function onMarkRagQuizForExam(card) {
     await apiMarkRagQuizForExam(
       {
         rag_quiz_id: rqid,
+        rag_tab_id: String(card.rag_tab_id ?? meta.rag_tab_id ?? rag?.rag_tab_id ?? '').trim(),
+        rag_unit_id: Number(card.rag_unit_id ?? meta.rag_unit_id),
         for_exam: nextForExam,
       },
       personId
@@ -2406,7 +2407,6 @@ async function confirmPack() {
       state.packUnitTypes,
       state.packTasksList?.length ?? 0
     );
-    const unitTypesIntArray = packUnitTypesIntArrayForApi(unitTypesNormalized);
     const transcriptions = transcriptionsForBuildRagZip(
       unitTypesNormalized,
       state.packUnitMarkdownTexts ?? []
@@ -2425,10 +2425,11 @@ async function confirmPack() {
         rag_tab_id: fileId,
         person_id: personId,
         unit_list: unitList,
-        unit_types: serializePackUnitTypesForApi(unitTypesNormalized),
-        unit_type_list: unitTypesIntArray,
+        chunk_size: DEFAULT_PACK_CHUNK_SIZE,
+        chunk_overlap: DEFAULT_PACK_CHUNK_OVERLAP,
         chunk_sizes: chunkSizesStr,
         chunk_overlaps: chunkOverlapsStr,
+        unit_types: serializePackUnitTypesForApi(unitTypesNormalized),
         transcriptions,
       },
       (ev) => {
@@ -4028,7 +4029,19 @@ async function confirmAnswer(item) {
                           >
                             <i class="fa-solid fa-pen" aria-hidden="true" />
                           </button>
+                          <span
+                            v-if="qRow.rag_quiz_for_exam === true || qRow.rag_quiz_for_exam === 1"
+                            class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
+                            title="測驗用題型"
+                            role="img"
+                          >
+                            <span
+                              class="rounded-circle d-inline-block my-bgcolor-green"
+                              style="width: 0.5rem; height: 0.5rem"
+                            />
+                          </span>
                           <button
+                            v-else
                             type="button"
                             class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4"
                             title="刪除此題型"

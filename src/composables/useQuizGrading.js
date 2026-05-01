@@ -81,7 +81,6 @@ function buildRagGradeBody(item, context, options = {}) {
   const body = {
     rag_id: String(ragId ?? ''),
     rag_quiz_id: String(ragQuizRaw),
-    quiz_answer: item.quiz_answer.trim(),
   };
 
   // rag_tab_id 不為空時才帶入
@@ -95,6 +94,8 @@ function buildRagGradeBody(item, context, options = {}) {
   // 批改規則（answer_user_prompt_text）：非空才送出
   const answerPrompt = String(item.gradingPrompt ?? '').trim();
   if (answerPrompt !== '') body.answer_user_prompt_text = answerPrompt;
+
+  body.quiz_answer = item.quiz_answer.trim();
 
   // 合併額外欄位（如 unit_type）
   const extra = options.extraGradeBody;
