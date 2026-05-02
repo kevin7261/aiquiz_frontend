@@ -2,41 +2,169 @@
 /**
  * StudentAnswerAnalysisPage - 學生作答分析頁面
  *
- * 讀取 GET /course-analysis/quizzes；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（頂層 answers 與 quizzes 合併）；weakness_report 固定 null。
- * 版面與作答弱點分析一致：摘要、批改結果、匯出 Excel。
+ * 讀取 GET /course-analysis/quizzes；列表格式與 GET /exam/tabs、GET /rag/tabs 每筆一致（mergeQuizzesWithTopLevelAnswers）。
+ * 題目區與測驗頁（QuizCard）版面一致、純顯示；另顯示使用者 ID。
  */
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { API_BASE, API_COURSE_ANALYSIS_QUIZZES } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
-import { downloadSummaryExcel } from '../utils/exportExcel.js';
+import QuizCard from '../components/QuizCard.vue';
 import {
   normalizeAnalysisQuizzesListResponse,
   mergeQuizzesWithTopLevelAnswers,
+  quizAnswerPresetFromReference,
 } from '../utils/rag.js';
-import { formatGradingResult, formatQuizGradeDisplay, getAnswerScoreValue } from '../utils/grading.js';
+import { formatGradingResult } from '../utils/grading.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 
 const items = ref([]);
+/** 與 items 同序；供 QuizCard（與測驗頁同一題目區 UI） */
+const quizCardUi = ref([]);
 const loading = ref(false);
 const error = ref('');
 
-/** 每題可能多筆作答，與測驗頁一致取最後一筆 */
-function getSingleAnswer(item) {
-  const list = item?.answers;
-  if (!Array.isArray(list) || list.length === 0) return null;
-  return list[list.length - 1];
+/** 與 ExamPage normalizeExamQuizRate 一致 */
+function normalizeExamQuizRate(v) {
+  const n = Number(v);
+  if (n === 1 || n === -1 || n === 0) return n;
+  return 0;
 }
 
-/** 從單筆 answer 取得批改結果文字（與測驗頁顯示一致） */
-function getGradingResultText(ans) {
-  if (!ans) return '尚未批改';
-  let data = ans.answer_metadata;
-  if (!data && ans.answer_feedback_metadata != null) {
-    const fm = ans.answer_feedback_metadata;
-    data = typeof fm === 'string' ? (() => { try { return JSON.parse(fm); } catch { return null; } })() : fm;
+/** 與 ExamPage extractQuizUserPromptFromExamRagRow 鍵名對齊 */
+function extractQuizUserPromptFromRow(raw) {
+  if (!raw || typeof raw !== 'object') return '';
+  const keys = [
+    'quiz_user_prompt_text',
+    'quizUserPromptText',
+    'user_prompt_text',
+    'userPromptText',
+    'prompt_text',
+    'promptText',
+  ];
+  for (const key of keys) {
+    const val = raw[key];
+    if (val == null) continue;
+    const text = String(val);
+    if (text.trim()) return text;
   }
-  const str = data != null ? JSON.stringify(data) : (typeof ans.answer_feedback_metadata === 'string' ? ans.answer_feedback_metadata : '');
-  return formatGradingResult(str || '') || '尚未批改';
+  return '';
+}
+
+/** 與 ExamPage extractAnswerUserPromptFromExamRagRow 鍵名對齊 */
+function extractAnswerUserPromptFromRow(raw) {
+  if (!raw || typeof raw !== 'object') return '';
+  const keys = [
+    'answer_user_prompt_text',
+    'answerUserPromptText',
+    'critique_user_prompt_instruction',
+  ];
+  for (const key of keys) {
+    const val = raw[key];
+    if (val == null) continue;
+    const text = String(val);
+    if (text.trim()) return text;
+  }
+  return '';
+}
+
+/** 與 ExamPage examQuizDisplayNameFromRow 一致（題型欄） */
+function examQuizDisplayNameFromRow(quiz) {
+  if (!quiz || typeof quiz !== 'object') return '';
+  const direct = quiz.quiz_name ?? quiz.quizName ?? quiz.QuizName;
+  if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+  const meta = quiz.quiz_metadata ?? quiz.quizMetadata;
+  if (meta != null && typeof meta === 'object') {
+    const mn = meta.quiz_name ?? meta.quizName;
+    if (mn != null && String(mn).trim() !== '') return String(mn).trim();
+  }
+  return '';
+}
+
+function studentQuizTypeLabel(quiz) {
+  const s = examQuizDisplayNameFromRow(quiz);
+  return s || '—';
+}
+
+/**
+ * 與 ExamPage buildCardFromExamQuiz 相同欄位，供 QuizCard 與測驗頁同一套題目區 UI。
+ * @param {object} item
+ * @param {number} index
+ */
+function studentItemToQuizCard(item, index) {
+  const answers = Array.isArray(item?.answers) ? item.answers : [];
+  const latestAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
+  const latestSubmitted =
+    latestAnswer?.quiz_answer ??
+    latestAnswer?.student_answer ??
+    latestAnswer?.answer_text ??
+    latestAnswer?.content ??
+    (item?.answer_content != null && String(item.answer_content).trim() !== ''
+      ? String(item.answer_content)
+      : null);
+  const refA =
+    item?.quiz_answer_reference ?? item?.quiz_reference_answer ?? item?.reference_answer ?? '';
+  const quiz_answer =
+    latestSubmitted != null && String(latestSubmitted).trim() !== ''
+      ? String(latestSubmitted)
+      : quizAnswerPresetFromReference(refA);
+  const gradingResult = latestAnswer
+    ? (formatGradingResult(JSON.stringify(latestAnswer)) ||
+        (latestSubmitted != null && String(latestSubmitted).trim() !== '' ? '已批改' : ''))
+    : '';
+  const quizId = item?.exam_quiz_id ?? item?.quiz_id ?? null;
+  const answerId = latestAnswer?.exam_answer_id ?? latestAnswer?.answer_id ?? null;
+  const rid = item?.rag_id ?? item?.ragId ?? null;
+  const ragIdStr = rid != null && String(rid).trim() !== '' ? String(rid) : null;
+  const ragName = (item?.rag_name ?? item?.unit_name ?? item?.exam_name ?? '').trim() || null;
+  return {
+    id: `student-analysis-card-${quizId ?? item?.rag_quiz_id ?? index}-${index}`,
+    quiz: item?.quiz_content ?? item?.quiz ?? item?.question ?? '',
+    hint: item?.quiz_hint ?? item?.hint ?? '',
+    referenceAnswer:
+      item?.quiz_answer_reference ?? item?.quiz_reference_answer ?? item?.reference_answer ?? '',
+    sourceFilename: item?.file_name ?? null,
+    ragName,
+    rag_id: ragIdStr,
+    rag_unit_id:
+      item?.rag_unit_id != null && item?.rag_unit_id !== ''
+        ? Number(item.rag_unit_id)
+        : null,
+    rag_quiz_id:
+      item?.rag_quiz_id != null && item?.rag_quiz_id !== ''
+        ? Number(item.rag_quiz_id)
+        : null,
+    quiz_answer,
+    hintVisible: false,
+    quiz_rate: normalizeExamQuizRate(item?.quiz_rate),
+    rateError: '',
+    confirmed: !!latestAnswer,
+    gradingResult,
+    gradingResponseJson: latestAnswer ?? null,
+    generateQuizResponseJson: null,
+    exam_quiz_id: quizId,
+    answer_id: answerId,
+    gradingPrompt: extractAnswerUserPromptFromRow(item).trim(),
+    quiz_user_prompt_text: extractQuizUserPromptFromRow(item).trim(),
+    examQuizDisplayName: examQuizDisplayNameFromRow(item),
+  };
+}
+
+function toggleStudentHint(card) {
+  if (!card || typeof card !== 'object') return;
+  card.hintVisible = !card.hintVisible;
+}
+
+watch(
+  items,
+  (list) => {
+    quizCardUi.value = list.map((it, i) => studentItemToQuizCard(it, i));
+  },
+  { immediate: true },
+);
+
+function studentSlotQuizBodyTrim(idx) {
+  const c = quizCardUi.value[idx];
+  return String(c?.quiz ?? '').trim();
 }
 
 async function fetchQuizAnswers() {
@@ -48,10 +176,22 @@ async function fetchQuizAnswers() {
     if (!res.ok) throw new Error(res.statusText || '無法載入作答資料');
     const data = await res.json();
     const exams = normalizeAnalysisQuizzesListResponse(data);
-    items.value = exams.flatMap((exam) => {
-      const quizzes = mergeQuizzesWithTopLevelAnswers(exam);
-      const examLabel = exam.tab_name ?? exam.exam_name ?? exam.exam_tab_id ?? '';
-      return quizzes.map((q) => ({ ...q, exam_name: examLabel }));
+    items.value = exams.flatMap((parent) => {
+      const quizzes = mergeQuizzesWithTopLevelAnswers(parent);
+      const examLabel =
+        parent.tab_name ?? parent.exam_name ?? parent.rag_name ?? parent.exam_tab_id ?? '';
+      const examTabId = parent.exam_tab_id ?? parent.test_tab_id;
+      const examId = parent.exam_id ?? parent.test_id;
+      const ragTabId = parent.rag_tab_id;
+      const ragId = parent.rag_id ?? parent.id;
+      return quizzes.map((q) => ({
+        ...q,
+        exam_name: q.exam_name ?? examLabel,
+        exam_tab_id: q.exam_tab_id ?? examTabId,
+        exam_id: q.exam_id ?? examId,
+        rag_tab_id: q.rag_tab_id ?? ragTabId,
+        rag_id: q.rag_id ?? q.ragId ?? ragId,
+      }));
     });
   } catch (err) {
     error.value = err.message || '無法載入學生作答分析';
@@ -59,21 +199,6 @@ async function fetchQuizAnswers() {
   } finally {
     loading.value = false;
   }
-}
-
-function getSummaryRows() {
-  return items.value.map((item, idx) => [
-    idx + 1,
-    item.person_id ?? '—',
-    item.rag_name ?? item.exam_name ?? '—',
-    formatQuizGradeDisplay(getAnswerScoreValue(getSingleAnswer(item))),
-    getSingleAnswer(item)?.created_at ?? '—'
-  ]);
-}
-
-async function onDownloadExcel() {
-  const headers = ['題號', '使用者 ID', '單元', '分數', '時間'];
-  await downloadSummaryExcel(headers, getSummaryRows(), '學生作答分析-作答紀錄摘要.xlsx');
 }
 
 onMounted(() => {
@@ -108,111 +233,64 @@ onMounted(() => {
             <template v-else>
               <div class="text-start my-page-block-spacing">
                 <div class="d-flex flex-column gap-4 w-100 min-w-0">
-                  <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0">
-                    <div class="my-font-lg-600 my-color-black mb-4">作答紀錄摘要</div>
-                    <div class="table-responsive">
-                      <table class="table table-bordered table-sm my-font-md-400 mb-0">
-                        <thead class="my-table-thead">
-                          <tr>
-                            <th class="my-font-md-600">題號</th>
-                            <th class="my-font-md-600">使用者 ID</th>
-                            <th class="my-font-md-600">單元</th>
-                            <th class="my-font-md-600">分數</th>
-                            <th class="my-font-md-600">時間</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(item, idx) in items" :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx">
-                            <td>{{ idx + 1 }}</td>
-                            <td>{{ item.person_id ?? '—' }}</td>
-                            <td>{{ item.rag_name ?? item.exam_name ?? '—' }}</td>
-                            <td>{{ formatQuizGradeDisplay(getAnswerScoreValue(getSingleAnswer(item))) }}</td>
-                            <td>{{ getSingleAnswer(item)?.created_at ?? '—' }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div class="d-flex justify-content-center mt-3">
-                      <button
-                        type="button"
-                        class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
-                        @click="onDownloadExcel"
-                      >
-                        下載 Excel
-                      </button>
-                    </div>
-                  </div>
-
                   <div
                     v-for="(item, idx) in items"
-                    :key="item.exam_quiz_id ?? item.rag_quiz_id ?? idx"
-                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-4"
+                    :key="`${item.exam_quiz_id ?? item.rag_quiz_id ?? idx}-${item.person_id ?? ''}`"
+                    class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 text-start d-flex flex-column gap-3"
                   >
-                    <div class="text-start w-100 min-w-0 d-flex flex-column gap-4">
-                      <div class="my-font-lg-600 my-color-black mb-0">第 {{ idx + 1 }} 題</div>
-                      <div class="d-flex flex-row align-items-end gap-3 w-100 min-w-0 flex-wrap">
-                        <div class="d-flex flex-column flex-shrink-0 gap-1" style="min-width: 7rem">
-                          <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">使用者 ID</div>
-                          <div
-                            class="d-flex justify-content-between align-items-center my-font-md-400 my-color-black w-100 min-w-0 px-3 py-2 rounded-2 my-bgcolor-white my-border-gray-2"
-                            role="presentation"
-                          >
-                            <span class="text-truncate text-start pe-2">{{ item.person_id ?? '—' }}</span>
-                            <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0 opacity-50" aria-hidden="true" />
-                          </div>
-                        </div>
-                        <div class="d-flex flex-column min-w-0 flex-grow-1 gap-1" style="min-width: 8rem">
-                          <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">單元</div>
-                          <div
-                            class="d-flex justify-content-between align-items-center my-font-md-400 my-color-black w-100 min-w-0 px-3 py-2 rounded-2 my-bgcolor-white my-border-gray-2"
-                            role="presentation"
-                          >
-                            <span class="text-truncate text-start pe-2">{{ item.rag_name ?? item.exam_name ?? '—' }}</span>
-                            <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0 opacity-50" aria-hidden="true" />
-                          </div>
-                        </div>
-                      </div>
-                      <div class="w-100 min-w-0 d-flex flex-column gap-1 mb-0">
-                        <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">題目</div>
-                        <div class="form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 lh-base">
-                          {{ item.quiz_content ?? '—' }}
-                        </div>
-                      </div>
-                      <div v-if="item.quiz_hint" class="w-100 min-w-0 d-flex flex-column gap-1 mb-0">
-                        <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">提示</div>
-                        <div class="my-font-sm-400 form-control my-input-md my-input-md--on-dark my-bgcolor-light-gray rounded-2 w-100 min-w-0 px-3 py-2 my-color-gray-4">
-                          {{ item.quiz_hint }}
-                        </div>
-                      </div>
-                      <div
-                        v-if="item.quiz_answer_reference || item.quiz_reference_answer"
-                        class="w-100 min-w-0 d-flex flex-column gap-1 mb-0"
-                      >
-                        <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">參考答案(暫存)</div>
+                    <div class="my-font-lg-600 my-color-black mb-0">第 {{ idx + 1 }} 題</div>
+                    <div class="d-flex flex-column gap-3 w-100 min-w-0">
+                      <div class="w-100 min-w-0">
+                        <div class="my-color-gray-1 my-font-sm-400 mb-0 d-block">使用者 ID</div>
                         <div
-                          class="my-font-sm-400 form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                          style="white-space: pre-wrap;"
-                        >{{ item.quiz_answer_reference ?? item.quiz_reference_answer }}</div>
+                          class="my-font-md-400 my-color-black text-break lh-base mt-1"
+                          role="status"
+                          :aria-label="`使用者 ID：${item.person_id ?? '—'}`"
+                        >
+                          {{ item.person_id ?? '—' }}
+                        </div>
                       </div>
-                      <template v-if="getSingleAnswer(item)">
-                        <div class="w-100 min-w-0 d-flex flex-column gap-1 mb-0">
-                          <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">答案</div>
-                          <div class="my-font-sm-400 form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2 mb-0">
-                            {{ getSingleAnswer(item).quiz_answer ?? getSingleAnswer(item).student_answer ?? '—' }}
+                      <div class="d-flex flex-row flex-nowrap w-100 min-w-0 align-items-start gap-3">
+                        <div class="min-w-0 flex-grow-1" style="flex-basis: 0">
+                          <div class="d-flex flex-column gap-0 w-100 min-w-0">
+                            <div class="my-color-gray-1 my-font-sm-400 mb-0 d-block">單元</div>
+                            <div
+                              class="my-font-md-400 my-color-black text-break lh-base mt-1"
+                              role="status"
+                              :aria-label="`單元：${item.rag_name ?? item.unit_name ?? item.exam_name ?? '—'}`"
+                            >
+                              {{ item.rag_name ?? item.unit_name ?? item.exam_name ?? '—' }}
+                            </div>
                           </div>
                         </div>
-                        <div class="w-100 min-w-0 d-flex flex-column gap-1 mb-0">
-                          <div class="my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">批改結果</div>
-                          <div
-                            class="my-font-sm-400 form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2"
-                            style="white-space: pre-wrap;"
-                          >{{ getGradingResultText(getSingleAnswer(item)) }}</div>
+                        <div class="min-w-0 flex-grow-1" style="flex-basis: 0">
+                          <div class="d-flex flex-column gap-0 w-100 min-w-0">
+                            <div class="my-color-gray-1 my-font-sm-400 mb-0 d-block">題型</div>
+                            <div
+                              class="my-font-md-400 my-color-black text-break lh-base mt-1"
+                              role="status"
+                              :aria-label="`題型：${studentQuizTypeLabel(item)}`"
+                            >
+                              {{ studentQuizTypeLabel(item) }}
+                            </div>
+                          </div>
                         </div>
-                      </template>
-                      <template v-else>
-                        <div class="my-color-gray-4 my-font-sm-400 mb-0">尚無作答</div>
-                      </template>
+                      </div>
                     </div>
+                    <QuizCard
+                      v-if="studentSlotQuizBodyTrim(idx) !== ''"
+                      :card="quizCardUi[idx]"
+                      :slot-index="idx + 1"
+                      :current-rag-id="quizCardUi[idx]?.rag_id"
+                      show-exam-rating
+                      exam-rating-read-only
+                      read-only-answer
+                      design-ui
+                      design-embedded
+                      hide-slot-index
+                      hide-grading-prompt
+                      @toggle-hint="toggleStudentHint"
+                    />
                   </div>
                 </div>
               </div>
