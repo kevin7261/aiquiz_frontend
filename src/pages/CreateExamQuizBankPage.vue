@@ -451,7 +451,7 @@ const activeUnitQuizLoadingOverlayKind = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 設定單元：文字／mp3／YouTube 逐字稿 GET 期間 */
+/** 設定單元：GET /rag/transcript/text、/rag/unit/audio-file、/rag/unit/youtube-url 期間 */
 const hasPackUnitTranscriptLoading = computed(() => {
   const arr = currentState.value?.packUnitTranscriptLoading;
   if (!Array.isArray(arr)) return false;
@@ -481,7 +481,7 @@ const loadingOverlayText = computed(() => {
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立題庫中...';
-  if (hasPackUnitTranscriptLoading.value) return '逐字稿處理中...';
+  if (hasPackUnitTranscriptLoading.value) return '檔案讀取中';
   if (deleteRagLoading.value) return '刪除中...';
   if (deleteUnitQuizLoading.value) return '刪除題型中...';
   if (renameRagTabSaving.value) return '儲存中...';
