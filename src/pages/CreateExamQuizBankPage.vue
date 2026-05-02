@@ -9,11 +9,11 @@
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_sizes／chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
- * - 設定單元：GET `/rag/transcript/text`、`/rag/unit/audio-file`、`/rag/unit/youtube-url` 時區塊內顯示「檔案讀取中」；`/rag/transcript/text|audio|youtube`（載入逐字稿）按下後遮罩／按鈕顯示「分析逐字稿中」。
+ * - 設定單元：GET `/rag/transcript/text`、`/rag/unit/audio-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay「檔案讀取中…」；unit_type 2／3／4 主按鈕分別為「載入檔案文字／載入語音文字／載入影片文字」，按下後區塊內「分析逐字稿中…」（非全螢幕 overlay）。
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_score、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；設定單元選 unit_type=2/3/4 時共用 Markdown 逐字稿編輯器，未載入逐字稿前以模糊遮罩擋住，且不能開始設定單元；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
+ * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；設定單元選 unit_type=2/3/4 時共用 Markdown 逐字稿編輯器，於編輯區上方按鈕載入檔案／語音／影片文字，完成載入前編輯區停用且不能開始設定單元；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive, nextTick } from 'vue';
@@ -489,7 +489,7 @@ const activeUnitQuizLoadingOverlayKind = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 設定單元：逐字稿分析中（載入逐字稿）或檔案讀取（/rag/transcript/text、/rag/unit/audio-file、youtube-url）期間，禁「開始設定單元」等 */
+/** 設定單元：逐字稿分析中（載入檔案／語音／影片文字）或檔案讀取（/rag/transcript/text、/rag/unit/audio-file、youtube-url）期間，禁「開始設定單元」等 */
 const hasPackUnitTranscriptLoading = computed(() => {
   const st = currentState.value;
   const t = Array.isArray(st?.packUnitTranscriptLoading) && st.packUnitTranscriptLoading.some(Boolean);
@@ -497,7 +497,14 @@ const hasPackUnitTranscriptLoading = computed(() => {
   return t || sf;
 });
 
-/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／產生題目／批改（不含設定單元逐字稿；該區用區塊內文案） */
+/** 設定單元：GET `/rag/transcript/text`（文字逐字稿）或 mp3／YouTube 來源預覽 fetch 期間（packUnitSourceFileLoading） */
+const hasPackUnitSourceFileLoading = computed(
+  () =>
+    Array.isArray(currentState.value?.packUnitSourceFileLoading)
+    && currentState.value.packUnitSourceFileLoading.some(Boolean),
+);
+
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／產生題目／批改／設定單元檔案讀取（不含逐字稿「分析中」區塊內狀態） */
 const loadingOverlayVisible = computed(
   () =>
     ragListLoading.value ||
@@ -509,7 +516,8 @@ const loadingOverlayVisible = computed(
     !!currentState.value?.zipLoading ||
     !!currentState.value?.packLoading ||
     hasAnySlotGenerating.value ||
-    isGradingSubmitting.value
+    isGradingSubmitting.value ||
+    hasPackUnitSourceFileLoading.value
 );
 
 const loadingOverlayText = computed(() => {
@@ -519,6 +527,7 @@ const loadingOverlayText = computed(() => {
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立題庫中...';
+  if (hasPackUnitSourceFileLoading.value) return '檔案讀取中…';
   if (deleteRagLoading.value) return '刪除中...';
   if (deleteUnitQuizLoading.value) return '刪除題型中...';
   if (renameRagTabSaving.value) return '儲存中...';
@@ -673,6 +682,15 @@ function packUnitTypeAt(gi) {
 
 function isTranscriptPackUnitType(ut) {
   return ut === UNIT_TYPE_TEXT || ut === UNIT_TYPE_MP3 || ut === UNIT_TYPE_YOUTUBE;
+}
+
+/** 設定單元 unit_type 2／3／4：逐字稿區主按鈕文案（對應 GET transcript text／audio／youtube） */
+function packUnitLoadTranscriptButtonLabel(gi) {
+  const ut = packUnitTypeAt(gi);
+  if (ut === UNIT_TYPE_TEXT) return '載入檔案文字';
+  if (ut === UNIT_TYPE_MP3) return '載入語音文字';
+  if (ut === UNIT_TYPE_YOUTUBE) return '載入影片文字';
+  return '載入逐字稿';
 }
 
 /** 設定單元類型：數值與後端 unit_types／unit_type_list 對齊（含 0 未選擇，供顯示／相容） */
@@ -912,10 +930,6 @@ function packUnitTranscriptBusy(gi) {
   return !!(currentState.value.packUnitTranscriptLoading && currentState.value.packUnitTranscriptLoading[gi]);
 }
 
-function packUnitSourceFileBusy(gi) {
-  return !!(currentState.value.packUnitSourceFileLoading && currentState.value.packUnitSourceFileLoading[gi]);
-}
-
 function packUnitTranscriptLoadedAt(gi) {
   return !!(currentState.value.packUnitTranscriptLoaded && currentState.value.packUnitTranscriptLoaded[gi]);
 }
@@ -1045,8 +1059,14 @@ async function loadPackUnitMediaPreviewForType(gi, group) {
   const s = currentState.value;
   const err = [...s.packUnitTranscriptError];
   const prev = String(err[gi] ?? '');
+  const retryHint =
+    ut === UNIT_TYPE_MP3
+      ? '仍可嘗試「載入語音文字」'
+      : ut === UNIT_TYPE_YOUTUBE
+        ? '仍可嘗試「載入影片文字」'
+        : '仍可嘗試載入文字';
   const mediaMsg =
-    '來源影音預覽載入失敗（請確認 ZIP 資料夾內有對應音訊／YouTube 說明檔）；仍可嘗試「載入逐字稿」';
+    `來源影音預覽載入失敗（請確認 ZIP 資料夾內有對應音訊／YouTube 說明檔）；${retryHint}`;
   if (ok) {
     if (prev.startsWith('來源影音')) err[gi] = '';
   } else if (!prev.startsWith('逐字稿')) {
@@ -1065,7 +1085,7 @@ function markPackUnitPreviewDone(gi) {
 const PACK_UNIT_TRANSCRIPT_ERROR_FALLBACK =
   '逐字稿讀取失敗：請確認已上傳教材 ZIP／資料夾名稱與 ZIP 內二層資料夾一致，且資料夾內有可作為逐字稿的內容。';
 
-/** 將「載入逐字稿」fetch 異常／空內容寫入對列（若有 Error.message 會一併顯示以利除錯） */
+/** 將載入 transcript（檔案／語音／影片文字）fetch 異常／空內容寫入對列（若有 Error.message 會一併顯示以利除錯） */
 function packUnitPreviewTranscriptError(gi, caught) {
   const s = currentState.value;
   ensurePackUnitSidecarArrays();
@@ -1107,7 +1127,7 @@ function packUnitYoutubeEmbedUrl(gi) {
 }
 
 /**
- * 「載入逐字稿」依 unit_type：文字 → GET `/rag/transcript/text`；mp3 → `/rag/transcript/audio`；YouTube → `/rag/transcript/youtube`（有嵌入網址時附 `youtube_url`）。
+ * 主按鈕依 unit_type：文字「載入檔案文字」→ GET `/rag/transcript/text`；mp3「載入語音文字」→ `/rag/transcript/audio`；YouTube「載入影片文字」→ `/rag/transcript/youtube`（有嵌入網址時附 `youtube_url`）。
  * 播放器預覽仍見 `loadPackUnitMediaPreviewForType`。
  */
 async function loadPackUnitPreviewForType(gi, group) {
@@ -2937,7 +2957,7 @@ async function confirmPack() {
   const missingTranscriptIndexes = missingPackUnitTranscriptIndexes(state);
   if (missingTranscriptIndexes.length > 0) {
     const labels = missingTranscriptIndexes.map((i) => `單元 ${i + 1}`).join('、');
-    state.packError = `${labels} 尚未載入逐字稿，請先在文字框上方按「載入逐字稿」`;
+    state.packError = `${labels} 尚未載入內容；請於各單元編輯區上方依類型點選「載入檔案文字」、「載入語音文字」或「載入影片文字」。`;
     return;
   }
   if (!unitList) {
@@ -4010,7 +4030,7 @@ async function confirmAnswer(item) {
                       >
                     </div>
                     <div
-                      class="d-flex flex-column gap-0 min-w-0 my-pack-unit-type-dropdown"
+                      class="d-flex flex-column gap-0 min-w-0"
                       style="flex: 1 1 0;"
                     >
                       <div class="form-label my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0">
@@ -4073,14 +4093,6 @@ async function confirmAnswer(item) {
                     class="w-100 min-w-0"
                   >
                     <div class="d-flex flex-column gap-2 w-100 min-w-0">
-                      <p
-                        v-if="packUnitSourceFileBusy(gi)"
-                        class="my-font-sm-400 my-color-gray-1 mb-0 text-center py-2 w-100 rounded-2 my-bgcolor-gray-4"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        檔案讀取中…
-                      </p>
                       <audio
                         v-if="packUnitTypeAt(gi) === UNIT_TYPE_MP3 && (currentState.packUnitMp3PreviewUrls?.[gi] ?? '').trim() !== ''"
                         :key="currentState.packUnitMp3PreviewUrls[gi]"
@@ -4102,38 +4114,30 @@ async function confirmAnswer(item) {
                           allowfullscreen
                         />
                       </div>
+                      <div class="d-flex justify-content-center w-100 min-w-0 pt-1 pb-1">
+                        <button
+                          type="button"
+                          class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-sm-400 my-button-white px-3 py-1"
+                          :disabled="packUnitTranscriptBusy(gi) || packGroupsEditBlocked || group.length === 0"
+                          :aria-busy="packUnitTranscriptBusy(gi)"
+                          :aria-label="packUnitTranscriptBusy(gi) ? '分析逐字稿中' : packUnitLoadTranscriptButtonLabel(gi)"
+                          @click="loadPackUnitPreviewForType(gi, group)"
+                        >
+                          {{ packUnitTranscriptBusy(gi) ? '分析逐字稿中…' : packUnitLoadTranscriptButtonLabel(gi) }}
+                        </button>
+                      </div>
                       <div
                         class="my-pack-unit-md-editor min-w-0"
-                        :class="{ 'my-pack-unit-md-editor--blocked': !packUnitTranscriptLoadedAt(gi) || packUnitTranscriptBusy(gi) }"
                         role="region"
                         aria-label="逐字稿 Markdown"
                       >
-                        <div
-                          class="position-relative min-w-0"
-                        >
-                          <EnglishExamMarkdownEditor
-                            :model-value="packUnitTranscriptTextAt(gi)"
-                            :disabled="packGroupsEditBlocked || !packUnitTranscriptLoadedAt(gi) || packUnitTranscriptBusy(gi)"
-                            :preview-only="false"
-                            :textarea-id="'pack-unit-transcript-md-' + gi"
-                            @update:model-value="(v) => setPackUnitMarkdownAt(gi, v)"
-                          />
-                          <div
-                            v-if="!packUnitTranscriptLoadedAt(gi) || packUnitTranscriptBusy(gi)"
-                            class="my-pack-unit-md-transcript-overlay position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center rounded-2"
-                          >
-                            <button
-                              type="button"
-                              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-sm-400 my-button-white px-3 py-1"
-                              :disabled="packUnitTranscriptBusy(gi) || packGroupsEditBlocked"
-                              :aria-busy="packUnitTranscriptBusy(gi)"
-                              :aria-label="packUnitTranscriptBusy(gi) ? '分析逐字稿中' : '載入逐字稿'"
-                              @click="loadPackUnitPreviewForType(gi, group)"
-                            >
-                              {{ packUnitTranscriptBusy(gi) ? '分析逐字稿中…' : '載入逐字稿' }}
-                            </button>
-                          </div>
-                        </div>
+                        <EnglishExamMarkdownEditor
+                          :model-value="packUnitTranscriptTextAt(gi)"
+                          :disabled="packGroupsEditBlocked || !packUnitTranscriptLoadedAt(gi) || packUnitTranscriptBusy(gi)"
+                          :preview-only="false"
+                          :textarea-id="'pack-unit-transcript-md-' + gi"
+                          @update:model-value="(v) => setPackUnitMarkdownAt(gi, v)"
+                        />
                       </div>
                     </div>
                     <p
@@ -4907,17 +4911,5 @@ async function confirmAnswer(item) {
 }
 .my-pack-unit-md-editor :deep(.english-exam-md-editor-wrap .CodeMirror-scroll) {
   min-height: 200px;
-}
-/* 類型下拉：須疊在下方逐字稿霧化層之上（選單常向下展開至編輯區） */
-.my-pack-unit-type-dropdown {
-  position: relative;
-  z-index: 20;
-}
-/* 稿為空時覆蓋編輯區：淺色半透明＋中央按鈕；z-index 僅高於同區塊內 CodeMirror，勿高於 Bootstrap 下拉選單 */
-.my-pack-unit-md-transcript-overlay {
-  z-index: 2;
-  box-sizing: border-box;
-  background: color-mix(in srgb, var(--my-color-white) 62%, transparent);
-  backdrop-filter: blur(2px);
 }
 </style>
