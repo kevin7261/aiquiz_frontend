@@ -61,7 +61,7 @@ export function userMayAccessRoute(user, to) {
 /**
  * 側邊欄單一連結是否顯示（與 route 權限一致）
  * @param {number | string | undefined | null} userType
- * @param {string} viewKey — work | student-weakness-analysis | create-test-bank 等（與 URL 片段相同）
+ * @param {string} viewKey — work | student-weakness-analysis | create-exam-bank 等（與 URL 片段相同）
  */
 export function canSeeNavLink(userType, viewKey) {
   if (viewKey === 'logs') return Number(userType) === DEVELOPER_USER_TYPE;

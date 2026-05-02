@@ -5,7 +5,7 @@
  * - / → 重導向至 /login
  * - /login → 登入頁（LoginView）
  * - /exam → 測驗/工作區（HomeView，內部 currentView 為 work）
- * - /:view → 主區塊各功能（student-weakness-analysis、profile、create-test-bank、design、manage-users 等），由 HomeView 依 view 渲染
+ * - /:view → 主區塊各功能（student-weakness-analysis、profile、create-exam-bank、design、manage-users 等），由 HomeView 依 view 渲染
  * - /main、/main/:view → 舊網址相容，重導向至 /exam 或 /:view
  *
  * 主區塊與 /exam 需登入、依 user_type 限制路由（/logs 僅 user_type=1），見 main.js 的 router.beforeEach 與 permissions.js。
@@ -20,7 +20,7 @@ const VALID_VIEWS = [
   'student-weakness-analysis',
   'student-answer-analysis',
   'profile',
-  'create-test-bank',
+  'create-exam-bank',
   'design',
   'manage-users',
   'settings',
@@ -33,7 +33,7 @@ const VIEW_TITLES = {
   'student-weakness-analysis': '作答弱點分析 - MyQuiz.ai',
   'student-answer-analysis': '學生作答分析 - MyQuiz.ai',
   profile: '設定 - MyQuiz.ai',
-  'create-test-bank': '建立測驗題庫 - MyQuiz.ai',
+  'create-exam-bank': '建立測驗題庫 - MyQuiz.ai',
   design: 'UI 元件（Bootstrap） - MyQuiz.ai',
   'manage-users': '使用者管理 - MyQuiz.ai',
   settings: '系統設定 - MyQuiz.ai',
@@ -65,11 +65,11 @@ const routes = [
   },
   {
     path: '/main/create-unit',
-    redirect: '/create-test-bank',
+    redirect: '/create-exam-bank',
   },
   {
     path: '/main/create-rag',
-    redirect: '/create-test-bank',
+    redirect: '/create-exam-bank',
   },
   {
     path: '/main/course-analysis',
@@ -85,11 +85,11 @@ const routes = [
   },
   {
     path: '/create-unit',
-    redirect: '/create-test-bank',
+    redirect: '/create-exam-bank',
   },
   {
     path: '/create-rag',
-    redirect: '/create-test-bank',
+    redirect: '/create-exam-bank',
   },
   {
     path: '/course-analysis',
@@ -109,7 +109,8 @@ const routes = [
     component: HomeView,
     meta: { title: 'MyQuiz.ai' },
     beforeEnter(to, _from, next) {
-      if (VALID_VIEWS.includes(to.params.view)) return next();
+      const view = to.params.view;
+      if (VALID_VIEWS.includes(view)) return next();
       next({ path: '/exam', replace: true });
     },
   },

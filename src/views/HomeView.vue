@@ -5,7 +5,7 @@
    * 職責：
    * - 左側選單：測驗、作答弱點分析；其餘項目與登出在使用者名下拉選單
    * - 依 route.path / route.params.view 決定 currentView，只渲染對應的一個頁面組件
-   * - /exam 對應 work（ExamPage），/:view 對應 student-weakness-analysis / create-test-bank（建立測驗題庫頁）等
+   * - /exam 對應 work（ExamPage），/:view 對應 student-weakness-analysis / create-exam-bank（建立測驗題庫頁）等
    * - onMounted 時在 dataStore 註冊一個工作分頁（MAIN_WORK_TAB_ID）供 Exam 使用
    */
   import { computed, onMounted, watch } from 'vue';
@@ -26,7 +26,7 @@
     'student-weakness-analysis': 'studentWeaknessAnalysis',
     'student-answer-analysis': 'studentAnswerAnalysis',
     profile: 'profile',
-    'create-test-bank': 'createExamQuizBank',
+    'create-exam-bank': 'createExamQuizBank',
     design: 'designPage',
     'manage-users': 'userManagement',
     settings: 'systemSettings',
