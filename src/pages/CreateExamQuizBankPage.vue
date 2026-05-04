@@ -9,7 +9,7 @@
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_sizes／chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
- * - 設定單元：GET `/rag/transcript/text`、`/rag/unit/audio-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay「檔案讀取中…」；unit_type 2／3／4 主按鈕分別為「載入檔案文字／載入語音文字／載入影片文字」，按下後區塊內「分析逐字稿中…」（非全螢幕 overlay）。
+ * - 設定單元：GET `/rag/transcript/text`、`/rag/unit/mp3-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay「檔案讀取中…」；unit_type 2／3／4 主按鈕分別為「載入檔案文字／載入語音文字／載入影片文字」，按下後區塊內「分析逐字稿中…」（非全螢幕 overlay）。
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_score、quiz_comments、rag_quiz_id、rag_answer_id
@@ -32,7 +32,7 @@ import {
   apiRagTranscriptText,
   apiRagTranscriptAudio,
   apiRagTranscriptYoutube,
-  apiRagUnitAudioFileByFolder,
+  apiRagUnitMp3FileByFolder,
   apiRagUnitYoutubeUrlByFolder,
   transcriptResponseMarkdown,
   apiGetRagTabUnits,
@@ -489,7 +489,7 @@ const activeUnitQuizLoadingOverlayKind = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 設定單元：逐字稿分析中（載入檔案／語音／影片文字）或檔案讀取（/rag/transcript/text、/rag/unit/audio-file、youtube-url）期間，禁「開始建立單元」等 */
+/** 設定單元：逐字稿分析中（載入檔案／語音／影片文字）或檔案讀取（/rag/transcript/text、/rag/unit/mp3-file、youtube-url）期間，禁「開始建立單元」等 */
 const hasPackUnitTranscriptLoading = computed(() => {
   const st = currentState.value;
   const t = Array.isArray(st?.packUnitTranscriptLoading) && st.packUnitTranscriptLoading.some(Boolean);
@@ -1003,7 +1003,7 @@ function preparePackUnitPreviewCall(gi, group) {
 }
 
 /**
- * 載入 mp3／YouTube 來源預覽：GET `/rag/unit/audio-file`、`/rag/unit/youtube-url`（期間區塊內「檔案讀取中」）
+ * 載入 mp3／YouTube 來源預覽：GET `/rag/unit/mp3-file`、`/rag/unit/youtube-url`（期間區塊內「檔案讀取中」）
  */
 function preparePackUnitMediaPreviewCall(gi, group) {
   const folder = firstFolderNameInGroup(group);
@@ -1018,7 +1018,7 @@ async function refreshPackUnitMediaAssets(gi, ut, ctx) {
   try {
     try {
       if (ut === UNIT_TYPE_MP3) {
-        const blob = await apiRagUnitAudioFileByFolder({
+        const blob = await apiRagUnitMp3FileByFolder({
           rag_tab_id: ctx.rag_tab_id,
           folder_name: ctx.folder,
         });

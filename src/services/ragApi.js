@@ -14,7 +14,7 @@ import {
   API_RAG_TRANSCRIPT_TEXT,
   API_RAG_TRANSCRIPT_AUDIO,
   API_RAG_TRANSCRIPT_YOUTUBE,
-  API_RAG_UNIT_AUDIO_FILE,
+  API_RAG_UNIT_MP3_FILE,
   API_RAG_UNIT_YOUTUBE_URL,
   API_RAG_TAB_UNITS,
   API_RAG_TAB_UNIT_MP3_FILE,
@@ -158,17 +158,17 @@ export async function apiRagTranscriptYoutube(params) {
 }
 
 /**
- * GET /rag/unit/audio-file — ZIP 內 folder_name 資料夾取恰好一個音訊檔，回傳音訊本體（unit_type=3 mp3 單元）
+ * GET /rag/unit/mp3-file — ZIP 內 folder_name 資料夾取恰好一個音訊檔，回傳音訊本體（unit_type=3 mp3 單元；後端 OpenAPI Rag Unit Audio File）
  * Query 僅 `rag_tab_id`、`folder_name`（後端不需 `person_id`；{@link loggedFetch} 以 `omitPersonIdQuery` 避免自動附加）。
  * @param {{ rag_tab_id: string, folder_name: string }} params
  * @returns {Promise<Blob>}
  */
-export async function apiRagUnitAudioFileByFolder(params) {
+export async function apiRagUnitMp3FileByFolder(params) {
   const rag_tab_id = String(params.rag_tab_id ?? '').trim();
   const folder_name = String(params.folder_name ?? '').trim();
   if (!rag_tab_id) throw new Error('缺少 rag_tab_id');
   if (!folder_name) throw new Error('缺少 folder_name');
-  const url = buildTranscriptUrl(API_RAG_UNIT_AUDIO_FILE, { rag_tab_id, folder_name });
+  const url = buildTranscriptUrl(API_RAG_UNIT_MP3_FILE, { rag_tab_id, folder_name });
   const res = await loggedFetch(url, { method: 'GET' }, { omitPersonIdQuery: true });
   if (!res.ok) {
     const text = await res.text();

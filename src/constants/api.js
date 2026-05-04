@@ -129,8 +129,8 @@ export const API_RAG_TRANSCRIPT_TEXT = '/rag/transcript/text';
 export const API_RAG_TRANSCRIPT_AUDIO = '/rag/transcript/audio';
 /** RAG YouTube 單元逐字稿：GET /rag/transcript/youtube；query：同上；選填 `youtube_url`（與播放器解析網址一致時可帶） */
 export const API_RAG_TRANSCRIPT_YOUTUBE = '/rag/transcript/youtube';
-/** RAG 音訊單元原始音檔：GET /rag/unit/audio-file；query：rag_tab_id、folder_name（不需 person_id） */
-export const API_RAG_UNIT_AUDIO_FILE = '/rag/unit/audio-file';
+/** RAG 音訊單元原始 MP3（ZIP 內 folder）：GET /rag/unit/mp3-file；query：rag_tab_id、folder_name（不需 person_id）；後端 OpenAPI 名稱 Rag Unit Audio File */
+export const API_RAG_UNIT_MP3_FILE = '/rag/unit/mp3-file';
 /** RAG YouTube 單元 URL：GET /rag/unit/youtube-url；query：rag_tab_id、folder_name（不需 person_id） */
 export const API_RAG_UNIT_YOUTUBE_URL = '/rag/unit/youtube-url';
 /** 列出指定 tab 下所有未刪除 Rag_Unit（含關聯 quizzes）：GET /rag/tab/units；query: rag_tab_id、person_id（必填）；依 created_at 舊→新 */

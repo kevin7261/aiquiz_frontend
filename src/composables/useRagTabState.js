@@ -45,7 +45,7 @@ export function useRagTabState(activeTabId, newTabIds, ragList, authStore) {
         packUnitYoutubeUrls: [],
         /** 逐字稿 GET 回傳之暫存音檔 URL（建置前預覽；與 packTasksList 同序） */
         packUnitMp3PreviewUrls: [],
-        /** GET /rag/transcript/text（文字單元）或 /rag/unit/audio-file、/rag/unit/youtube-url（預覽）期間；與設定單元列對齊 */
+        /** GET /rag/transcript/text（文字單元）或 /rag/unit/mp3-file、/rag/unit/youtube-url（預覽）期間；與設定單元列對齊 */
         packUnitSourceFileLoading: [],
         packUnitTranscriptLoading: [],
         packUnitTranscriptLoaded: [],
