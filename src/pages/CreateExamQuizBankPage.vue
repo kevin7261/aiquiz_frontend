@@ -100,8 +100,8 @@ function nextCardId() {
   return `card-${++cardIdSeq}`;
 }
 
-/** POST /rag/tab/upload-zip 允許的副檔名（與後端可解析格式一致） */
-const UPLOAD_ALLOWED_EXTENSIONS = ['.zip', '.pdf', '.doc', '.docx', '.ppt', '.pptx'];
+/** POST /rag/tab/upload-zip：此頁僅接受 .zip */
+const UPLOAD_ALLOWED_EXTENSIONS = ['.zip'];
 const UPLOAD_ACCEPT_ATTR = UPLOAD_ALLOWED_EXTENSIONS.join(',');
 /** 教材上傳單檔大小上限（位元組）：與檔案總管／Finder 顯示的「MB」一致（50×10⁶），非 50×1024² */
 const UPLOAD_MAX_FILE_BYTES = 50 * 1000 * 1000;
@@ -2829,7 +2829,7 @@ function setZipFileFromFile(state, tabId, file) {
   const allowed = fileHasAllowedUploadExtension(file);
   if (!allowed) {
     resetZipState(state, tabId);
-    state.zipError = '請選擇允許的檔案：.pdf、.doc、.docx、.ppt、.pptx';
+    state.zipError = '請選擇 .zip 檔案';
     return;
   }
   if (uploadFileExceedsMaxSize(file)) {
@@ -3895,8 +3895,19 @@ async function confirmAnswer(item) {
               <div class="my-font-sm-400 my-color-gray-4 mt-2">
                 單檔不可超過 50 MB
               </div>
-              <div class="my-font-sm-400 my-color-gray-4 mt-1">
-                可解析的檔案副檔名：.pdf、.doc、.docx、.ppt、.pptx
+              <div
+                class="my-font-sm-400 my-color-gray-4 mt-2 text-start lh-sm w-100 mx-auto"
+                style="max-width: 28rem;"
+              >
+                <div class="mb-1">
+                  請在「設定單元」為 ZIP 內各資料夾分別選單元類型；各資料夾裡，後端會讀取的副檔名依類型如下：
+                </div>
+                <ul class="my-font-sm-400 my-color-gray-4 mb-0 ps-3">
+                  <li class="mb-0">RAG：.pdf、.doc、.docx、.ppt、.pptx</li>
+                  <li class="mb-0">文字：該資料夾內只能有一個 .md、.txt、.doc 或 .docx</li>
+                  <li class="mb-0">mp3：該資料夾內只能有一個.mp3檔</li>
+                  <li class="mb-0">youtube：.md、.txt、.doc 或 .docx（檔內須為 YouTube 網址，不可僅有 video_id）</li>
+                </ul>
               </div>
             </div>
             <div v-if="currentState.zipError" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">
