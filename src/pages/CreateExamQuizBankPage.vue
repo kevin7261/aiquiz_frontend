@@ -1008,9 +1008,8 @@ function preparePackUnitPreviewCall(gi, group) {
 function preparePackUnitMediaPreviewCall(gi, group) {
   const folder = firstFolderNameInGroup(group);
   const rag_tab_id = ragTabIdForTranscript();
-  const personId = getPersonId(authStore);
-  if (!folder || !rag_tab_id || !personId) return null;
-  return { folder, rag_tab_id, personId };
+  if (!folder || !rag_tab_id) return null;
+  return { folder, rag_tab_id };
 }
 
 async function refreshPackUnitMediaAssets(gi, ut, ctx) {
@@ -1022,7 +1021,6 @@ async function refreshPackUnitMediaAssets(gi, ut, ctx) {
         const blob = await apiRagUnitAudioFileByFolder({
           rag_tab_id: ctx.rag_tab_id,
           folder_name: ctx.folder,
-          personId: ctx.personId,
         });
         if (!(blob instanceof Blob) || blob.size <= 0) throw new Error('empty audio');
         setPackUnitMp3PreviewUrlAt(gi, URL.createObjectURL(blob));
@@ -1032,7 +1030,6 @@ async function refreshPackUnitMediaAssets(gi, ut, ctx) {
         const ytData = await apiRagUnitYoutubeUrlByFolder({
           rag_tab_id: ctx.rag_tab_id,
           folder_name: ctx.folder,
-          personId: ctx.personId,
         });
         const url = youtubeUrlFromUnitUrlResponse(ytData);
         if (!url || !youtubeEmbedUrlFromInput(url)) throw new Error('invalid youtube');
