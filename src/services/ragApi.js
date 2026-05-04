@@ -159,17 +159,19 @@ export async function apiRagTranscriptYoutube(params) {
 
 /**
  * GET /rag/unit/mp3-file — ZIP 內 folder_name 資料夾取恰好一個音訊檔，回傳音訊本體（unit_type=3 mp3 單元；後端 OpenAPI Rag Unit Audio File）
- * Query 僅 `rag_tab_id`、`folder_name`（後端不需 `person_id`；{@link loggedFetch} 以 `omitPersonIdQuery` 避免自動附加）。
- * @param {{ rag_tab_id: string, folder_name: string }} params
+ * Query：`rag_tab_id`、`folder_name`、`person_id`（與 {@link apiRagTranscriptText} 等一致）。
+ * @param {{ rag_tab_id: string, folder_name: string, personId: string | null | undefined }} params
  * @returns {Promise<Blob>}
  */
 export async function apiRagUnitMp3FileByFolder(params) {
   const rag_tab_id = String(params.rag_tab_id ?? '').trim();
   const folder_name = String(params.folder_name ?? '').trim();
+  const personId = params.personId != null ? String(params.personId).trim() : '';
   if (!rag_tab_id) throw new Error('缺少 rag_tab_id');
   if (!folder_name) throw new Error('缺少 folder_name');
-  const url = buildTranscriptUrl(API_RAG_UNIT_MP3_FILE, { rag_tab_id, folder_name });
-  const res = await loggedFetch(url, { method: 'GET' }, { omitPersonIdQuery: true });
+  if (!personId) throw new Error('缺少 person_id');
+  const url = buildTranscriptUrl(API_RAG_UNIT_MP3_FILE, { rag_tab_id, folder_name, personId });
+  const res = await loggedFetch(url, { method: 'GET' }, { personId });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(parseFetchError(res, text));
@@ -179,17 +181,19 @@ export async function apiRagUnitMp3FileByFolder(params) {
 
 /**
  * GET /rag/unit/youtube-url — ZIP 內 folder_name 資料夾 .md/.txt/.doc/.docx 解析 YouTube URL 或 video_id（unit_type=4）
- * Query 僅 `rag_tab_id`、`folder_name`（後端不需 `person_id`；{@link loggedFetch} 以 `omitPersonIdQuery` 避免自動附加）。
- * @param {{ rag_tab_id: string, folder_name: string }} params
+ * Query：`rag_tab_id`、`folder_name`、`person_id`。
+ * @param {{ rag_tab_id: string, folder_name: string, personId: string | null | undefined }} params
  * @returns {Promise<object>}
  */
 export async function apiRagUnitYoutubeUrlByFolder(params) {
   const rag_tab_id = String(params.rag_tab_id ?? '').trim();
   const folder_name = String(params.folder_name ?? '').trim();
+  const personId = params.personId != null ? String(params.personId).trim() : '';
   if (!rag_tab_id) throw new Error('缺少 rag_tab_id');
   if (!folder_name) throw new Error('缺少 folder_name');
-  const url = buildTranscriptUrl(API_RAG_UNIT_YOUTUBE_URL, { rag_tab_id, folder_name });
-  const res = await loggedFetch(url, { method: 'GET' }, { omitPersonIdQuery: true });
+  if (!personId) throw new Error('缺少 person_id');
+  const url = buildTranscriptUrl(API_RAG_UNIT_YOUTUBE_URL, { rag_tab_id, folder_name, personId });
+  const res = await loggedFetch(url, { method: 'GET' }, { personId });
   const text = await res.text();
   if (!res.ok) throw new Error(parseFetchError(res, text));
   return parseJson(text);

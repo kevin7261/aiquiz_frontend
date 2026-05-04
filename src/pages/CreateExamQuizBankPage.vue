@@ -1003,13 +1003,14 @@ function preparePackUnitPreviewCall(gi, group) {
 }
 
 /**
- * 載入 mp3／YouTube 來源預覽：GET `/rag/unit/mp3-file`、`/rag/unit/youtube-url`（期間區塊內「檔案讀取中」）
+ * 載入 mp3／YouTube 來源預覽：GET `/rag/unit/mp3-file`、`/rag/unit/youtube-url`（query 含 person_id；期間區塊內「檔案讀取中」）
  */
 function preparePackUnitMediaPreviewCall(gi, group) {
   const folder = firstFolderNameInGroup(group);
   const rag_tab_id = ragTabIdForTranscript();
-  if (!folder || !rag_tab_id) return null;
-  return { folder, rag_tab_id };
+  const personId = getPersonId(authStore);
+  if (!folder || !rag_tab_id || !personId) return null;
+  return { folder, rag_tab_id, personId };
 }
 
 async function refreshPackUnitMediaAssets(gi, ut, ctx) {
@@ -1021,6 +1022,7 @@ async function refreshPackUnitMediaAssets(gi, ut, ctx) {
         const blob = await apiRagUnitMp3FileByFolder({
           rag_tab_id: ctx.rag_tab_id,
           folder_name: ctx.folder,
+          personId: ctx.personId,
         });
         if (!(blob instanceof Blob) || blob.size <= 0) throw new Error('empty audio');
         setPackUnitMp3PreviewUrlAt(gi, URL.createObjectURL(blob));
@@ -1030,6 +1032,7 @@ async function refreshPackUnitMediaAssets(gi, ut, ctx) {
         const ytData = await apiRagUnitYoutubeUrlByFolder({
           rag_tab_id: ctx.rag_tab_id,
           folder_name: ctx.folder,
+          personId: ctx.personId,
         });
         const url = youtubeUrlFromUnitUrlResponse(ytData);
         if (!url || !youtubeEmbedUrlFromInput(url)) throw new Error('invalid youtube');
