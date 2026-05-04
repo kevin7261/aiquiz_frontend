@@ -526,7 +526,7 @@ const loadingOverlayText = computed(() => {
   if (hasAnySlotGenerating.value) return '產生題目中...';
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
-  if (st?.packLoading) return '建立題庫中...';
+  if (st?.packLoading) return '建立單元中...';
   if (hasPackUnitSourceFileLoading.value) return '檔案讀取中…';
   if (deleteRagLoading.value) return '刪除中...';
   if (deleteUnitQuizLoading.value) return '刪除題型中...';
@@ -4245,7 +4245,7 @@ async function confirmAnswer(item) {
                 建置中 {{ currentState.packBuildCurrent }} / {{ currentState.packBuildTotal }}
               </div>
             </template>
-            <template v-else>建立題庫中…</template>
+            <template v-else>建立單元中…</template>
           </div>
           <div
             v-if="currentState.packError"
