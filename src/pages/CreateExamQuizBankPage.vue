@@ -134,6 +134,8 @@ const renameUnitQuizDraftRagQuizId = ref(null);
 const renameUnitQuizInitialName = ref('');
 const renameUnitQuizSaving = ref(false);
 const renameUnitQuizError = ref('');
+/** POST build-rag-zip 成功後：Bootstrap Modal「單元建立完成」 */
+const packBuildSuccessModalOpen = ref(false);
 /** 題型 sub-tab 軟刪（PUT /rag/tab/quiz/delete/{rag_quiz_id}） */
 const deleteUnitQuizLoading = ref(false);
 /** 正在送出批改的題卡 id（全螢幕 LoadingOverlay「批改中...」；結果區待回傳） */
@@ -1634,6 +1636,10 @@ function closeRagUnitTranscriptModal() {
   ragUnitTranscriptModalMarkdownOverride.value = null;
 }
 
+function closePackBuildSuccessModal() {
+  packBuildSuccessModalOpen.value = false;
+}
+
 const activeUnitSlotIndex = computed(() => {
   const tabs = currentState.value.unitTabOrder ?? [];
   const activeId = String(currentState.value.activeUnitTabId ?? '');
@@ -3049,6 +3055,7 @@ async function confirmPack() {
     state.ragMetadata = typeof state.packResponseJson === 'string' ? state.packResponseJson : JSON.stringify(state.packResponseJson, null, 2);
     await fetchRagList();
     await refreshUnitSubTabsFromApi(fileId);
+    packBuildSuccessModalOpen.value = true;
   } catch (err) {
     state.packError = is504OrNetworkError(err)
       ? '服務正在啟動（約需一分鐘），請稍後再試'
@@ -3665,7 +3672,6 @@ async function confirmAnswer(item) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="rag-unit-transcript-modal-title"
-        @click.self="closeRagUnitTranscriptModal"
       >
         <div
           class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
@@ -3691,6 +3697,33 @@ async function confirmAnswer(item) {
                 v-else
                 class="my-font-md-400 my-color-black"
               >—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="packBuildSuccessModalOpen"
+        class="modal fade show d-block my-modal-backdrop"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        aria-label="單元建立完成"
+      >
+        <div class="modal-dialog modal-dialog-centered" @click.stop>
+          <div class="modal-content border-0 my-bgcolor-gray-3 p-4 d-flex flex-column gap-3">
+            <div class="modal-body p-0 text-center">
+              <p class="my-font-md-400 my-color-black mb-0">單元建立完成</p>
+            </div>
+            <div class="modal-footer border-top-0 p-0 d-flex justify-content-center w-100">
+              <button
+                type="button"
+                class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-black px-3 py-2"
+                @click="closePackBuildSuccessModal"
+              >
+                確定
+              </button>
             </div>
           </div>
         </div>

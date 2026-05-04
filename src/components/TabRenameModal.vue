@@ -2,7 +2,7 @@
 /**
  * TabRenameModal — 分頁重新命名 Modal
  *
- * Bootstrap 5 風格 Modal（半透明背景底層），透過 Teleport 掛至 body 避免 z-index 問題。
+ * Bootstrap 5 風格 Modal（半透明背景底層；點背景不關閉），透過 Teleport 掛至 body 避免 z-index 問題。
  *
  * Props:
  *   modelValue   Boolean  v-model：是否顯示（父層控制開關）
@@ -49,10 +49,6 @@ function close() {
   emit('update:modelValue', false);
 }
 
-function onBackdropClick() {
-  if (!props.saving) close();
-}
-
 function onSave() {
   emit('save', localName.value.trim());
 }
@@ -67,7 +63,6 @@ function onSave() {
       role="dialog"
       aria-modal="true"
       :aria-labelledby="'tab-rename-modal-title'"
-      @click.self="onBackdropClick"
     >
       <div class="modal-dialog modal-dialog-centered" @click.stop>
         <div class="modal-content border-0 my-bgcolor-gray-3 p-4 d-flex flex-column gap-3">

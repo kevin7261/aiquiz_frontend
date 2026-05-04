@@ -129,7 +129,6 @@ async function submit() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-batch-modal-title"
-      @click.self="close"
     >
       <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" @click.stop>
         <div class="modal-content">

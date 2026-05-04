@@ -2036,7 +2036,6 @@ onActivated(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="exam-unit-transcript-modal-title"
-        @click.self="closeExamUnitTranscriptModal"
       >
         <div
           class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"

@@ -152,7 +152,6 @@ const showQuizCardHeaderBand = computed(
         role="dialog"
         aria-modal="true"
         :aria-labelledby="`quiz-card-prompt-modal-title-${card.id}`"
-        @click.self="closePromptModal"
       >
         <div
           class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
