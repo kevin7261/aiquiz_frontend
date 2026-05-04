@@ -13,7 +13,7 @@
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_score、quiz_comments、rag_quiz_id、rag_answer_id
- * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；設定單元選 unit_type=2/3/4 時共用 Markdown 逐字稿編輯器，於編輯區上方按鈕載入檔案／語音／影片文字，完成載入前編輯區停用且不能開始設定單元；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
+ * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；設定單元選 unit_type=2/3/4 時共用 Markdown 逐字稿編輯器，於編輯區上方按鈕載入檔案／語音／影片文字，完成載入前編輯區停用且不能開始建立單元；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
  */
 import { ref, computed, watch, onMounted, onActivated, reactive, nextTick } from 'vue';
@@ -312,7 +312,7 @@ function checkRagHasList(rag) {
   return getRagUnitListString(rag) !== '';
 }
 
-/** 至少一列出題單元，且每列至少一個課程標籤（與「開始設定單元」按鈕啟用條件一致） */
+/** 至少一列出題單元，且每列至少一個課程標籤（與「開始建立單元」按鈕啟用條件一致） */
 function isPackTasksListReady(list) {
   if (!Array.isArray(list) || list.length < 1) return false;
   return list.every((g) => Array.isArray(g) && g.length >= 1);
@@ -489,7 +489,7 @@ const activeUnitQuizLoadingOverlayKind = computed(() => {
 
 const isGradingSubmitting = computed(() => gradingSubmittingCardId.value != null);
 
-/** 設定單元：逐字稿分析中（載入檔案／語音／影片文字）或檔案讀取（/rag/transcript/text、/rag/unit/audio-file、youtube-url）期間，禁「開始設定單元」等 */
+/** 設定單元：逐字稿分析中（載入檔案／語音／影片文字）或檔案讀取（/rag/transcript/text、/rag/unit/audio-file、youtube-url）期間，禁「開始建立單元」等 */
 const hasPackUnitTranscriptLoading = computed(() => {
   const st = currentState.value;
   const t = Array.isArray(st?.packUnitTranscriptLoading) && st.packUnitTranscriptLoading.some(Boolean);
@@ -956,7 +956,7 @@ function arePackUnitTranscriptsReadyForBuild(state = currentState.value) {
   return missingPackUnitTranscriptIndexes(state).length === 0;
 }
 
-/** 「開始設定單元」按鈕：unit_type 2／3／4 時須已取得非空逐字稿；另需資料夾就緒、不在載入中、未在建置中 */
+/** 「開始建立單元」按鈕：unit_type 2／3／4 時須已取得非空逐字稿；另需資料夾就緒、不在載入中、未在建置中 */
 const startPackUnitBuildDisabled = computed(() => {
   const st = currentState.value;
   return (
@@ -2932,7 +2932,7 @@ async function confirmUploadZip() {
   }
 }
 
-/** POST /rag/tab/build-rag-zip（按鈕「開始設定單元」） */
+/** POST /rag/tab/build-rag-zip（按鈕「開始建立單元」） */
 async function confirmPack() {
   const state = currentState.value;
   const fileId = String(state.zipTabId ?? '').trim();
@@ -2951,7 +2951,7 @@ async function confirmPack() {
     return;
   }
   if (hasPackUnitTranscriptLoading.value) {
-    state.packError = '逐字稿尚在分析或檔案讀取中，請稍候再開始設定單元';
+    state.packError = '逐字稿尚在分析或檔案讀取中，請稍候再開始建立單元';
     return;
   }
   const missingTranscriptIndexes = missingPackUnitTranscriptIndexes(state);
@@ -3559,7 +3559,7 @@ async function generateQuiz(slotIndex) {
     return;
   }
   if (!generateQuizUnits.value.length) {
-    slotState.error = '請先在「設定單元」按「開始設定單元」完成題庫建立，或重新整理頁面';
+    slotState.error = '請先在「設定單元」按「開始建立單元」完成題庫建立，或重新整理頁面';
     return;
   }
   slotState.loading = true;
@@ -4227,10 +4227,10 @@ async function confirmAnswer(item) {
               class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
               :disabled="startPackUnitBuildDisabled"
               :aria-busy="currentState.packLoading"
-              aria-label="開始設定單元"
+              aria-label="開始建立單元"
               @click="confirmPack"
             >
-              開始設定單元
+              開始建立單元
             </button>
           </div>
           <div

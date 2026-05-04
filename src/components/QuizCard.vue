@@ -6,7 +6,7 @@ import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
 /**
  * QuizCard - 單一題目卡片
  *
- * 顯示：題號（可隱藏）、題目內容、提示（可切換顯示）、答案區（預設帶入暫存參考答案，並於欄位下方註明）、批改結果；測驗頁 hideGradingPrompt 時「批改規則」以 modal 按鈕置於批改結果內容下方。
+ * 顯示：題號（可隱藏）、題目內容（Markdown，marked + DOMPurify）、提示（可切換顯示）、答案區（預設帶入暫存參考答案，並於欄位下方註明）、批改結果；測驗頁 hideGradingPrompt 時「批改規則」以 modal 按鈕置於批改結果內容下方。
  * 可輸入答案並按「開始批改」送出評分；按鈕常駐，再次批改時 composable 會先將 confirmed 設為 false 再更新結果。顯示「批改規則」區時須先有非空白內容才可按「開始批改」。**RAG 題庫且 card.rag_quiz_for_exam === true（測驗用）時**：批改規則改為預覽唯讀（黑底預覽），與建立頁出題規則一致。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
@@ -121,6 +121,9 @@ const promptModalText = computed(() => {
 
 const promptModalHtml = computed(() => renderMarkdownToSafeHtml(promptModalText.value));
 
+/** 題幹以 Markdown 渲染（與出題／批改規則 modal 同 pipeline：marked + DOMPurify） */
+const quizMarkdownHtml = computed(() => renderMarkdownToSafeHtml(props.card?.quiz));
+
 function openPromptModal(kind) {
   if (kind === 'question' && quizUserPromptSnapshotTrimmed.value === '') return;
   if (kind === 'grading' && answerUserPromptSnapshotTrimmed.value === '') return;
@@ -218,7 +221,15 @@ const showQuizCardHeaderBand = computed(
           class="lh-base"
           :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
         >
-          {{ card.quiz }}
+          <div
+            v-if="quizMarkdownHtml"
+            class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+            v-html="quizMarkdownHtml"
+          />
+          <span
+            v-else
+            class="my-font-md-400 my-color-black text-break"
+          >{{ card.quiz }}</span>
         </div>
         <template v-if="designUi && showExamRating && hasQuizBody">
           <div

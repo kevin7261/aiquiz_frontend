@@ -2,7 +2,7 @@
  * RAG 列表 Composable
  *
  * 職責：呼叫 GET /rag/tabs?local=（與 Rag.local / POST /rag/tab/create 一致）、維護 ragList / ragListLoading / ragListError，
- * 並以 normalizeRagListResponse 正規化後端回傳格式。供 CreateExamQuizBankPage 使用。
+ * 並以 normalizeRagListResponse 正規化後端回傳格式（不依名稱或類型排除任何分頁）。供 CreateExamQuizBankPage 使用。
  *
  * 以 watch（immediate）依登入身分載入列表：Pinia 還原較晚時 loggedFetch 會在 user 就緒後再帶 person_id query；
  * 頁面 onMounted 勿再呼叫 fetchRagList，以免與 immediate 重複一次。
@@ -10,10 +10,6 @@
 import { ref, watch, unref } from 'vue';
 import { API_BASE, API_RAG_LIST, isFrontendLocalHost } from '../constants/api.js';
 import { normalizeRagListResponse } from '../utils/rag.js';
-import {
-  isEnglishRagByRegistry,
-  syncEnglishRagTabRegistryFromList,
-} from '../utils/englishRagRegistry.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
 import { useAuthStore } from '../stores/authStore.js';
 
@@ -63,9 +59,7 @@ export function useRagList(options = {}) {
       const res = await loggedFetch(`${API_BASE}${API_RAG_LIST}?${listParams}`, { method: 'GET' });
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
-      const allRags = normalizeRagListResponse(data);
-      const englishRegistry = syncEnglishRagTabRegistryFromList(allRags);
-      ragList.value = allRags.filter((row) => !isEnglishRagByRegistry(row, englishRegistry));
+      ragList.value = normalizeRagListResponse(data);
     } catch (err) {
       ragListError.value = err.message || '無法載入 RAG 列表';
       ragList.value = [];
