@@ -199,17 +199,14 @@ export async function apiRagUnitYoutubeUrlByFolder(params) {
 
 /**
  * GET /rag/tab/unit/mp3-file — 音訊單元（Rag_Unit.unit_type=3）原始音訊。
- * 組出含 query（rag_tab_id、rag_unit_id、person_id）的完整 URL，供 `<audio :src>` 等直接 GET 使用。
- * @param {{ rag_tab_id: string, rag_unit_id: number, personId?: string | null }} params
+ * 組出含 query（rag_tab_id、rag_unit_id）的完整 URL（後端不需 person_id）。
+ * @param {{ rag_tab_id: string, rag_unit_id: number }} params
  * @returns {string} 參數不全或 rag_unit_id 非正整數時回傳空字串
  */
 export function buildRagTabUnitMp3FileUrl(params) {
   const rag_tab_id = String(params.rag_tab_id ?? '').trim();
   const rag_unit_id = Number(params.rag_unit_id);
-  const personRaw = params.personId;
-  const personId =
-    personRaw != null && String(personRaw).trim() !== '' ? String(personRaw).trim() : '';
-  if (!rag_tab_id || !personId) return '';
+  if (!rag_tab_id) return '';
   if (!Number.isFinite(rag_unit_id) || rag_unit_id < 1) return '';
   const base = String(API_BASE).replace(/\/$/, '');
   let u;
@@ -220,20 +217,19 @@ export function buildRagTabUnitMp3FileUrl(params) {
   }
   u.searchParams.set('rag_tab_id', rag_tab_id);
   u.searchParams.set('rag_unit_id', String(rag_unit_id));
-  u.searchParams.set('person_id', personId);
   return u.toString();
 }
 
 /**
  * GET /rag/tab/unit/mp3-file — 與 {@link buildRagTabUnitMp3FileUrl} 相同端點，以 fetch 取 Blob。
- * 供 `<audio>` 使用 `URL.createObjectURL`：正式站跨網域時比 `:src` 直連更容易通過（與 `apiRagUnitAudioFileByFolder` 一致走 `loggedFetch`）。
- * @param {{ rag_tab_id: string, rag_unit_id: number, personId?: string | null }} params
+ * 供 `<audio>` 使用 `URL.createObjectURL`：正式站跨網域時比 `:src` 直連更容易通過（{@link loggedFetch} 須 `omitPersonIdQuery`，避免自動附帶 query person_id）。
+ * @param {{ rag_tab_id: string, rag_unit_id: number }} params
  * @returns {Promise<Blob>}
  */
 export async function apiRagTabUnitMp3FileBlob(params) {
   const url = buildRagTabUnitMp3FileUrl(params);
-  if (!url) throw new Error('缺少 rag_tab_id、rag_unit_id 或 person_id');
-  const res = await loggedFetch(url, { method: 'GET' }, { personId: params.personId });
+  if (!url) throw new Error('缺少 rag_tab_id 或 rag_unit_id');
+  const res = await loggedFetch(url, { method: 'GET' }, { omitPersonIdQuery: true });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(parseFetchError(res, text));

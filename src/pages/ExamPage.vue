@@ -670,7 +670,7 @@ function examSlotUnitTranscriptMdHtml(slotIndex) {
   return renderMarkdownToSafeHtml(t != null ? String(t) : '');
 }
 
-/** 選定單元為 unit_type=3 時：RagTabUnitMp3Player 之 rag_tab_id、rag_unit_id、person_id（fetch blob 後播放） */
+/** 選定單元為 unit_type=3 時：RagTabUnitMp3Player 之 rag_tab_id、rag_unit_id（GET /rag/tab/unit/mp3-file 不附 person_id） */
 function examSlotMp3PlayerProps(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const uid = String(slotState.examUnitSelectId ?? '').trim();
@@ -683,9 +683,8 @@ function examSlotMp3PlayerProps(slotIndex) {
   if (ut !== UNIT_TYPE_MP3) return null;
   const rag_tab_id = String(uitem.ragTabId ?? '').trim();
   const ru = uitem.ragUnitId != null ? Number(uitem.ragUnitId) : 0;
-  const personId = getCurrentPersonId();
-  if (!personId || !rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
-  return { ragTabId: rag_tab_id, ragUnitId: ru, personId };
+  if (!rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
+  return { ragTabId: rag_tab_id, ragUnitId: ru };
 }
 
 /** unit_type=4：iframe 用 embed URL */
@@ -2319,7 +2318,6 @@ onActivated(() => {
                             v-if="mp3Props"
                             :rag-tab-id="mp3Props.ragTabId"
                             :rag-unit-id="mp3Props.ragUnitId"
-                            :person-id="mp3Props.personId"
                           />
                         </template>
                         <div
@@ -2513,7 +2511,6 @@ onActivated(() => {
                               v-if="mp3Props"
                               :rag-tab-id="mp3Props.ragTabId"
                               :rag-unit-id="mp3Props.ragUnitId"
-                              :person-id="mp3Props.personId"
                             />
                           </template>
                           <div

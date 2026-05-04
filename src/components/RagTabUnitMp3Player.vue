@@ -9,7 +9,6 @@ import { apiRagTabUnitMp3FileBlob } from '../services/ragApi.js';
 const props = defineProps({
   ragTabId: { type: String, required: true },
   ragUnitId: { type: Number, required: true },
-  personId: { type: String, required: true },
 });
 
 const objectUrl = ref('');
@@ -33,8 +32,7 @@ async function loadAudio() {
 
   const rid = String(props.ragTabId ?? '').trim();
   const ru = Number(props.ragUnitId);
-  const pid = String(props.personId ?? '').trim();
-  if (!rid || !pid || !Number.isFinite(ru) || ru < 1) {
+  if (!rid || !Number.isFinite(ru) || ru < 1) {
     isLoading.value = false;
     return;
   }
@@ -44,7 +42,6 @@ async function loadAudio() {
     const blob = await apiRagTabUnitMp3FileBlob({
       rag_tab_id: rid,
       rag_unit_id: ru,
-      personId: pid,
     });
     if (seq !== loadSeq) return;
     if (!(blob instanceof Blob) || blob.size <= 0) {
@@ -61,7 +58,7 @@ async function loadAudio() {
 }
 
 watch(
-  () => [props.ragTabId, props.ragUnitId, props.personId],
+  () => [props.ragTabId, props.ragUnitId],
   () => {
     loadAudio();
   },

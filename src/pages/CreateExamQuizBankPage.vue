@@ -1594,15 +1594,14 @@ const activeUnitTranscriptionMdHtml = computed(() => {
   return renderMarkdownToSafeHtml(raw != null ? String(raw) : '');
 });
 
-/** unit_type=3：RagTabUnitMp3Player 參數（fetch /rag/tab/unit/mp3-file 為 blob 後播放） */
+/** unit_type=3：RagTabUnitMp3Player 參數（fetch /rag/tab/unit/mp3-file 為 blob 後播放，不附 person_id） */
 const activeUnitMp3PlayerProps = computed(() => {
   const tab = activeUnitTabItem.value;
   if (!tab || tab.unitType !== UNIT_TYPE_MP3) return null;
   const rag_tab_id = String(tab.ragTabId ?? '').trim();
   const ru = tab.ragUnitDbId != null ? Number(tab.ragUnitDbId) : 0;
-  const personId = getPersonId(authStore);
-  if (!personId || !rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
-  return { ragTabId: rag_tab_id, ragUnitId: ru, personId };
+  if (!rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
+  return { ragTabId: rag_tab_id, ragUnitId: ru };
 });
 
 /** unit_type=4：內嵌播放器用 embed URL */
@@ -4430,7 +4429,6 @@ async function confirmAnswer(item) {
                           <RagTabUnitMp3Player
                             :rag-tab-id="seg.ragTabId"
                             :rag-unit-id="seg.ragUnitId"
-                            :person-id="getPersonId(authStore)"
                           />
                         </div>
                         <div
@@ -4551,7 +4549,6 @@ async function confirmAnswer(item) {
                   <RagTabUnitMp3Player
                     :rag-tab-id="activeUnitMp3PlayerProps.ragTabId"
                     :rag-unit-id="activeUnitMp3PlayerProps.ragUnitId"
-                    :person-id="activeUnitMp3PlayerProps.personId"
                   />
                 </div>
                 <div
