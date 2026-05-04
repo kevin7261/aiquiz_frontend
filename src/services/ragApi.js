@@ -223,6 +223,23 @@ export function buildRagTabUnitMp3FileUrl(params) {
 }
 
 /**
+ * GET /rag/tab/unit/mp3-file — 與 {@link buildRagTabUnitMp3FileUrl} 相同端點，以 fetch 取 Blob。
+ * 供 `<audio>` 使用 `URL.createObjectURL`：正式站跨網域時比 `:src` 直連更容易通過（與 `apiRagUnitAudioFileByFolder` 一致走 `loggedFetch`）。
+ * @param {{ rag_tab_id: string, rag_unit_id: number, personId?: string | null }} params
+ * @returns {Promise<Blob>}
+ */
+export async function apiRagTabUnitMp3FileBlob(params) {
+  const url = buildRagTabUnitMp3FileUrl(params);
+  if (!url) throw new Error('缺少 rag_tab_id、rag_unit_id 或 person_id');
+  const res = await loggedFetch(url, { method: 'GET' }, { personId: params.personId });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(parseFetchError(res, text));
+  }
+  return res.blob();
+}
+
+/**
  * Create Tab：POST /rag/tab/create（僅建立一筆 Rag；transcription 請於 tab/build-rag-zip 傳入）
  * @param {string} personId
  * @param {string} ragTabId

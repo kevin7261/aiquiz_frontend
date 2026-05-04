@@ -42,7 +42,6 @@ import {
   apiGenerateQuiz,
   apiUpdateRagQuizName,
   apiDeleteRagQuiz,
-  buildRagTabUnitMp3FileUrl,
   is504OrNetworkError,
 } from '../services/ragApi.js';
 import { formatGradingResult } from '../utils/grading.js';
@@ -79,6 +78,7 @@ import { useRagList } from '../composables/useRagList.js';
 import { useRagTabState } from '../composables/useRagTabState.js';
 import { usePackTasks } from '../composables/usePackTasks.js';
 import QuizCard from '../components/QuizCard.vue';
+import RagTabUnitMp3Player from '../components/RagTabUnitMp3Player.vue';
 import Design08OptionDropdown from '../components/Design08OptionDropdown.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
@@ -1597,15 +1597,15 @@ const activeUnitTranscriptionMdHtml = computed(() => {
   return renderMarkdownToSafeHtml(raw != null ? String(raw) : '');
 });
 
-/** unit_type=3：GET /rag/tab/unit/mp3-file 之 `<audio src>`（須 rag_tab_id、rag_unit_id、person_id） */
-const activeUnitMp3PlaybackUrl = computed(() => {
+/** unit_type=3：RagTabUnitMp3Player 參數（fetch /rag/tab/unit/mp3-file 為 blob 後播放） */
+const activeUnitMp3PlayerProps = computed(() => {
   const tab = activeUnitTabItem.value;
-  if (!tab || tab.unitType !== UNIT_TYPE_MP3) return '';
+  if (!tab || tab.unitType !== UNIT_TYPE_MP3) return null;
   const rag_tab_id = String(tab.ragTabId ?? '').trim();
   const ru = tab.ragUnitDbId != null ? Number(tab.ragUnitDbId) : 0;
   const personId = getPersonId(authStore);
-  if (!personId) return '';
-  return buildRagTabUnitMp3FileUrl({ rag_tab_id, rag_unit_id: ru, personId });
+  if (!personId || !rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
+  return { ragTabId: rag_tab_id, ragUnitId: ru, personId };
 });
 
 /** unit_type=4：內嵌播放器用 embed URL */
@@ -2035,14 +2035,14 @@ function quizBankReadonlySourceDisplay(tab) {
 
 /**
  * 唯讀「設定單元」細節：MP3／YouTube 與「單元內容」同層級（播放器／嵌入）；逐字稿另以「逐字稿」開 Modal。
- * @returns {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', src: string } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]}
+ * @returns {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', ragTabId: string, ragUnitId: number } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]}
  */
 function buildQuizBankReadonlyDetailSegments(tab) {
   const ut = Number(tab?.unitType ?? UNIT_TYPE_RAG);
   const trRaw = String(tab?.transcription ?? '').trim();
   const trLen = trRaw.length;
   const personId = getPersonId(authStore);
-  /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', src: string } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
+  /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', ragTabId: string, ragUnitId: number } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
   const segments = [];
 
   if (ut === UNIT_TYPE_RAG) {
@@ -2057,11 +2057,9 @@ function buildQuizBankReadonlyDetailSegments(tab) {
   if (ut === UNIT_TYPE_MP3) {
     const rag_tab_id = String(tab.ragTabId ?? '').trim();
     const ru = tab.ragUnitDbId != null ? Number(tab.ragUnitDbId) : 0;
-    const src =
-      personId && rag_tab_id && Number.isFinite(ru) && ru > 0
-        ? buildRagTabUnitMp3FileUrl({ rag_tab_id, rag_unit_id: ru, personId })
-        : '';
-    if (src) segments.push({ kind: 'audio', src });
+    if (personId && rag_tab_id && Number.isFinite(ru) && ru > 0) {
+      segments.push({ kind: 'audio', ragTabId: rag_tab_id, ragUnitId: ru });
+    }
     if (trLen) segments.push({ kind: 'transcript_button', markdown: trRaw });
     return segments;
   }
@@ -2170,7 +2168,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
     const chunkOverlap = chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
 
     const synTab = unitsRow[i] != null ? buildUnitTabItem(unitsRow[i], i) : null;
-    /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', src: string } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
+    /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', ragTabId: string, ragUnitId: number } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
     const folderFieldLine = fcRow || (folderLine.trim() ? folderLine : '');
     const folderComboTags = parseFolderCombinationTags(fcRow, folderLine);
     const folderFieldLineForDetail =
@@ -4432,12 +4430,10 @@ async function confirmAnswer(item) {
                           :class="li < row.detailSegments.length - 1 ? 'mb-2' : 'mb-0'"
                           style="padding: 0;"
                         >
-                          <audio
-                            :key="seg.src"
-                            controls
-                            class="w-100"
-                            preload="none"
-                            :src="seg.src"
+                          <RagTabUnitMp3Player
+                            :rag-tab-id="seg.ragTabId"
+                            :rag-unit-id="seg.ragUnitId"
+                            :person-id="getPersonId(authStore)"
                           />
                         </div>
                         <div
@@ -4552,15 +4548,13 @@ async function confirmAnswer(item) {
                   </div>
                 </div>
                 <div
-                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_MP3 && activeUnitMp3PlaybackUrl"
+                  v-if="canSeeRagUnitSourceFilename && activeUnitTabItem?.unitType === UNIT_TYPE_MP3 && activeUnitMp3PlayerProps"
                   class="col-12 min-w-0"
                 >
-                  <audio
-                    :key="activeUnitMp3PlaybackUrl"
-                    controls
-                    class="w-100"
-                    preload="none"
-                    :src="activeUnitMp3PlaybackUrl"
+                  <RagTabUnitMp3Player
+                    :rag-tab-id="activeUnitMp3PlayerProps.ragTabId"
+                    :rag-unit-id="activeUnitMp3PlayerProps.ragUnitId"
+                    :person-id="activeUnitMp3PlayerProps.personId"
                   />
                 </div>
                 <div

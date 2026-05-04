@@ -43,6 +43,7 @@ import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
 import { youtubeEmbedUrlFromInput } from '../utils/youtubeEmbed.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import QuizCard from '../components/QuizCard.vue';
+import RagTabUnitMp3Player from '../components/RagTabUnitMp3Player.vue';
 import UnitSelectDropdown from '../components/UnitSelectDropdown.vue';
 import TabRenameModal from '../components/TabRenameModal.vue';
 import {
@@ -53,7 +54,6 @@ import {
 import { formatGradingResult } from '../utils/grading.js';
 import { submitGrade } from '../composables/useQuizGrading.js';
 import { loggedFetch } from '../utils/loggedFetch.js';
-import { buildRagTabUnitMp3FileUrl } from '../services/ragApi.js';
 
 defineProps({
   tabId: { type: String, required: true },
@@ -670,22 +670,22 @@ function examSlotUnitTranscriptMdHtml(slotIndex) {
   return renderMarkdownToSafeHtml(t != null ? String(t) : '');
 }
 
-/** 選定單元為 unit_type=3 時：GET /rag/tab/unit/mp3-file 之 `<audio src>`（rag_tab_id、rag_unit_id、person_id） */
-function examSlotMp3PlaybackUrl(slotIndex) {
+/** 選定單元為 unit_type=3 時：RagTabUnitMp3Player 之 rag_tab_id、rag_unit_id、person_id（fetch blob 後播放） */
+function examSlotMp3PlayerProps(slotIndex) {
   const slotState = getSlotFormState(slotIndex);
   const uid = String(slotState.examUnitSelectId ?? '').trim();
-  if (!uid) return '';
+  if (!uid) return null;
   const uitem = findExamUnitDropdownItemBySelectId(uid);
-  if (!uitem) return '';
+  if (!uitem) return null;
   const raw = uitem.examRagUnitSource;
-  if (!raw || typeof raw !== 'object') return '';
+  if (!raw || typeof raw !== 'object') return null;
   const ut = Number(raw.unit_type ?? raw.unitType);
-  if (ut !== UNIT_TYPE_MP3) return '';
+  if (ut !== UNIT_TYPE_MP3) return null;
   const rag_tab_id = String(uitem.ragTabId ?? '').trim();
   const ru = uitem.ragUnitId != null ? Number(uitem.ragUnitId) : 0;
   const personId = getCurrentPersonId();
-  if (!personId) return '';
-  return buildRagTabUnitMp3FileUrl({ rag_tab_id, rag_unit_id: ru, personId });
+  if (!personId || !rag_tab_id || !Number.isFinite(ru) || ru < 1) return null;
+  return { ragTabId: rag_tab_id, ragUnitId: ru, personId };
 }
 
 /** unit_type=4：iframe 用 embed URL */
@@ -2312,21 +2312,15 @@ onActivated(() => {
                           </div>
                         </template>
                         <template
-                          v-for="examMp3Url in [examSlotMp3PlaybackUrl(slotIndex)]"
-                          :key="examMp3Url ? `exam-mp3-${slotIndex}-${examMp3Url.slice(-24)}` : `exam-mp3-empty-${slotIndex}`"
+                          v-for="mp3Props in [examSlotMp3PlayerProps(slotIndex)]"
+                          :key="mp3Props ? `exam-mp3-${slotIndex}-${mp3Props.ragTabId}-${mp3Props.ragUnitId}` : `exam-mp3-empty-${slotIndex}`"
                         >
-                          <div
-                            v-if="examMp3Url"
-                            class="w-100 min-w-0"
-                          >
-                            <audio
-                              :key="examMp3Url"
-                              controls
-                              class="w-100"
-                              preload="none"
-                              :src="examMp3Url"
-                            />
-                          </div>
+                          <RagTabUnitMp3Player
+                            v-if="mp3Props"
+                            :rag-tab-id="mp3Props.ragTabId"
+                            :rag-unit-id="mp3Props.ragUnitId"
+                            :person-id="mp3Props.personId"
+                          />
                         </template>
                         <div
                           v-if="examSlotUnitTranscriptSection(slotIndex)?.unitType === UNIT_TYPE_MP3"
@@ -2512,21 +2506,15 @@ onActivated(() => {
                             </div>
                           </template>
                           <template
-                            v-for="examMp3Url in [examSlotMp3PlaybackUrl(slotIndex)]"
-                            :key="examMp3Url ? `exam-mp3-${slotIndex}-${examMp3Url.slice(-24)}` : `exam-mp3-empty-${slotIndex}`"
+                            v-for="mp3Props in [examSlotMp3PlayerProps(slotIndex)]"
+                            :key="mp3Props ? `exam-mp3-${slotIndex}-${mp3Props.ragTabId}-${mp3Props.ragUnitId}` : `exam-mp3-empty-${slotIndex}`"
                           >
-                            <div
-                              v-if="examMp3Url"
-                              class="w-100 min-w-0"
-                            >
-                              <audio
-                                :key="examMp3Url"
-                                controls
-                                class="w-100"
-                                preload="none"
-                                :src="examMp3Url"
-                              />
-                            </div>
+                            <RagTabUnitMp3Player
+                              v-if="mp3Props"
+                              :rag-tab-id="mp3Props.ragTabId"
+                              :rag-unit-id="mp3Props.ragUnitId"
+                              :person-id="mp3Props.personId"
+                            />
                           </template>
                           <div
                             v-if="examSlotUnitTranscriptSection(slotIndex)?.unitType === UNIT_TYPE_MP3"
