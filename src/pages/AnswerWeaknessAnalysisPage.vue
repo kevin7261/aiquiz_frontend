@@ -2,14 +2,15 @@
 /**
  * AnswerWeaknessAnalysisPage - 作答弱點分析頁面
  *
- * 讀取 GET /person-analysis/quizzes/{person_id}；列表與 GET /exam/tabs、GET /rag/tabs 每筆一致（含 units→quizzes；頂層 answers 或題列內嵌 answer_*；mergeQuizzesWithTopLevelAnswers 合併）。
- * 另含 count、weakness_report；可顯示弱點報告。題目區（QuizCard）純顯示，無開始批改。
+ * 登入後即 GET `person_analysis_user_prompt_text` 供「分析規則」與 Modal 使用（全 user_type）；僅 1／2 顯示編輯區與「儲存」。
+ * 列表與 GET /exam/tabs、GET /rag/tabs 每筆一致；另含 count、weakness_report。題目區（QuizCard）純顯示。
  */
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/authStore.js';
-import { API_BASE, API_QUIZZES_BY_PERSON } from '../constants/api.js';
+import { API_BASE, API_QUIZZES_BY_PERSON, API_PERSON_ANALYSIS_USER_PROMPT } from '../constants/api.js';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
 import QuizCard from '../components/QuizCard.vue';
+import EnglishExamMarkdownEditor from '../components/EnglishExamMarkdownEditor.vue';
 import {
   normalizeAnalysisQuizzesListResponse,
   mergeQuizzesWithTopLevelAnswers,
@@ -20,6 +21,12 @@ import { loggedFetch } from '../utils/loggedFetch.js';
 import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
 
 const authStore = useAuthStore();
+
+/** 分析報告規則：僅開發者（1）／管理者（2）；與設定頁 LLM API 金鑰可見範圍一致 */
+const canEditWeaknessReportRules = computed(() => {
+  const t = Number(authStore.user?.user_type);
+  return t === 1 || t === 2;
+});
 
 function md(s) {
   return renderMarkdownToSafeHtml(s);
@@ -43,6 +50,219 @@ const count = ref(0);
 const weaknessReport = ref('');
 const loading = ref(false);
 const error = ref('');
+/** 尚未按「開始分析」前不請求 GET /person-analysis/quizzes */
+const analysisLoadedOnce = ref(false);
+
+const personAnalysisPromptText = ref('');
+const promptSectionLoading = ref(false);
+/** 「儲存」PUT 時由全螢幕 overlay 顯示進度（不按鈕變字） */
+const promptSaving = ref(false);
+
+/** 全螢幕 LoadingOverlay：答題載入、GET／PUT 分析報告規則 */
+const overlayBlocking = computed(
+  () => loading.value || promptSectionLoading.value || promptSaving.value,
+);
+const overlayLoadingText = computed(() => {
+  if (loading.value) return '載入作答與弱點分析中...';
+  if (promptSaving.value) return '儲存分析報告規則中...';
+  if (promptSectionLoading.value) return '載入分析報告規則中...';
+  return '載入中...';
+});
+
+function parsePersonAnalysisPromptFromBody(data) {
+  if (!data || typeof data !== 'object') return '';
+  const v =
+    data.person_analysis_user_prompt_text ??
+    data.personAnalysisUserPromptText ??
+    data.value ??
+    data.prompt_text;
+  return v != null ? String(v) : '';
+}
+
+async function fetchPersonAnalysisPromptSetting() {
+  const personId = authStore.user?.person_id;
+  if (!personId) return;
+  promptSectionLoading.value = true;
+  try {
+    const url = `${API_BASE}${API_PERSON_ANALYSIS_USER_PROMPT}`;
+    const res = await loggedFetch(url, { method: 'GET', headers: { 'X-Person-Id': String(personId) } });
+    if (res.ok) {
+      const data = await res.json();
+      personAnalysisPromptText.value = parsePersonAnalysisPromptFromBody(data);
+    }
+  } catch {
+    // 保留編輯框空白
+  } finally {
+    promptSectionLoading.value = false;
+  }
+}
+
+/**
+ * 僅抓答題與弱點報告；manageLoading 為 false 時由呼叫端負責 loading。
+ * generateWeaknessReport 為 true 時 query 帶 generate_weakness_report=true（後端才會呼叫 LLM）。
+ */
+async function runPersonAnalysisQuizFetch({
+  manageLoading = true,
+  generateWeaknessReport = false,
+} = {}) {
+  const personId = authStore.user?.person_id;
+  if (!personId) {
+    error.value = '請先登入以查看作答弱點分析';
+    return;
+  }
+  if (manageLoading) {
+    loading.value = true;
+  }
+  error.value = '';
+  analysisLoadedOnce.value = true;
+  try {
+    const qs = generateWeaknessReport ? '?generate_weakness_report=true' : '';
+    const url = `${API_BASE}${API_QUIZZES_BY_PERSON}/${encodeURIComponent(personId)}${qs}`;
+    const headers = { 'X-Person-Id': String(personId) };
+    const res = await loggedFetch(url, { method: 'GET', headers });
+    if (!res.ok) throw new Error(res.statusText || '無法載入答題資料');
+    const data = await res.json();
+    const exams = normalizeAnalysisQuizzesListResponse(data);
+    items.value = exams.flatMap((parent) => {
+      const quizzes = mergeQuizzesWithTopLevelAnswers(parent);
+      const examLabel =
+        parent.tab_name ?? parent.exam_name ?? parent.rag_name ?? parent.exam_tab_id ?? '';
+      const examTabId = parent.exam_tab_id ?? parent.test_tab_id;
+      const examId = parent.exam_id ?? parent.test_id;
+      const ragTabId = parent.rag_tab_id;
+      const ragId = parent.rag_id ?? parent.id;
+      return quizzes.map((q) => ({
+        ...q,
+        exam_name: q.exam_name ?? examLabel,
+        exam_tab_id: q.exam_tab_id ?? examTabId,
+        exam_id: q.exam_id ?? examId,
+        rag_tab_id: q.rag_tab_id ?? ragTabId,
+        rag_id: q.rag_id ?? q.ragId ?? ragId,
+      }));
+    });
+    count.value = data?.count ?? items.value.length;
+    weaknessReport.value =
+      data?.weakness_report != null && String(data.weakness_report).trim() !== ''
+        ? String(data.weakness_report).trim()
+        : '';
+  } catch (err) {
+    error.value = err.message || '無法載入作答弱點分析';
+    items.value = [];
+    count.value = 0;
+    weaknessReport.value = '';
+  } finally {
+    if (manageLoading) {
+      loading.value = false;
+    }
+  }
+}
+
+async function savePersonAnalysisPromptOnly() {
+  if (!canEditWeaknessReportRules.value) return;
+  const personId = authStore.user?.person_id;
+  if (!personId) {
+    error.value = '請先登入';
+    return;
+  }
+  promptSaving.value = true;
+  error.value = '';
+  try {
+    const url = `${API_BASE}${API_PERSON_ANALYSIS_USER_PROMPT}`;
+    const res = await loggedFetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Person-Id': String(personId),
+      },
+      body: JSON.stringify({ person_analysis_user_prompt_text: personAnalysisPromptText.value ?? '' }),
+    });
+    if (!res.ok) {
+      let msg = '儲存分析報告規則失敗';
+      try {
+        const body = await res.json();
+        if (body.detail) msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+      } catch {
+        /* ignore */
+      }
+      error.value = msg;
+      return;
+    }
+  } catch (e) {
+    error.value = e?.message ?? '無法連線';
+  } finally {
+    promptSaving.value = false;
+  }
+}
+
+async function fetchWeaknessAnalysisOnly() {
+  await runPersonAnalysisQuizFetch({ manageLoading: true, generateWeaknessReport: true });
+}
+
+/** Modal：與測驗頁 QuizCard「出題規則」同源（Bootstrap modal-lg、Markdown、`my-modal-backdrop`） */
+const analysisRulesModalOpen = ref(false);
+const analysisRulesModalLoading = ref(false);
+const analysisRulesModalRaw = ref('');
+
+const analysisRulesModalHtml = computed(() => {
+  const raw = String(analysisRulesModalRaw.value ?? '').trim();
+  return raw !== '' ? renderMarkdownToSafeHtml(analysisRulesModalRaw.value) : '';
+});
+
+async function fetchAnalysisRulesForModal() {
+  const personId = authStore.user?.person_id;
+  if (!personId) {
+    analysisRulesModalRaw.value = '';
+    return;
+  }
+  analysisRulesModalLoading.value = true;
+  promptSectionLoading.value = true;
+  try {
+    const url = `${API_BASE}${API_PERSON_ANALYSIS_USER_PROMPT}`;
+    const res = await loggedFetch(url, { method: 'GET', headers: { 'X-Person-Id': String(personId) } });
+    if (res.ok) {
+      const data = await res.json();
+      analysisRulesModalRaw.value = parsePersonAnalysisPromptFromBody(data);
+    } else {
+      analysisRulesModalRaw.value = '';
+    }
+  } catch {
+    analysisRulesModalRaw.value = '';
+  } finally {
+    analysisRulesModalLoading.value = false;
+    promptSectionLoading.value = false;
+  }
+}
+
+/** 與 QuizCard「出題規則」：僅在非空白提示文字時顯示按鈕（GET 後寫入 personAnalysisPromptText，含全 user_type） */
+const analysisRulesSnapshotTrimmed = computed(() =>
+  String(personAnalysisPromptText.value ?? '').trim(),
+);
+
+async function openWeaknessAnalysisRulesModal() {
+  analysisRulesModalOpen.value = true;
+  const local = analysisRulesSnapshotTrimmed.value;
+  if (local !== '') {
+    analysisRulesModalRaw.value = personAnalysisPromptText.value;
+    analysisRulesModalLoading.value = false;
+    return;
+  }
+  await fetchAnalysisRulesForModal();
+}
+
+function closeWeaknessAnalysisRulesModal() {
+  analysisRulesModalOpen.value = false;
+}
+
+watch(
+  () => authStore.user?.person_id,
+  (pid) => {
+    if (pid) fetchPersonAnalysisPromptSetting();
+    else {
+      personAnalysisPromptText.value = '';
+    }
+  },
+  { immediate: true },
+);
 
 /** 學習弱點分析報告：後端可能回傳純 JSON 或 ```json ... ```，key 為區塊標題、value 為字串陣列 */
 function extractJsonFromWeaknessReport(text) {
@@ -214,63 +434,65 @@ function weaknessSlotQuizBodyTrim(idx) {
   const c = quizCardUi.value[idx];
   return String(c?.quiz ?? '').trim();
 }
-
-async function fetchQuizAnswers() {
-  loading.value = true;
-  error.value = '';
-  const personId = authStore.user?.person_id;
-  if (!personId) {
-    error.value = '請先登入以查看作答弱點分析';
-    loading.value = false;
-    return;
-  }
-  try {
-    const url = `${API_BASE}${API_QUIZZES_BY_PERSON}/${encodeURIComponent(personId)}`;
-    const headers = { 'X-Person-Id': String(personId) };
-    const res = await loggedFetch(url, { method: 'GET', headers });
-    if (!res.ok) throw new Error(res.statusText || '無法載入答題資料');
-    const data = await res.json();
-    const exams = normalizeAnalysisQuizzesListResponse(data);
-    items.value = exams.flatMap((parent) => {
-      const quizzes = mergeQuizzesWithTopLevelAnswers(parent);
-      const examLabel =
-        parent.tab_name ?? parent.exam_name ?? parent.rag_name ?? parent.exam_tab_id ?? '';
-      const examTabId = parent.exam_tab_id ?? parent.test_tab_id;
-      const examId = parent.exam_id ?? parent.test_id;
-      const ragTabId = parent.rag_tab_id;
-      const ragId = parent.rag_id ?? parent.id;
-      return quizzes.map((q) => ({
-        ...q,
-        exam_name: q.exam_name ?? examLabel,
-        exam_tab_id: q.exam_tab_id ?? examTabId,
-        exam_id: q.exam_id ?? examId,
-        rag_tab_id: q.rag_tab_id ?? ragTabId,
-        rag_id: q.rag_id ?? q.ragId ?? ragId,
-      }));
-    });
-    count.value = data?.count ?? items.value.length;
-    weaknessReport.value = (data?.weakness_report != null && String(data.weakness_report).trim() !== '') ? String(data.weakness_report).trim() : '';
-  } catch (err) {
-    error.value = err.message || '無法載入作答弱點分析';
-    items.value = [];
-    count.value = 0;
-    weaknessReport.value = '';
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(() => {
-  fetchQuizAnswers();
-});
 </script>
 
 <template>
   <div class="d-flex flex-column h-100 overflow-hidden my-bgcolor-gray-4 position-relative">
     <LoadingOverlay
-      :is-visible="loading"
-      loading-text="載入作答與弱點分析中..."
+      :is-visible="overlayBlocking"
+      :loading-text="overlayLoadingText"
     />
+    <Teleport to="body">
+      <div
+        v-if="analysisRulesModalOpen"
+        class="modal fade show d-block my-modal-backdrop"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="weakness-analysis-rules-modal-title"
+      >
+        <div
+          class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
+          @click.stop
+        >
+          <div class="modal-content border-0 my-bgcolor-gray-3 p-4 d-flex flex-column gap-3">
+            <div class="modal-header border-bottom-0 p-0">
+              <h5
+                id="weakness-analysis-rules-modal-title"
+                class="modal-title my-color-black"
+              >
+                分析規則
+              </h5>
+              <button
+                type="button"
+                class="btn-close"
+                aria-label="關閉"
+                @click="closeWeaknessAnalysisRulesModal"
+              />
+            </div>
+            <div class="modal-body p-0" style="max-height: 70vh; overflow: auto;">
+              <div
+                v-if="analysisRulesModalLoading"
+                class="my-font-md-400 my-color-gray-4"
+              >
+                載入中…
+              </div>
+              <template v-else>
+                <div
+                  v-if="analysisRulesModalHtml"
+                  class="my-markdown-rendered my-font-md-400 my-color-black text-break"
+                  v-html="analysisRulesModalHtml"
+                />
+                <span
+                  v-else
+                  class="my-font-md-400 my-color-black"
+                >—</span>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <header class="flex-shrink-0 my-bgcolor-gray-4 p-4">
       <div class="container-fluid px-0 text-center">
         <p class="my-font-xl-400 my-color-black text-break mb-0">作答弱點分析</p>
@@ -286,17 +508,68 @@ onMounted(() => {
       <div class="container-fluid px-3 px-md-4 py-4">
         <div class="row justify-content-center">
           <div class="col-12 col-lg-10 col-xl-8 col-xxl-6">
-            <div v-if="loading" class="text-center my-color-gray-4 py-5" />
-            <div v-else-if="items.length === 0" class="my-alert-info-soft rounded my-font-sm-400 p-3 mt-0">尚無答題紀錄。</div>
+            <div
+              v-if="canEditWeaknessReportRules"
+              class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 text-start mb-4"
+            >
+              <label class="form-label my-font-md-600 my-color-black mb-2" for="weakness-analysis-report-rules-md">分析報告規則</label>
+              <EnglishExamMarkdownEditor
+                v-model="personAnalysisPromptText"
+                textarea-id="weakness-analysis-report-rules-md"
+                placeholder=""
+                class="mb-3"
+                :disabled="promptSectionLoading || loading || promptSaving"
+              />
+              <div class="d-flex justify-content-center flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  class="btn rounded-pill my-font-md-400 my-button-black px-4 py-2"
+                  title="儲存分析報告規則"
+                  aria-label="儲存分析報告規則"
+                  :disabled="promptSectionLoading || loading || promptSaving || !authStore.user?.person_id"
+                  :aria-busy="promptSaving"
+                  @click="savePersonAnalysisPromptOnly"
+                >
+                  儲存
+                </button>
+              </div>
+            </div>
 
-            <template v-else>
+            <!-- 與建立測驗題庫「新增測驗題庫」同款大膠囊；置於分析報告規則區塊下方 -->
+            <div class="d-flex justify-content-center align-items-center w-100 py-2 px-2 mb-4">
+              <button
+                type="button"
+                class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
+                title="開始弱點分析"
+                aria-label="開始弱點分析"
+                :disabled="promptSectionLoading || loading || promptSaving || !authStore.user?.person_id"
+                :aria-busy="loading"
+                @click="fetchWeaknessAnalysisOnly"
+              >
+                <i class="fa-solid fa-play" aria-hidden="true" />
+                開始弱點分析
+              </button>
+            </div>
+
+            <div v-if="loading" class="text-center my-color-gray-4 py-5" />
+
+            <div
+              v-else-if="analysisLoadedOnce && !error && items.length === 0 && !weaknessReport"
+              class="my-alert-info-soft rounded my-font-sm-400 p-3 mt-0"
+            >
+              尚無答題紀錄。
+            </div>
+
+            <template v-else-if="analysisLoadedOnce && !loading && (items.length > 0 || weaknessReport)">
               <div class="text-start my-page-block-spacing">
                 <div class="d-flex flex-column gap-4 w-100 min-w-0">
                   <div
                     v-if="weaknessReport"
                     class="rounded-4 my-bgcolor-gray-3 p-4 w-100 min-w-0 d-flex flex-column gap-4 text-start"
                   >
-                    <div class="my-font-lg-600 my-color-black mb-0">學習弱點分析報告</div>
+                    <div class="my-font-lg-600 my-color-black mb-0">
+                      學習弱點分析報告
+                    </div>
                     <template v-if="weaknessReportParsed">
                       <div
                         v-for="sectionKey in weaknessReportSections"
@@ -336,6 +609,20 @@ onMounted(() => {
                       class="my-weakness-report-md my-font-md-400 lh-base my-color-black text-break mb-0"
                       v-html="md(weaknessReport)"
                     />
+                    <div
+                      v-if="analysisRulesSnapshotTrimmed"
+                      class="d-flex justify-content-start align-items-center w-100 pt-3"
+                    >
+                      <button
+                        type="button"
+                        class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
+                        title="分析規則"
+                        aria-label="分析規則"
+                        @click="openWeaknessAnalysisRulesModal"
+                      >
+                        分析規則
+                      </button>
+                    </div>
                   </div>
 
                   <div

@@ -37,7 +37,7 @@ app.use(router);
  * 全域路由守衛：主區塊與 /exam 需登入；依 user_type 限制可進入的路由（學生不可直連無權限 path）
  * - 需登入：/exam、以及 name 為 Main 的 /:view（如 /manage-users、/profile）
  * - 舊網址 /main、/main/* 仍會觸發登入檢查後再重導向
- * - user_type 3：僅 /exam、/student-weakness-analysis（作答弱點分析）、/profile；其餘導向 /exam
+ * - user_type 3：測驗／作答弱點分析／建立測驗題庫／設定（/exam、/student-weakness-analysis、/create-exam-bank、/profile）；其餘導向 /exam
  * - /logs（系統 Log）：僅 user_type 1；其餘導向 /exam
  * - 未定義路徑：已登入 → /exam；未登入 → /login
  */

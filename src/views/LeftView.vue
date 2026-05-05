@@ -5,7 +5,7 @@
    * 職責：
    * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、主要導覽（測驗、作答弱點分析）
    * - 左下角使用者名下拉：Design 頁「08 · 下拉選單」同款（my-design-08-dropdown、dropdown-toggle · my-dropdown-caret · rounded-2 · my-button-white · chevron）；出題／學生作答分析／使用者管理／系統設定／系統紀錄、分隔線、設定、登出（/design 不列於選單，僅網址進入）
-   * - 依 user_type 顯示允許的項目（canSeeNavLink）
+   * - 使用者名下拉：建立測驗題庫為登入即顯示；其餘項目依 user_type（canSeeNavLink）
    */
   import { ref, computed, onMounted } from 'vue';
   import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
@@ -29,7 +29,6 @@
         const t = props.userType;
         if (!canSeeNavLink(t, 'profile')) return false;
         return (
-          canSeeNavLink(t, 'create-exam-bank') ||
           canSeeNavLink(t, 'student-answer-analysis') ||
           canSeeNavLink(t, 'users') ||
           canSeeNavLink(t, 'settings') ||
@@ -95,7 +94,7 @@
           <i class="fa-solid fa-chevron-down my-dropdown-toggle-caret flex-shrink-0" aria-hidden="true" />
         </button>
         <ul class="dropdown-menu dropdown-menu-start w-100">
-          <li v-if="canSeeNavLink(userType, 'create-exam-bank')">
+          <li>
             <router-link class="dropdown-item" to="/create-exam-bank" active-class="active">建立測驗題庫</router-link>
           </li>
           <li v-if="canSeeNavLink(userType, 'student-answer-analysis')">

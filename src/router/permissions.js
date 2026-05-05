@@ -2,7 +2,7 @@
  * 依 user_type 限制可進入的路由（與側邊欄顯示）
  *
  * 1=開發者、2=管理者：除「系統 Log」外之全部頁面
- * 3=學生：僅測驗（/exam）、作答弱點分析（/student-weakness-analysis）、設定（/profile）
+ * 3=學生：測驗（/exam）、作答弱點分析（/student-weakness-analysis）、建立測驗題庫（/create-exam-bank）、設定（/profile）
  * 「系統 Log」（/logs）：僅 user_type=1
  */
 
@@ -33,7 +33,12 @@ export function userTypeLabel(userType) {
 }
 
 /** 學生可進入的 view 參數（/:view）以及測驗對應的內部鍵 work */
-export const STUDENT_ALLOWED_VIEWS = new Set(['work', 'student-weakness-analysis', 'profile']);
+export const STUDENT_ALLOWED_VIEWS = new Set([
+  'work',
+  'student-weakness-analysis',
+  'create-exam-bank',
+  'profile',
+]);
 
 /**
  * @param {import('vue-router').RouteLocationNormalized} to

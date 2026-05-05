@@ -3737,7 +3737,20 @@ async function confirmAnswer(item) {
           <div class="w-100 py-2" aria-busy="true" />
         </template>
         <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
-          <div class="w-100 py-2" aria-hidden="true" />
+          <div class="d-flex justify-content-center align-items-center w-100 py-2 px-2">
+            <button
+              type="button"
+              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
+              :title="`新增${quizBankNoun}`"
+              :aria-label="`新增${quizBankNoun}`"
+              :disabled="createRagLoading"
+              :aria-busy="createRagLoading"
+              @click="addNewTab"
+            >
+              <i class="fa-solid fa-plus" aria-hidden="true" />
+              新增{{ quizBankNoun }}
+            </button>
+          </div>
         </template>
         <template v-else>
           <ul class="nav nav-tabs w-100">
@@ -3933,7 +3946,7 @@ async function confirmAnswer(item) {
                   <li class="mb-0">RAG：.pdf、.doc、.docx、.ppt、.pptx</li>
                   <li class="mb-0">文字：該資料夾內只能有一個 .md、.txt、.doc 或 .docx</li>
                   <li class="mb-0">mp3：該資料夾內只能有一個.mp3檔</li>
-                  <li class="mb-0">youtube：.md、.txt、.doc 或 .docx（檔內須為 YouTube 網址，不可僅有 video_id）</li>
+                  <li class="mb-0">youtube：.md、.txt、.doc 或 .docx（檔內須為 YouTube 網址）</li>
                 </ul>
               </div>
             </div>

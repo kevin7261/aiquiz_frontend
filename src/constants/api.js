@@ -203,6 +203,8 @@ export const API_EXAM_RATE_QUIZ = '/exam/tab/quiz/rate';
  * - PUT  /system-settings/course-name   Put Course Name Setting
  * - GET  /system-settings/llm-api-key  Get Llm Api Key
  * - PUT  /system-settings/llm-api-key  Put Llm Api Key
+ * - GET /system-settings/person_analysis_user_prompt_text  Get Person Analysis User Prompt（有效登入使用者皆可；PUT 僅 user_type 1／2）
+ * - PUT /system-settings/person_analysis_user_prompt_text  Put 同上；body { person_analysis_user_prompt_text }
  */
 /** GET：取得課程名稱；回傳含 course_name。 */
 export const API_GET_SYSTEM_SETTING_COURSE_NAME = '/system-settings/course-name';
@@ -212,6 +214,8 @@ export const API_PUT_SYSTEM_SETTING_COURSE_NAME = '/system-settings/course-name'
 export const API_GET_LLM_API_KEY = '/system-settings/llm-api-key';
 /** PUT：寫入或更新系統預設 LLM API Key（表 key=llm_api_key）；body 僅傳 { llm_api_key }，空字串表示清除。 */
 export const API_PUT_SYSTEM_SETTING_LLM_API_KEY = '/system-settings/llm-api-key';
+/** GET／PUT：作答弱點「分析報告規則」Prompt（person_analysis_user_prompt_text）；GET 凡有效使用者；PUT 僅 user_type 1／2；loggedFetch 自動帶 query person_id。 */
+export const API_PERSON_ANALYSIS_USER_PROMPT = '/system-settings/person_analysis_user_prompt_text';
 
 /** GET：系統 Log 列表。 */
 export const API_LIST_LOGS = '/log/logs';
