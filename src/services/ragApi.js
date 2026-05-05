@@ -180,7 +180,7 @@ export async function apiRagUnitMp3FileByFolder(params) {
 }
 
 /**
- * GET /rag/unit/youtube-url — ZIP 內 folder_name 資料夾 .md/.txt/.doc/.docx 解析 YouTube URL 或 video_id（unit_type=4）
+ * GET /rag/unit/youtube-url — ZIP 內 folder_name 資料夾 .md/.txt/.doc/.docx 解析 YouTube 網址（unit_type=4）；前端僅接受回應內完整 URL 欄位，不接受僅 video_id
  * Query：`rag_tab_id`、`folder_name`、`person_id`。
  * @param {{ rag_tab_id: string, folder_name: string, personId: string | null | undefined }} params
  * @returns {Promise<object>}

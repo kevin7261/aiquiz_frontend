@@ -7,7 +7,7 @@ import { renderMarkdownToSafeHtml } from '../utils/renderMarkdown.js';
  * QuizCard - 單一題目卡片
  *
  * 顯示：題號（可隱藏）、題目內容（Markdown，marked + DOMPurify）、提示（可切換顯示）、答案區（預設帶入暫存參考答案，並於欄位下方註明）、批改結果；測驗頁 hideGradingPrompt 時「批改規則」以 modal 按鈕置於批改結果內容下方。
- * 可輸入答案並按「開始批改」送出評分；按鈕常駐，再次批改時 composable 會先將 confirmed 設為 false 再更新結果。顯示「批改規則」區時須先有非空白內容才可按「開始批改」。**RAG 題庫且 card.rag_quiz_for_exam === true（測驗用）時**：批改規則改為預覽唯讀（黑底預覽），與建立頁出題規則一致。
+ * 可輸入答案並按「開始批改」送出評分；**測驗頁**（hideGradingPrompt）在已批改（card.confirmed）後不顯示此鈕；建立題庫等未帶 hideGradingPrompt 時鈕仍顯示，再次批改時 composable 會先將 confirmed 設為 false 再更新結果。顯示「批改規則」區時須先有非空白內容才可按「開始批改」。**RAG 題庫且 card.rag_quiz_for_exam === true（測驗用）時**：批改規則改為預覽唯讀（黑底預覽），與建立頁出題規則一致。
  * 供 CreateExamQuizBankPage、ExamPage 使用；評分邏輯由父層透過 useQuizGrading 處理。
  *
  * card 物件需含：quiz, hint, referenceAnswer, quiz_answer（使用者作答）, gradingPrompt（可選；Markdown；**RAG** 批改 POST 對應 answer_user_prompt_text；**Exam** 時批改指引仍不由前端於 POST 送出，欄位可編輯以相容），confirmed, gradingResult, ragName, rag_id（可選，供與 currentRagId 比對是否可作答）, id；測驗頁另含 exam_quiz_id、quiz_rate、rateError、quiz_user_prompt_text（可選；POST /exam/tab/quiz/llm-generate 回傳之出題模板快照，與 gradingPrompt 一併在 hideGradingPrompt 時唯讀顯示）；RAG 題庫頁／單元題另含 rag_quiz_id、rag_tab_id、rag_unit_id（狀態／其他 API）、rag_quiz_for_exam（已標為測驗用試題；for-exam 僅送 rag_quiz_id／for_exam）。designEmbedded：true 時不套 rounded-4 深灰外框（由父層區塊包住）；稿頁「測試題目」每題一區塊時應為 false。hideRagQuizForExamToolbar：true 時不在卡內顯示「設為測驗用」（由建立頁置於題型區塊最下方（題目卡片之後）常駐；未出題或未批改為 disabled）。showExamRating：測驗頁專用，顯示讚／差（32×32 透明底；未選 fa-regular gray-1、選中 fa-solid 黑色）並 emit rate-quiz。questionHintOnly：建立英文測驗題庫用，僅顯示「第 N 題」、題目、提示（與 designUi 相同 class），不顯示參考答案、作答、批改。hideGradingPrompt／hideGradingResult：測驗頁可隱藏批改輸入／結果區（仍可送出批改）。readOnlyAnswer：作答弱點分析／學生作答分析等純顯示頁，答案區唯讀、不顯示「開始批改」。
@@ -87,6 +87,13 @@ const showRagQuizForExamToolbar = computed(() => {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 1;
 });
+
+/** 測驗頁（hideGradingPrompt）：已有批改紀錄／結果後不再顯示「開始批改」；建立題庫頁不帶 hideGradingPrompt，仍可再次批改 */
+const showStartGradeButton = computed(
+  () =>
+    !props.readOnlyAnswer
+    && !(props.hideGradingPrompt && props.card?.confirmed),
+);
 
 /** 題幹有文字才顯示作答／「開始批改」等（後端空白列或未產出題文時不應出現批改流程） */
 const hasQuizBody = computed(() => String(props.card?.quiz ?? '').trim() !== '');
@@ -412,7 +419,7 @@ const showQuizCardHeaderBand = computed(
           />
         </div>
         <div
-          v-if="!readOnlyAnswer"
+          v-if="showStartGradeButton"
           :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'"
         >
           <button

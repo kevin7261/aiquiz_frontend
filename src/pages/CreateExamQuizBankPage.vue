@@ -556,7 +556,7 @@ const packBuildOverlayLines = computed(() => {
   return lines;
 });
 
-/** 建題庫串流進度（LoadingOverlay subText；全螢幕遮罩會蓋住表單下方進度區） */
+/** 建題庫串流進度（LoadingOverlay subText） */
 const loadingOverlaySubText = computed(() => {
   const st = currentState.value;
   if (st?.packLoading) {
@@ -1117,10 +1117,7 @@ function youtubeUrlFromUnitUrlResponse(data) {
   for (const c of candidates) {
     if (c != null && String(c).trim() !== '') return String(c).trim();
   }
-  const id = data.video_id ?? data.videoId;
-  return id != null && String(id).trim() !== ''
-    ? `https://www.youtube.com/watch?v=${String(id).trim()}`
-    : '';
+  return '';
 }
 
 function packUnitYoutubeEmbedUrl(gi) {
@@ -4273,20 +4270,6 @@ async function confirmAnswer(item) {
             >
               開始建立單元
             </button>
-          </div>
-          <div
-            v-if="currentState.packLoading"
-            class="my-font-sm-400 my-color-gray-4 text-break text-center mt-2 mb-1"
-            role="status"
-            aria-live="polite"
-          >
-            <template v-if="currentState.packBuildTotal > 0">
-              <div>共 {{ currentState.packBuildTotal }} 個 RAG ZIP；已完成 {{ currentState.packBuildDone }} 個</div>
-              <div v-if="currentState.packBuildCurrent > 0" class="mt-1">
-                建置中 {{ currentState.packBuildCurrent }} / {{ currentState.packBuildTotal }}
-              </div>
-            </template>
-            <template v-else>建立單元中…</template>
           </div>
           <div
             v-if="currentState.packError"
