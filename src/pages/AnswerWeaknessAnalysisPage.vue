@@ -2,7 +2,7 @@
 /**
  * AnswerWeaknessAnalysisPage - 作答弱點分析頁面
  *
- * 登入後即 GET `person_analysis_user_prompt_text` 供「分析規則」與 Modal 使用（全 user_type）；僅 1／2 顯示編輯區與「儲存」。
+ * 登入後即 GET `person_analysis_user_prompt_text` 供「分析規則」與 Modal 使用（全 user_type）；僅 1／2 顯示編輯區，主按鈕為「儲存並開始分析」（先儲存規則再跑分析）；其餘角色僅見下方大膠囊「開始弱點分析」。
  * 列表與 GET /exam/tabs、GET /rag/tabs 每筆一致；另含 count、weakness_report。題目區（QuizCard）純顯示。
  */
 import { ref, computed, watch } from 'vue';
@@ -54,8 +54,10 @@ const error = ref('');
 const analysisLoadedOnce = ref(false);
 
 const personAnalysisPromptText = ref('');
+/** GET／儲存成功後對齊；重設還原至此 */
+const personAnalysisPromptBaseline = ref('');
 const promptSectionLoading = ref(false);
-/** 「儲存」PUT 時由全螢幕 overlay 顯示進度（不按鈕變字） */
+/** 編輯區先 PUT 規則時由全螢幕 overlay 顯示進度 */
 const promptSaving = ref(false);
 
 /** 全螢幕 LoadingOverlay：答題載入、GET／PUT 分析報告規則 */
@@ -88,7 +90,9 @@ async function fetchPersonAnalysisPromptSetting() {
     const res = await loggedFetch(url, { method: 'GET', headers: { 'X-Person-Id': String(personId) } });
     if (res.ok) {
       const data = await res.json();
-      personAnalysisPromptText.value = parsePersonAnalysisPromptFromBody(data);
+      const next = parsePersonAnalysisPromptFromBody(data);
+      personAnalysisPromptText.value = next;
+      personAnalysisPromptBaseline.value = next;
     }
   } catch {
     // 保留編輯框空白
@@ -157,41 +161,47 @@ async function runPersonAnalysisQuizFetch({
   }
 }
 
-async function savePersonAnalysisPromptOnly() {
+/** 開發者／管理者：規則有改時先 PUT，再 GET 並觸發弱點報告（與下方大膠囊同一資料流） */
+async function startWeaknessAnalysisFromRulesEditor() {
   if (!canEditWeaknessReportRules.value) return;
   const personId = authStore.user?.person_id;
   if (!personId) {
     error.value = '請先登入';
     return;
   }
-  promptSaving.value = true;
   error.value = '';
-  try {
-    const url = `${API_BASE}${API_PERSON_ANALYSIS_USER_PROMPT}`;
-    const res = await loggedFetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Person-Id': String(personId),
-      },
-      body: JSON.stringify({ person_analysis_user_prompt_text: personAnalysisPromptText.value ?? '' }),
-    });
-    if (!res.ok) {
-      let msg = '儲存分析報告規則失敗';
-      try {
-        const body = await res.json();
-        if (body.detail) msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
-      } catch {
-        /* ignore */
+  if (personAnalysisPromptDirty.value) {
+    promptSaving.value = true;
+    try {
+      const url = `${API_BASE}${API_PERSON_ANALYSIS_USER_PROMPT}`;
+      const res = await loggedFetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Person-Id': String(personId),
+        },
+        body: JSON.stringify({ person_analysis_user_prompt_text: personAnalysisPromptText.value ?? '' }),
+      });
+      if (!res.ok) {
+        let msg = '儲存分析報告規則失敗';
+        try {
+          const body = await res.json();
+          if (body.detail) msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+        } catch {
+          /* ignore */
+        }
+        error.value = msg;
+        return;
       }
-      error.value = msg;
+      personAnalysisPromptBaseline.value = String(personAnalysisPromptText.value ?? '');
+    } catch (e) {
+      error.value = e?.message ?? '無法連線';
       return;
+    } finally {
+      promptSaving.value = false;
     }
-  } catch (e) {
-    error.value = e?.message ?? '無法連線';
-  } finally {
-    promptSaving.value = false;
   }
+  await runPersonAnalysisQuizFetch({ manageLoading: true, generateWeaknessReport: true });
 }
 
 async function fetchWeaknessAnalysisOnly() {
@@ -204,8 +214,8 @@ const analysisRulesModalLoading = ref(false);
 const analysisRulesModalRaw = ref('');
 
 const analysisRulesModalHtml = computed(() => {
-  const raw = String(analysisRulesModalRaw.value ?? '').trim();
-  return raw !== '' ? renderMarkdownToSafeHtml(analysisRulesModalRaw.value) : '';
+  const raw = String(analysisRulesModalRaw.value ?? '');
+  return raw.trim() !== '' ? renderMarkdownToSafeHtml(raw) : '';
 });
 
 async function fetchAnalysisRulesForModal() {
@@ -238,6 +248,16 @@ const analysisRulesSnapshotTrimmed = computed(() =>
   String(personAnalysisPromptText.value ?? '').trim(),
 );
 
+const personAnalysisPromptDirty = computed(
+  () =>
+    String(personAnalysisPromptText.value ?? '')
+    !== String(personAnalysisPromptBaseline.value ?? ''),
+);
+
+function resetPersonAnalysisPromptToBaseline() {
+  personAnalysisPromptText.value = String(personAnalysisPromptBaseline.value ?? '');
+}
+
 async function openWeaknessAnalysisRulesModal() {
   analysisRulesModalOpen.value = true;
   const local = analysisRulesSnapshotTrimmed.value;
@@ -259,6 +279,7 @@ watch(
     if (pid) fetchPersonAnalysisPromptSetting();
     else {
       personAnalysisPromptText.value = '';
+      personAnalysisPromptBaseline.value = '';
     }
   },
   { immediate: true },
@@ -461,7 +482,7 @@ function weaknessSlotQuizBodyTrim(idx) {
                 id="weakness-analysis-rules-modal-title"
                 class="modal-title my-color-black"
               >
-                分析規則
+                分析報告規則
               </h5>
               <button
                 type="button"
@@ -470,7 +491,7 @@ function weaknessSlotQuizBodyTrim(idx) {
                 @click="closeWeaknessAnalysisRulesModal"
               />
             </div>
-            <div class="modal-body p-0" style="max-height: 70vh; overflow: auto;">
+            <div class="modal-body p-0 lh-base" style="max-height: 70vh; overflow: auto;">
               <div
                 v-if="analysisRulesModalLoading"
                 class="my-font-md-400 my-color-gray-4"
@@ -523,20 +544,33 @@ function weaknessSlotQuizBodyTrim(idx) {
               <div class="d-flex justify-content-center flex-wrap gap-3 pt-2">
                 <button
                   type="button"
-                  class="btn rounded-pill my-font-md-400 my-button-black px-4 py-2"
-                  title="儲存分析報告規則"
-                  aria-label="儲存分析報告規則"
-                  :disabled="promptSectionLoading || loading || promptSaving || !authStore.user?.person_id"
-                  :aria-busy="promptSaving"
-                  @click="savePersonAnalysisPromptOnly"
+                  class="btn rounded-pill my-font-md-400 my-btn-outline-gray-1 px-4 py-2"
+                  title="還原為上次載入或儲存後的內容"
+                  aria-label="重設分析報告規則"
+                  :disabled="promptSectionLoading || loading || promptSaving || !personAnalysisPromptDirty"
+                  @click="resetPersonAnalysisPromptToBaseline"
                 >
-                  儲存
+                  重設
+                </button>
+                <button
+                  type="button"
+                  class="btn rounded-pill my-font-md-400 my-button-black px-4 py-2"
+                  title="儲存規則（若有修改）並開始分析"
+                  aria-label="儲存並開始分析"
+                  :disabled="promptSectionLoading || loading || promptSaving || !authStore.user?.person_id"
+                  :aria-busy="loading || promptSaving"
+                  @click="startWeaknessAnalysisFromRulesEditor"
+                >
+                  儲存並開始分析
                 </button>
               </div>
             </div>
 
-            <!-- 與建立測驗題庫「新增測驗題庫」同款大膠囊；置於分析報告規則區塊下方 -->
-            <div class="d-flex justify-content-center align-items-center w-100 py-2 px-2 mb-4">
+            <!-- 非開發者／管理者：無編輯區時由此啟動分析；user_type 1／2 改用上區「儲存並開始分析」 -->
+            <div
+              v-if="!canEditWeaknessReportRules"
+              class="d-flex justify-content-center align-items-center w-100 py-2 px-2 mb-4"
+            >
               <button
                 type="button"
                 class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
@@ -616,11 +650,11 @@ function weaknessSlotQuizBodyTrim(idx) {
                       <button
                         type="button"
                         class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-sm-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-1"
-                        title="分析規則"
-                        aria-label="分析規則"
+                        title="分析報告規則（Markdown）"
+                        aria-label="分析報告規則"
                         @click="openWeaknessAnalysisRulesModal"
                       >
-                        分析規則
+                        分析報告規則
                       </button>
                     </div>
                   </div>

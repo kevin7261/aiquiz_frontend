@@ -525,7 +525,7 @@ const loadingOverlayVisible = computed(
 const loadingOverlayText = computed(() => {
   if (isGradingSubmitting.value) return '批改中...';
   if (activeUnitQuizLoadingOverlayKind.value === 'add-row') return '產生題型中';
-  if (hasAnySlotGenerating.value) return '產生題目中...';
+  if (hasAnySlotGenerating.value) return '儲存並產生題目中...';
   const st = currentState.value;
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立單元中...';
@@ -1831,10 +1831,36 @@ function isRagQuizForExamToolbarButtonDisabled(card) {
   return !hasQuiz || !hasGrade;
 }
 
-/** 「產生題目」可按：須有非空白之出題規則（與是否標為測驗用無關） */
+/** 題卡與「上次載入／產生／批改成功」對齊之比對欄位（重設還原用） */
+function syncQuizCardPromptBaselines(row) {
+  if (!row || typeof row !== 'object') return;
+  row.quizUserPromptBaseline = String(row.quizUserPromptText ?? '');
+  row.gradingPromptBaseline = String(row.gradingPrompt ?? '');
+  row.quizAnswerBaseline = String(row.quiz_answer ?? '');
+}
+
+function isQuizUserPromptDirty(card) {
+  if (!card || typeof card !== 'object') return false;
+  return (
+    String(card.quizUserPromptText ?? '') !== String(card.quizUserPromptBaseline ?? '')
+  );
+}
+
+function resetUnitQuizUserPrompt(card) {
+  if (!card || typeof card !== 'object') return;
+  card.quizUserPromptText = String(card.quizUserPromptBaseline ?? '');
+}
+
+function resetUnitQuizGradingPrompt(card) {
+  if (!card || typeof card !== 'object') return;
+  card.gradingPrompt = String(card.gradingPromptBaseline ?? '');
+}
+
+/** 「產生題目」可按：須有非空白之出題規則，且出題規則內容須與 baseline 不同（已編輯） */
 function canEnableUnitQuizGenerate(card, slotIndex) {
   if (!card || typeof card !== 'object') return false;
-  return !!promptTextForQuizRow(card, slotIndex);
+  if (!promptTextForQuizRow(card, slotIndex)) return false;
+  return isQuizUserPromptDirty(card);
 }
 
 /** 該列出題文字：優先題卡本身，再以 slot（舊相容）回填 */
@@ -2419,7 +2445,8 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
   const rawQuizName = String(quiz.quiz_name ?? quiz.quizName ?? '').trim();
   const quizNameResolved =
     rawQuizName !== '' ? rawQuizName : DEFAULT_UNIT_QUIZ_DISPLAY_NAME;
-  return {
+  const quizUserPromptTextResolved = extractQuizUserPromptText(quiz);
+  const card = {
     id: nextCardId(),
     quiz: quiz.quiz_content ?? '',
     hint: quiz.quiz_hint ?? '',
@@ -2433,7 +2460,7 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
     gradingResult,
     gradingResponseJson,
     generateQuizResponseJson: null,
-    quizUserPromptText: extractQuizUserPromptText(quiz),
+    quizUserPromptText: quizUserPromptTextResolved,
     rag_quiz_id: positiveRagQuizIdFromQuizRow(quiz),
     rag_tab_id: rtid,
     rag_unit_id: ruid,
@@ -2444,6 +2471,8 @@ function buildCardFromRagQuiz(quiz, ragName, ragIdFallback) {
     gradingPrompt,
     quizName: quizNameResolved,
   };
+  syncQuizCardPromptBaselines(card);
+  return card;
 }
 
 /** 單元下拉預設不選；清單變動時用 unit_name／rag_tab_id 重新對齊選取（避免無匹配 value 時 select 誤顯示第一筆） */
@@ -3149,6 +3178,9 @@ function createLocalDraftUnitQuizCard() {
     gradingPrompt: '',
     quizName: DEFAULT_UNIT_QUIZ_DISPLAY_NAME,
     quizUserPromptText: '',
+    quizUserPromptBaseline: '',
+    gradingPromptBaseline: '',
+    quizAnswerBaseline: '',
   };
 }
 
@@ -3353,7 +3385,7 @@ async function submitUnitQuizLlmGenerate(slotIndex, quizCardRow = null) {
 
     if (rqid == null || rqid < 1) {
       slotState.unitQuizCreateError =
-        '無法取得 rag_quiz_id。請在空白列填寫出題規則後按「產生題目」，或重新整理頁面。';
+        '無法取得 rag_quiz_id。請在空白列填寫出題規則後按「儲存並產生題目」，或重新整理頁面。';
       return;
     }
 
@@ -3535,8 +3567,11 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
       card.rag_quiz_for_exam = prev.rag_quiz_for_exam ?? card.rag_quiz_for_exam;
       card.ragQuizForExamLoading = false;
       card.ragQuizForExamError = '';
-      sub[idx] = { ...prev, ...card };
+      const merged = { ...prev, ...card };
+      syncQuizCardPromptBaselines(merged);
+      sub[idx] = merged;
     } else {
+      syncQuizCardPromptBaselines(card);
       sub.push(card);
     }
     state.unitSlotQuizCards[slotIndex - 1] = sortUnitQuizCardsByRagQuizId(sub);
@@ -3547,6 +3582,7 @@ function setCardAtSlot(slotIndex, quizContent, hint, sourceFilename, referenceAn
     return;
   }
 
+  syncQuizCardPromptBaselines(card);
   state.cardList[slotIndex - 1] = card;
 }
 
@@ -3645,6 +3681,10 @@ async function confirmAnswer(item) {
   gradingSubmittingCardId.value = item.id;
   try {
     await submitGrade(item, { sourceTabId, ragId }, {});
+    if (item.confirmed) {
+      item.gradingPromptBaseline = String(item.gradingPrompt ?? '');
+      item.quizAnswerBaseline = String(item.quiz_answer ?? '');
+    }
   } finally {
     gradingSubmittingCardId.value = null;
   }
@@ -4810,7 +4850,23 @@ async function confirmAnswer(item) {
                     />
                   </div>
                 </div>
-                <div class="d-flex justify-content-center">
+                <div
+                  class="d-flex justify-content-center align-items-center flex-wrap gap-3"
+                >
+                  <button
+                    v-if="!isRagQuizMarkedForExam(activeUnitQuizCard)"
+                    type="button"
+                    class="btn rounded-pill d-inline-flex justify-content-center align-items-center my-font-md-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-2"
+                    title="還原為上次載入或產生後的內容"
+                    aria-label="重設出題規則"
+                    :disabled="
+                      getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading
+                      || !isQuizUserPromptDirty(activeUnitQuizCard)
+                    "
+                    @click="resetUnitQuizUserPrompt(activeUnitQuizCard)"
+                  >
+                    重設
+                  </button>
                   <button
                     type="button"
                     class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
@@ -4821,7 +4877,7 @@ async function confirmAnswer(item) {
                     :aria-busy="getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading"
                     @click="submitUnitQuizLlmGenerate(activeUnitSlotIndex, activeUnitQuizCard)"
                   >
-                    產生題目
+                    儲存並產生題目
                   </button>
                 </div>
                 <QuizCard
@@ -4842,6 +4898,7 @@ async function confirmAnswer(item) {
                   @confirm-answer="confirmAnswer"
                   @update:quiz_answer="(val) => { activeUnitQuizCard.quiz_answer = val }"
                   @update:grading_prompt="(val) => { activeUnitQuizCard.gradingPrompt = val }"
+                  @reset-grading-prompt="resetUnitQuizGradingPrompt(activeUnitQuizCard)"
                 />
                 <div class="d-flex flex-column align-items-center gap-2 w-100 min-w-0 pt-1">
                   <button
@@ -4898,10 +4955,10 @@ async function confirmAnswer(item) {
                       class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
                       :disabled="getSlotFormState(activeUnitSlotIndex).loading || !String(getSlotFormState(activeUnitSlotIndex).generateQuizTabId || '').trim()"
                       :aria-busy="getSlotFormState(activeUnitSlotIndex).loading"
-                      aria-label="產生題目"
+                      aria-label="儲存並產生題目"
                       @click="generateQuiz(activeUnitSlotIndex)"
                     >
-                      產生題目
+                      儲存並產生題目
                     </button>
                   </div>
                   <div v-if="getSlotFormState(activeUnitSlotIndex).error" class="my-alert-danger-soft my-font-sm-400 py-2 mt-2 mb-0">

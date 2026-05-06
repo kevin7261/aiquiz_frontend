@@ -1484,7 +1484,7 @@ function examUnitSelectDropdownDisabled(slotIndex) {
 }
 
 function examUnitSelectHintWhenDisabled(slotIndex) {
-  if (getSlotFormState(slotIndex).loading) return '產生題目中…';
+  if (getSlotFormState(slotIndex).loading) return '儲存並產生題目中…';
   if (examSlotRagChoicesLocked(slotIndex)) return '已產生題目後無法變更單元';
   return '';
 }
@@ -1508,7 +1508,7 @@ function examQuizNameDropdownDisabled(slotIndex) {
 }
 
 function examQuizNameHintWhenDisabled(slotIndex) {
-  if (getSlotFormState(slotIndex).loading) return '產生題目中…';
+  if (getSlotFormState(slotIndex).loading) return '儲存並產生題目中…';
   if (examSlotRagChoicesLocked(slotIndex)) return '已產生題目後無法變更題型';
   return '';
 }
@@ -1560,7 +1560,7 @@ const loadingOverlayVisible = computed(
 
 const loadingOverlayText = computed(() => {
   if (isGradingSubmitting.value) return '批改中...';
-  if (examGenerateQuizOverlayVisible.value) return '產生題目中...';
+  if (examGenerateQuizOverlayVisible.value) return '儲存並產生題目中...';
   if (deleteExamLoading.value) return '刪除中...';
   if (examRenameSaving.value) return '儲存中...';
   if (createExamLoading.value) return '建立中...';
@@ -2356,10 +2356,10 @@ onActivated(() => {
                             class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
                             :disabled="examGenerateQuizButtonDisabled(slotIndex)"
                             :aria-busy="getSlotFormState(slotIndex).loading || getSlotFormState(slotIndex).draftCreating"
-                            aria-label="產生題目"
+                            aria-label="儲存並產生題目"
                             @click="generateQuiz(slotIndex)"
                           >
-                            產生題目
+                            儲存並產生題目
                           </button>
                         </div>
                         <div
@@ -2531,10 +2531,10 @@ onActivated(() => {
                             class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-white px-3 py-2"
                             :disabled="examGenerateQuizButtonDisabled(slotIndex)"
                             :aria-busy="getSlotFormState(slotIndex).loading || getSlotFormState(slotIndex).draftCreating"
-                            aria-label="產生題目"
+                            aria-label="儲存並產生題目"
                             @click="generateQuiz(slotIndex)"
                           >
-                            產生題目
+                            儲存並產生題目
                           </button>
                         </div>
                         <div

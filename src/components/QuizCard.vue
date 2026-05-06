@@ -47,7 +47,15 @@ const props = defineProps({
   readOnlyAnswer: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['toggle-hint', 'confirm-answer', 'update:quiz_answer', 'update:grading_prompt', 'rate-quiz', 'mark-rag-quiz-for-exam']);
+const emit = defineEmits([
+  'toggle-hint',
+  'confirm-answer',
+  'update:quiz_answer',
+  'update:grading_prompt',
+  'reset-grading-prompt',
+  'rate-quiz',
+  'mark-rag-quiz-for-exam',
+]);
 
 /** 兩邊 rag_id 皆已知且不一致 → 不可在此 RAG 下作答 */
 const answerInputDisabled = computed(() => {
@@ -120,13 +128,21 @@ const promptModalTitle = computed(() =>
   promptModalKind.value === 'question' ? '出題規則' : '批改規則'
 );
 
-const promptModalText = computed(() => {
-  if (promptModalKind.value === 'question') return quizUserPromptSnapshotTrimmed.value;
-  if (promptModalKind.value === 'grading') return answerUserPromptSnapshotTrimmed.value;
+/** Modal 內文：用題卡完整字串跑 Markdown（與 EnglishExamMarkdownEditor 預覽同源），勿先行 trim 以免破壞程式碼區塊 */
+const promptModalMarkdownSource = computed(() => {
+  const c = props.card;
+  if (!c || typeof c !== 'object') return '';
+  if (promptModalKind.value === 'question') {
+    const raw = c.quiz_user_prompt_text ?? c.quizUserPromptText;
+    return raw != null ? String(raw) : '';
+  }
+  if (promptModalKind.value === 'grading') {
+    return String(c.gradingPrompt ?? '');
+  }
   return '';
 });
 
-const promptModalHtml = computed(() => renderMarkdownToSafeHtml(promptModalText.value));
+const promptModalHtml = computed(() => renderMarkdownToSafeHtml(promptModalMarkdownSource.value));
 
 /** 題幹以 Markdown 渲染（與出題／批改規則 modal 同 pipeline：marked + DOMPurify） */
 const quizMarkdownHtml = computed(() => renderMarkdownToSafeHtml(props.card?.quiz));
@@ -146,6 +162,39 @@ function closePromptModal() {
  */
 const showQuizCardHeaderBand = computed(
   () => !props.designUi || !props.hideSlotIndex,
+);
+
+/** 建立測驗題庫頁在 card 上帶入 baseline；未帶入時維持原僅檢查非空即可送出 */
+function cardHasGradeBaselines(card) {
+  if (!card || typeof card !== 'object') return false;
+  return (
+    Object.prototype.hasOwnProperty.call(card, 'gradingPromptBaseline')
+    || Object.prototype.hasOwnProperty.call(card, 'quizAnswerBaseline')
+  );
+}
+
+const gradingSectionDirty = computed(() => {
+  const c = props.card;
+  if (!c || typeof c !== 'object') return true;
+  if (!cardHasGradeBaselines(c)) return true;
+  return (
+    String(c.gradingPrompt ?? '') !== String(c.gradingPromptBaseline ?? '')
+    || String(c.quiz_answer ?? '') !== String(c.quizAnswerBaseline ?? '')
+  );
+});
+
+/** 已批改成功後，須再編輯批改規則或答案才可再次送出 */
+const blockStartGradeUntilSectionDirty = computed(
+  () => props.card?.confirmed === true && !gradingSectionDirty.value,
+);
+
+const gradingPromptResetDisabled = computed(
+  () =>
+    cardMarkedForExam.value
+    || props.gradeSubmitting
+    || answerInputDisabled.value
+    || String(props.card?.gradingPrompt ?? '')
+      === String(props.card?.gradingPromptBaseline ?? ''),
 );
 </script>
 
@@ -177,7 +226,7 @@ const showQuizCardHeaderBand = computed(
                 @click="closePromptModal"
               />
             </div>
-            <div class="modal-body p-0" style="max-height: 70vh; overflow: auto;">
+            <div class="modal-body p-0 lh-base" style="max-height: 70vh; overflow: auto;">
               <div
                 v-if="promptModalHtml"
                 class="my-markdown-rendered my-font-md-400 my-color-black text-break"
@@ -218,13 +267,16 @@ const showQuizCardHeaderBand = computed(
         class="w-100 min-w-0"
         :class="designUi ? 'd-flex flex-column gap-1 mb-0' : 'mb-3'"
       >
-        <div class="d-flex justify-content-between align-items-center gap-2 w-100 min-w-0">
+        <div
+          class="d-flex justify-content-between align-items-center gap-2 w-100 min-w-0"
+          :class="designUi ? '' : 'mb-1'"
+        >
           <div
             :class="designUi ? 'my-color-gray-1 flex-shrink-0 my-font-sm-400 mb-0' : 'form-label my-font-sm-600 mb-0 my-color-gray-1'"
           >題目</div>
         </div>
         <div
-          class="lh-base"
+          class="lh-base mb-0 quiz-card-quiz-stem"
           :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
         >
           <div
@@ -380,7 +432,7 @@ const showQuizCardHeaderBand = computed(
         </template>
         <template v-else>
           <div
-            class="my-font-sm-400 mb-2"
+            class="my-font-sm-400 mb-0"
             :class="designUi ? 'form-control my-input-md my-input-md--on-dark rounded-2 w-100 min-w-0 px-3 py-2' : 'form-control my-input-md my-input-md--on-dark rounded-2 my-form-control-static w-100 min-w-0 px-3 py-2'"
           >{{ card.quiz_answer }}</div>
         </template>
@@ -417,10 +469,54 @@ const showQuizCardHeaderBand = computed(
             "
             @update:model-value="emit('update:grading_prompt', $event)"
           />
+          <!-- 與建立題庫「出題規則」同款：編輯區下方同一列，重設在左、儲存並開始批改在右 -->
+          <div
+            v-if="showStartGradeButton || !cardMarkedForExam"
+            :class="
+              designUi
+                ? 'd-flex justify-content-center align-items-center flex-wrap gap-3 mt-2 pt-2'
+                : 'd-flex justify-content-end align-items-center flex-wrap gap-3 mt-2 pt-2'
+            "
+          >
+            <button
+              v-if="!cardMarkedForExam"
+              type="button"
+              class="btn rounded-pill d-inline-flex justify-content-center align-items-center flex-shrink-0 my-font-md-400 my-color-gray-1 my-btn-outline-gray-1 px-3 py-2"
+              title="還原為上次載入或送出後的內容"
+              aria-label="重設批改規則"
+              :disabled="gradingPromptResetDisabled"
+              @click="emit('reset-grading-prompt')"
+            >
+              重設
+            </button>
+            <button
+              v-if="showStartGradeButton"
+              type="button"
+              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 flex-shrink-0 px-3 py-2 my-font-md-400 my-button-white"
+              :disabled="
+                answerInputDisabled ||
+                gradeSubmitting ||
+                blockStartGradeUntilSectionDirty ||
+                !String(card.quiz_answer ?? '').trim().length ||
+                (!hideGradingPrompt &&
+                  !String(card.gradingPrompt ?? '').trim().length)
+              "
+              :aria-busy="gradeSubmitting"
+              aria-label="儲存並開始批改"
+              @click="emit('confirm-answer', card)"
+            >
+              儲存並開始批改
+            </button>
+          </div>
         </div>
+        <!-- 測驗頁隱藏批改編輯區時，僅顯示「開始批改」（無重設） -->
         <div
-          v-if="showStartGradeButton"
-          :class="designUi ? 'd-flex justify-content-center mt-2' : 'd-flex justify-content-end mt-2'"
+          v-else-if="showStartGradeButton"
+          :class="
+            designUi
+              ? 'd-flex justify-content-center align-items-center flex-wrap gap-3 mt-3'
+              : 'd-flex justify-content-end align-items-center flex-wrap gap-3 mt-3'
+          "
         >
           <button
             type="button"
@@ -428,6 +524,7 @@ const showQuizCardHeaderBand = computed(
             :disabled="
               answerInputDisabled ||
               gradeSubmitting ||
+              blockStartGradeUntilSectionDirty ||
               !String(card.quiz_answer ?? '').trim().length ||
               (!hideGradingPrompt &&
                 !String(card.gradingPrompt ?? '').trim().length)
@@ -493,6 +590,10 @@ const showQuizCardHeaderBand = computed(
 </template>
 
 <style scoped>
+/* 題幹 Markdown：末段底距與答案靜態框一致（避免 .my-markdown-rendered p 等同 mb-2 的留白） */
+.quiz-card-quiz-stem :deep(.my-markdown-rendered > :last-child) {
+  margin-bottom: 0;
+}
 /* EasyMDE 編輯區與出題規則欄同 min-height；唯讀預覽高度由內容決定 */
 .quiz-card-grading-prompt-editor :deep(.english-exam-md-editor-root) {
   --english-md-preview-max-h: min(60vh, 28rem);

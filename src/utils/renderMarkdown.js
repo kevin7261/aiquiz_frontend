@@ -24,8 +24,9 @@ marked.setOptions({
  */
 export function renderMarkdownToSafeHtml(src) {
   if (src == null) return '';
-  const s = String(src).trim();
-  if (!s) return '';
+  const s = String(src);
+  if (!s.trim()) return '';
   const dirty = marked.parse(s);
-  return DOMPurify.sanitize(dirty);
+  const html = typeof dirty === 'string' ? dirty : String(dirty ?? '');
+  return DOMPurify.sanitize(html);
 }
