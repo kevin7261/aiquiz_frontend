@@ -9,7 +9,7 @@
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_sizes／chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
- * - 設定單元：GET `/rag/transcript/text`、`/rag/unit/mp3-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay「檔案讀取中…」；unit_type 2／3／4 主按鈕分別為「載入檔案文字／載入語音文字／載入影片文字」，按下後區塊內「分析逐字稿中…」（非全螢幕 overlay）。
+ * - 設定單元：GET `/rag/transcript/text`、`/rag/transcript/audio`、`/rag/transcript/youtube`、`/rag/unit/mp3-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay（來源預覽／文字逐字稿讀取為「檔案讀取中…」，語音／影片逐字稿為「分析逐字稿中…」）；主按鈕文案固定為「載入檔案文字／載入語音文字／載入影片文字」。
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_score、quiz_comments、rag_quiz_id、rag_answer_id
@@ -506,7 +506,7 @@ const hasPackUnitSourceFileLoading = computed(
     && currentState.value.packUnitSourceFileLoading.some(Boolean),
 );
 
-/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳（上傳區 UI 不變，僅 overlay）／建題庫／產生題目／批改／設定單元檔案讀取（不含逐字稿「分析中」區塊內狀態） */
+/** 全螢幕 LoadingOverlay：列表／建立分頁／刪除／更名／ZIP 上傳／建題庫／產生題目／批改／設定單元（來源檔讀取或逐字稿載入含「分析逐字稿」） */
 const loadingOverlayVisible = computed(
   () =>
     ragListLoading.value ||
@@ -519,7 +519,7 @@ const loadingOverlayVisible = computed(
     !!currentState.value?.packLoading ||
     hasAnySlotGenerating.value ||
     isGradingSubmitting.value ||
-    hasPackUnitSourceFileLoading.value
+    hasPackUnitTranscriptLoading.value
 );
 
 const loadingOverlayText = computed(() => {
@@ -530,6 +530,11 @@ const loadingOverlayText = computed(() => {
   if (st?.zipLoading) return '上傳中...';
   if (st?.packLoading) return '建立單元中...';
   if (hasPackUnitSourceFileLoading.value) return '檔案讀取中…';
+  if (
+    Array.isArray(st?.packUnitTranscriptLoading)
+    && st.packUnitTranscriptLoading.some(Boolean)
+  )
+    return '分析逐字稿中…';
   if (deleteRagLoading.value) return '刪除中...';
   if (deleteUnitQuizLoading.value) return '刪除題型中...';
   if (renameRagTabSaving.value) return '儲存中...';
@@ -971,7 +976,7 @@ const startPackUnitBuildDisabled = computed(() => {
 });
 
 /**
- * 準備載入逐字稿：確認 folder／rag_tab_id／personId；成功後設 packUnitTranscriptLoading（區塊內為「分析逐字稿」狀態，非全螢幕）。
+ * 準備載入逐字稿：確認 folder／rag_tab_id／personId；成功後設 packUnitTranscriptLoading（全螢幕 LoadingOverlay「分析逐字稿中…」）。
  * 失敗已寫入 err[gi] 並回傳 null。
  */
 function preparePackUnitPreviewCall(gi, group) {
@@ -4171,10 +4176,10 @@ async function confirmAnswer(item) {
                           class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-sm-400 my-button-white px-3 py-1"
                           :disabled="packUnitTranscriptBusy(gi) || packGroupsEditBlocked || group.length === 0"
                           :aria-busy="packUnitTranscriptBusy(gi)"
-                          :aria-label="packUnitTranscriptBusy(gi) ? '分析逐字稿中' : packUnitLoadTranscriptButtonLabel(gi)"
+                          :aria-label="packUnitLoadTranscriptButtonLabel(gi)"
                           @click="loadPackUnitPreviewForType(gi, group)"
                         >
-                          {{ packUnitTranscriptBusy(gi) ? '分析逐字稿中…' : packUnitLoadTranscriptButtonLabel(gi) }}
+                          {{ packUnitLoadTranscriptButtonLabel(gi) }}
                         </button>
                       </div>
                       <div
