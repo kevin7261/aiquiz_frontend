@@ -14,8 +14,10 @@
  * Emits:
  *   update:modelValue  開啟／關閉狀態變更（v-model 綁定用）
  *   save               使用者按下確定，帶出 trim 後的名稱字串
+ *
+ * 「確定」：trim 後非空且與 initialName（trim 後）不同才可按；Enter 同規則。
  */
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -30,6 +32,15 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'save']);
 
 const localName = ref('');
+
+const confirmDisabled = computed(() => {
+  if (props.saving) return true;
+  const next = String(localName.value ?? '').trim();
+  const baseline = String(props.initialName ?? '').trim();
+  if (next === '') return true;
+  if (next === baseline) return true;
+  return false;
+});
 
 watch(
   () => props.modelValue,
@@ -50,6 +61,7 @@ function close() {
 }
 
 function onSave() {
+  if (confirmDisabled.value) return;
   emit('save', localName.value.trim());
 }
 </script>
@@ -106,7 +118,7 @@ function onSave() {
             <button
               type="button"
               class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-black px-3 py-2"
-              :disabled="saving"
+              :disabled="confirmDisabled"
               :aria-busy="saving"
               @click="onSave"
             >
