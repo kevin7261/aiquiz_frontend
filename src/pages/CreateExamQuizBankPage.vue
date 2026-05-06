@@ -8,7 +8,7 @@
  * - 列表：GET /rag/tabs?local=（與 tab/create 的 local 一致）；useRagList 首次 watch(immediate) 載入，之後每次從側欄再進入本頁（KeepAlive onActivated）再抓一次
  * - 建立 tab（按 +）：POST /rag/tab/create（rag_tab_id、person_id、tab_name 必填；local 選填，預設 false；本機前端傳 true）
  * - 上傳 ZIP：POST /rag/tab/upload-zip（Form: file、rag_tab_id、person_id）
- * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、chunk_sizes／chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
+ * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、rag_chunk_sizes／rag_chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
  * - 設定單元：GET `/rag/transcript/text`、`/rag/transcript/audio`、`/rag/transcript/youtube`、`/rag/unit/mp3-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay（來源預覽／文字逐字稿讀取為「檔案讀取中…」，語音／影片逐字稿為「分析逐字稿中…」）；主按鈕文案固定為「載入檔案文字／載入語音文字／載入影片文字」。
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
  * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
@@ -1367,8 +1367,10 @@ function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
   const transcription = rawUnitTranscriptionString(unit);
   const ut = Number(unit.unit_type ?? unit.unitType);
   const rag_mode = unit.rag_mode ?? unit.ragMode;
-  const csRaw = unit.chunk_size ?? unit.chunkSize;
-  const coRaw = unit.chunk_overlap ?? unit.chunkOverlap;
+  const csRaw =
+    unit.rag_chunk_size ?? unit.ragChunkSize ?? unit.chunk_size ?? unit.chunkSize;
+  const coRaw =
+    unit.rag_chunk_overlap ?? unit.ragChunkOverlap ?? unit.chunk_overlap ?? unit.chunkOverlap;
   return {
     rag_tab_id: tabId || safeName,
     filename: src || `${safeName}_rag.zip`,
@@ -1383,10 +1385,10 @@ function normalizeUnitFromRagTabsRow(unit, fallbackTabId) {
     mp3_file_name: unitMp3FileName(unit),
     youtube_url: unitYoutubeUrl(unit),
     ...(csRaw != null && String(csRaw).trim() !== '' && !Number.isNaN(Number(csRaw))
-      ? { chunk_size: ensureNumber(csRaw, DEFAULT_PACK_CHUNK_SIZE) }
+      ? { rag_chunk_size: ensureNumber(csRaw, DEFAULT_PACK_CHUNK_SIZE) }
       : {}),
     ...(coRaw != null && String(coRaw).trim() !== '' && !Number.isNaN(Number(coRaw))
-      ? { chunk_overlap: ensureNumber(coRaw, DEFAULT_PACK_CHUNK_OVERLAP) }
+      ? { rag_chunk_overlap: ensureNumber(coRaw, DEFAULT_PACK_CHUNK_OVERLAP) }
       : {}),
     folder_combination: folderCombinationFromUnitRaw(unit),
   };
@@ -1520,13 +1522,15 @@ function buildUnitTabItem(unit, index = 0) {
     unit?.rag_unit_id != null ? Number(unit.rag_unit_id) : ragUnitIdFromRawUnit(unit);
   const ruStable = Number.isFinite(ragUnitId) && ragUnitId > 0;
   const unitType = tabUnitTypeFromUnit(unit);
-  const chunkSize =
-    unit.chunk_size != null && !Number.isNaN(Number(unit.chunk_size))
-      ? ensureNumber(unit.chunk_size, DEFAULT_PACK_CHUNK_SIZE)
-      : null;
-  const chunkOverlap =
-    unit.chunk_overlap != null && !Number.isNaN(Number(unit.chunk_overlap))
-      ? ensureNumber(unit.chunk_overlap, DEFAULT_PACK_CHUNK_OVERLAP)
+  const rs =
+    unit.rag_chunk_size ?? unit.ragChunkSize ?? unit.chunk_size ?? unit.chunkSize;
+  const ro =
+    unit.rag_chunk_overlap ?? unit.ragChunkOverlap ?? unit.chunk_overlap ?? unit.chunkOverlap;
+  const ragChunkSize =
+    rs != null && !Number.isNaN(Number(rs)) ? ensureNumber(rs, DEFAULT_PACK_CHUNK_SIZE) : null;
+  const ragChunkOverlap =
+    ro != null && !Number.isNaN(Number(ro))
+      ? ensureNumber(ro, DEFAULT_PACK_CHUNK_OVERLAP)
       : null;
   return {
     id: ruStable
@@ -1545,8 +1549,8 @@ function buildUnitTabItem(unit, index = 0) {
     textFileName: unitTextFileName(unit),
     mp3FileName: unitMp3FileName(unit),
     youtubeUrl: unitYoutubeUrl(unit),
-    chunkSize,
-    chunkOverlap,
+    ragChunkSize,
+    ragChunkOverlap,
     folderCombination: folderCombinationFromUnitRaw(unit),
   };
 }
@@ -1985,24 +1989,26 @@ function hydrateQuizCardsFromRag(rag, state) {
 }
 
 /**
- * 自 GET /rag/tabs 欄位還原 chunk_sizes／chunk_overlaps（與 unit_list 群組同序）；
- * 若僅有舊版 chunk_size／chunk_overlap 則每群填入同值。
+ * 自 GET /rag/tabs 欄位還原 rag_chunk_sizes／rag_chunk_overlaps（與 unit_list 群組同序）；
+ * 若僅有舊版 chunk_* 或單一 rag_chunk_size／rag_chunk_overlap 則每群填入同值。
  * @returns {{ sizes: number[], overs: number[] }}
  */
 function hydratePackChunkArraysFromRag(rag, groupCount) {
   const count = Math.max(0, Math.floor(Number(groupCount)) || 0);
   let sizes = [];
   let overs = [];
-  if (Array.isArray(rag?.chunk_sizes) && rag.chunk_sizes.length) {
-    sizes = rag.chunk_sizes.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_SIZE));
-  } else if (rag?.chunk_size != null && count > 0) {
-    const v = ensureNumber(rag.chunk_size, DEFAULT_PACK_CHUNK_SIZE);
+  const sizesArr = rag?.rag_chunk_sizes ?? rag?.chunk_sizes;
+  if (Array.isArray(sizesArr) && sizesArr.length) {
+    sizes = sizesArr.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_SIZE));
+  } else if ((rag?.rag_chunk_size ?? rag?.chunk_size) != null && count > 0) {
+    const v = ensureNumber(rag?.rag_chunk_size ?? rag?.chunk_size, DEFAULT_PACK_CHUNK_SIZE);
     sizes = Array(count).fill(v);
   }
-  if (Array.isArray(rag?.chunk_overlaps) && rag.chunk_overlaps.length) {
-    overs = rag.chunk_overlaps.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_OVERLAP));
-  } else if (rag?.chunk_overlap != null && count > 0) {
-    const v = ensureNumber(rag.chunk_overlap, DEFAULT_PACK_CHUNK_OVERLAP);
+  const oversArr = rag?.rag_chunk_overlaps ?? rag?.chunk_overlaps;
+  if (Array.isArray(oversArr) && oversArr.length) {
+    overs = oversArr.map((x) => ensureNumber(x, DEFAULT_PACK_CHUNK_OVERLAP));
+  } else if ((rag?.rag_chunk_overlap ?? rag?.chunk_overlap) != null && count > 0) {
+    const v = ensureNumber(rag?.rag_chunk_overlap ?? rag?.chunk_overlap, DEFAULT_PACK_CHUNK_OVERLAP);
     overs = Array(count).fill(v);
   }
   if (count === 0) return { sizes: [], overs: [] };
@@ -2022,10 +2028,10 @@ function packUnitTypeDisplayLabel(unitType) {
 }
 
 /** 唯讀「設定單元」：RAG 分段參數顯示在與類型／來源檔同列（不外層縮排） */
-function quizBankReadonlyOutlineChunkFields(chunkSize, chunkOverlap) {
+function quizBankReadonlyOutlineChunkFields(ragChunkSize, ragChunkOverlap) {
   return [
-    { label: '分段長度（字元）', value: String(ensureNumber(chunkSize, DEFAULT_PACK_CHUNK_SIZE)) },
-    { label: '分段重疊（字元）', value: String(ensureNumber(chunkOverlap, DEFAULT_PACK_CHUNK_OVERLAP)) },
+    { label: '分段長度（字元）', value: String(ensureNumber(ragChunkSize, DEFAULT_PACK_CHUNK_SIZE)) },
+    { label: '分段重疊（字元）', value: String(ensureNumber(ragChunkOverlap, DEFAULT_PACK_CHUNK_OVERLAP)) },
   ];
 }
 
@@ -2116,7 +2122,7 @@ function tabWithResolvedTranscription(tab, index, state, rag) {
 
 /**
  * 打包建置區唯讀「設定單元」：優先現有 unit 子分頁列（後端／GET units 對齊）；
- * 若尚未載入 tabs，fallback 資料夾群組 + Rag 列表之 unit_types／chunk_*。
+ * 若尚未載入 tabs，fallback 資料夾群組 + Rag 列表之 unit_types／rag_chunk_*。
  */
 const quizBankSettingReadonlyUnitRows = computed(() => {
   const state = currentState.value;
@@ -2131,8 +2137,10 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
       const tResolved = tabWithResolvedTranscription(t, i, state, rag);
       const srcDisp = quizBankReadonlySourceDisplay(tResolved);
       const ut = Number(t.unitType ?? UNIT_TYPE_RAG);
-      const cs = t.chunkSize != null ? t.chunkSize : chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
-      const co = t.chunkOverlap != null ? t.chunkOverlap : chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
+      const cs =
+        t.ragChunkSize != null ? t.ragChunkSize : chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
+      const co =
+        t.ragChunkOverlap != null ? t.ragChunkOverlap : chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
       const folderLineRo =
         Array.isArray(groupsRo[i]) && groupsRo[i].length
           ? groupsRo[i].filter(Boolean).join(' + ')
@@ -2171,8 +2179,8 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
     const fcRow = String(unitsRow[i]?.folder_combination ?? '').trim();
     const rawT = Number(types[i]);
     const ut = rawT === 0 || rawT === 1 || rawT === 2 || rawT === 3 || rawT === 4 ? rawT : UNIT_TYPE_RAG;
-    const chunkSize = chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
-    const chunkOverlap = chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
+    const ragChunkSizeRow = chunkHL.sizes[i] ?? DEFAULT_PACK_CHUNK_SIZE;
+    const ragChunkOverlapRow = chunkHL.overs[i] ?? DEFAULT_PACK_CHUNK_OVERLAP;
 
     const synTab = unitsRow[i] != null ? buildUnitTabItem(unitsRow[i], i) : null;
     /** @type {( { kind: 'text', text: string } | { kind: 'field', label: string, value: string } | { kind: 'markdown', markdown: string } | { kind: 'audio', ragTabId: string, ragUnitId: number } | { kind: 'youtube', embedSrc: string, pageUrl: string } | { kind: 'transcript_button', markdown: string } )[]} */
@@ -2185,8 +2193,8 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
     /** @type {{ label: string, value: string }[]} */
     let outlineChunkFields = [];
     if (synTab) {
-      const cs = synTab.chunkSize != null ? synTab.chunkSize : chunkSize;
-      const co = synTab.chunkOverlap != null ? synTab.chunkOverlap : chunkOverlap;
+      const cs = synTab.ragChunkSize != null ? synTab.ragChunkSize : ragChunkSizeRow;
+      const co = synTab.ragChunkOverlap != null ? synTab.ragChunkOverlap : ragChunkOverlapRow;
       const synResolved = tabWithResolvedTranscription(synTab, i, state, rag);
       const s = quizBankReadonlySourceDisplay(synResolved);
       if (String(s ?? '').trim() !== '') sourceDisplay = String(s).trim();
@@ -2197,7 +2205,7 @@ const quizBankSettingReadonlyUnitRows = computed(() => {
         ...buildQuizBankReadonlyDetailSegments(synResolved),
       ];
     } else if (ut === UNIT_TYPE_RAG) {
-      outlineChunkFields = quizBankReadonlyOutlineChunkFields(chunkSize, chunkOverlap);
+      outlineChunkFields = quizBankReadonlyOutlineChunkFields(ragChunkSizeRow, ragChunkOverlapRow);
     } else {
       detailSegments.push({
         kind: 'text',
@@ -2988,7 +2996,7 @@ async function confirmPack() {
       state.packUnitMarkdownTexts ?? []
     );
     ensurePackUnitSidecarArrays();
-    const { chunk_sizes: chunkSizesStr, chunk_overlaps: chunkOverlapsStr } =
+    const { rag_chunk_sizes: chunkSizesStr, rag_chunk_overlaps: chunkOverlapsStr } =
       chunkSizesOverlapsStringsForBuildRagZip(
         unitTypesNormalized,
         state.packChunkSizes,
@@ -3005,10 +3013,10 @@ async function confirmPack() {
         rag_tab_id: fileId,
         person_id: personId,
         unit_list: unitList,
-        chunk_size: DEFAULT_PACK_CHUNK_SIZE,
-        chunk_overlap: DEFAULT_PACK_CHUNK_OVERLAP,
-        chunk_sizes: chunkSizesStr,
-        chunk_overlaps: chunkOverlapsStr,
+        rag_chunk_size: DEFAULT_PACK_CHUNK_SIZE,
+        rag_chunk_overlap: DEFAULT_PACK_CHUNK_OVERLAP,
+        rag_chunk_sizes: chunkSizesStr,
+        rag_chunk_overlaps: chunkOverlapsStr,
         unit_types: serializePackUnitTypesForApi(unitTypesNormalized),
         transcriptions,
         unit_names: unitNamesStr,

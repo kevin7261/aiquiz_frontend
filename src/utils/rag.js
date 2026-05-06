@@ -205,7 +205,7 @@ export const UNIT_TYPE_TEXT = 2;
 export const UNIT_TYPE_MP3 = 3;
 export const UNIT_TYPE_YOUTUBE = 4;
 
-/** 出題單元預設分段長度／重疊（與 POST build-rag-zip chunk_* 對齊；每群一筆） */
+/** 出題單元預設分段長度／重疊（與 POST build-rag-zip rag_chunk_* 對齊；每群一筆） */
 export const DEFAULT_PACK_CHUNK_SIZE = 1000;
 export const DEFAULT_PACK_CHUNK_OVERLAP = 200;
 
@@ -271,7 +271,7 @@ export function remapPackUnitTypes(oldList, oldTypes, newList) {
 }
 
 /**
- * 拖放／刪除標籤後，依群組資料夾集合對齊與 unit_types 同序之數值陣列（如 chunk_size）
+ * 拖放／刪除標籤後，依群組資料夾集合對齊與 unit_types 同序之數值陣列（如 rag_chunk_size）
  * @param {string[][]} oldList
  * @param {unknown[]} oldVals
  * @param {string[][]} newList
@@ -411,13 +411,13 @@ export function packUnitTypesIntArrayForApi(types) {
 }
 
 /**
- * POST /rag/tab/build-rag-zip 的 chunk_sizes／chunk_overlaps：後端請求體為與 unit_list 群組序對齊的逗號分隔字串（非 JSON 陣列）。
+ * POST /rag/tab/build-rag-zip 的 rag_chunk_sizes／rag_chunk_overlaps：後端請求體為與 unit_list 群組序對齊的逗號分隔字串（非 JSON 陣列）。
  * unit_type≠1（非 RAG）時為 0，與後端僅對 type 1 做分段／FAISS 一致。
  *
  * @param {number[]} unitTypes - parsePackUnitTypesFromRag 結果
  * @param {unknown[]} [chunkSizes] - 與群組同序 UI 數值
  * @param {unknown[]} [chunkOverlaps] - 同上
- * @returns {{ chunk_sizes: string, chunk_overlaps: string }}
+ * @returns {{ rag_chunk_sizes: string, rag_chunk_overlaps: string }}
  */
 export function chunkSizesOverlapsStringsForBuildRagZip(
   unitTypes,
@@ -449,13 +449,13 @@ export function chunkSizesOverlapsStringsForBuildRagZip(
     }
   }
   return {
-    chunk_sizes: sizesNums.join(','),
-    chunk_overlaps: oversNums.join(','),
+    rag_chunk_sizes: sizesNums.join(','),
+    rag_chunk_overlaps: oversNums.join(','),
   };
 }
 
 /**
- * POST /rag/tab/build-rag-zip 可選 body.unit_names：與 unit_list 群組同序的逗號字串（與 chunk_sizes 語意一致）。
+ * POST /rag/tab/build-rag-zip 可選 body.unit_names：與 unit_list 群組同序的逗號字串（與 rag_chunk_sizes 語意一致）。
  * 名稱內逗號改為空白，避免與分隔歧義。
  *
  * @param {unknown[]} [names]

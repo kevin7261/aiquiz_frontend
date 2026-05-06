@@ -7,10 +7,10 @@
    * 失敗時：顯示後端 detail 或錯誤訊息於 error。
    * 載入中：全螢幕 LoadingOverlay，並停用送出。
    */
-  import { ref, onMounted } from 'vue';
+  import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore.js';
-  import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
+  import { API_BASE } from '../constants/api.js';
   import { loggedFetch } from '../utils/loggedFetch.js';
   import LoadingOverlay from '../components/LoadingOverlay.vue';
 
@@ -20,25 +20,10 @@
     setup() {
       const router = useRouter();
       const authStore = useAuthStore();
-      const courseName = ref('MyQuiz.ai');
       const personId = ref('');
       const password = ref('');
       const loading = ref(false);
       const error = ref('');
-
-      onMounted(async () => {
-        try {
-          const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.course_name && String(data.course_name).trim()) {
-              courseName.value = String(data.course_name).trim();
-            }
-          }
-        } catch {
-          // 保持預設 MyQuiz.ai
-        }
-      });
 
       const onLogin = async () => {
         error.value = '';
@@ -77,7 +62,7 @@
         }
       };
 
-      return { courseName, personId, password, loading, error, onLogin };
+      return { personId, password, loading, error, onLogin };
     },
   };
 </script>
@@ -91,7 +76,7 @@
       >
         <div class="rounded-4 my-bgcolor-gray-3 p-4 w-100 my-login-view-card my-color-black">
           <p class="my-font-xl-600 my-color-black text-break text-center mb-4 mb-md-3">
-            {{ courseName }} 登入
+            MyQuiz.ai 登入
           </p>
           <form @submit.prevent="onLogin">
             <div class="mb-3 d-flex flex-column gap-0">

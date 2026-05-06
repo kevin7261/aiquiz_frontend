@@ -121,7 +121,7 @@ export const API_RAG_DELETE = '/rag/tab/delete';
 export const API_RAG_TAB_QUIZ_DELETE = '/rag/tab/quiz/delete';
 /** 更新 RAG 分頁顯示名稱：PUT /rag/tab/tab-name；body JSON：rag_id、tab_name；以 rag_id 比對，僅更新 deleted=false；回傳 rag_id、rag_tab_id、person_id、tab_name、updated_at */
 export const API_RAG_UNIT_NAME = '/rag/tab/tab-name';
-/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 依 OpenAPI PackRequest：rag_tab_id、person_id、unit_list、chunk_size、chunk_overlap、chunk_sizes、chunk_overlaps、unit_types、build_faiss、transcriptions；後端若支援可加 unit_names（與群組同序逗號字串）；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
+/** 建 RAG ZIP：POST /rag/tab/build-rag-zip；body 依 OpenAPI PackRequest：rag_tab_id、person_id、unit_list、rag_chunk_size、rag_chunk_overlap、rag_chunk_sizes、rag_chunk_overlaps、unit_types、build_faiss、transcriptions；後端若支援可加 unit_names（與群組同序逗號字串）；query：person_id（必填）、repack_only（選填，true 時強制不建 FAISS）；成功時 application/x-ndjson（fetch 讀 response.body，勿 response.json）；整批成敗以最後 complete.success；POST /rag/tab/build-rag-zip-stream 行為相同（OpenAPI 隱藏） */
 export const API_BUILD_RAG_ZIP = '/rag/tab/build-rag-zip';
 /** RAG 文字單元（unit_type 2）：GET /rag/transcript/text；query：`rag_tab_id`、`folder_name`、`person_id`。讀 ZIP 內該資料夾**一個** .md／.txt／.doc／.docx */
 export const API_RAG_TRANSCRIPT_TEXT = '/rag/transcript/text';
@@ -199,17 +199,11 @@ export const API_EXAM_RATE_QUIZ = '/exam/tab/quiz/rate';
 
 /**
  * 系統設定 system-settings
- * - GET  /system-settings/course-name   Get Course Name Setting
- * - PUT  /system-settings/course-name   Put Course Name Setting
  * - GET  /system-settings/llm-api-key  Get Llm Api Key
  * - PUT  /system-settings/llm-api-key  Put Llm Api Key
  * - GET /system-settings/person_analysis_user_prompt_text  Get Person Analysis User Prompt（有效登入使用者皆可；PUT 僅 user_type 1／2）
  * - PUT /system-settings/person_analysis_user_prompt_text  Put 同上；body { person_analysis_user_prompt_text }
  */
-/** GET：取得課程名稱；回傳含 course_name。 */
-export const API_GET_SYSTEM_SETTING_COURSE_NAME = '/system-settings/course-name';
-/** PUT：寫入課程名稱；body 僅傳 { course_name }。表 key=course_name；若尚無該 key 則新增且 value 為空，已有則不覆蓋 value。 */
-export const API_PUT_SYSTEM_SETTING_COURSE_NAME = '/system-settings/course-name';
 /** GET：取得 LLM API Key。若尚無資料，回傳 llm_api_key_id 等皆為 null。 */
 export const API_GET_LLM_API_KEY = '/system-settings/llm-api-key';
 /** PUT：寫入或更新系統預設 LLM API Key（表 key=llm_api_key）；body 僅傳 { llm_api_key }，空字串表示清除。 */

@@ -3,14 +3,12 @@
    * LeftView - 主畫面左側選單
    *
    * 職責：
-   * - 顯示品牌（課程名稱，由 GET /system-settings/course-name 取得）、主要導覽（測驗、作答弱點分析）
+   * - 顯示品牌（MyQuiz.ai）、主要導覽（測驗、作答弱點分析）
    * - 左下角使用者名下拉：Design 頁「08 · 下拉選單」同款（my-design-08-dropdown、dropdown-toggle · my-dropdown-caret · rounded-2 · my-button-white · chevron）；出題／學生作答分析／使用者管理／系統設定／系統紀錄、分隔線、設定、登出（/design 不列於選單，僅網址進入）
    * - 使用者名下拉：建立測驗題庫為登入即顯示；其餘項目依 user_type（canSeeNavLink）
    */
-  import { ref, computed, onMounted } from 'vue';
-  import { API_BASE, API_GET_SYSTEM_SETTING_COURSE_NAME } from '../constants/api.js';
+  import { computed } from 'vue';
   import { canSeeNavLink } from '../router/permissions.js';
-  import { loggedFetch } from '../utils/loggedFetch.js';
 
   export default {
     name: 'LeftView',
@@ -22,7 +20,6 @@
     },
     emits: ['logout'],
     setup(props, { emit }) {
-      const courseName = ref('MyQuiz.ai');
       const onLogout = () => emit('logout');
 
       const showDividerBeforeProfile = computed(() => {
@@ -36,22 +33,7 @@
         );
       });
 
-      onMounted(async () => {
-        try {
-          const res = await loggedFetch(`${API_BASE}${API_GET_SYSTEM_SETTING_COURSE_NAME}`, { method: 'GET' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.course_name && String(data.course_name).trim()) {
-              courseName.value = String(data.course_name).trim();
-            }
-          }
-        } catch {
-          // 保持預設 MyQuiz.ai
-        }
-      });
-
       return {
-        courseName,
         onLogout,
         canSeeNavLink,
         showDividerBeforeProfile,
@@ -62,7 +44,7 @@
 
 <template>
   <aside class="h-100 d-flex flex-column w-100 my-bgcolor-gray-3">
-    <div class="fw-semibold fs-5 my-color-black lh-sm px-3 pt-3 pb-2">{{ courseName }}</div>
+    <div class="fw-semibold fs-5 my-color-black lh-sm px-3 pt-3 pb-2">MyQuiz.ai</div>
     <nav
       class="my-left-view-nav nav nav-pills flex-column flex-grow-1 justify-content-start align-items-stretch gap-1 overflow-auto px-3 mt-5 pb-3"
     >
