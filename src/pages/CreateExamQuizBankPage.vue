@@ -11,7 +11,7 @@
  * - 建 RAG：POST /rag/tab/build-rag-zip（NDJSON 串流；unit_list、unit_types、transcriptions〔與逗號分段同序〕、rag_chunk_sizes／rag_chunk_overlaps〔與群組同序之逗號字串；非 unit_type 1 時為 0〕、可選 unit_names〔與群組同序之逗號字串，名稱內逗號會轉空白〕；已不再傳 system_prompt_instruction）
  * - 設定單元：GET `/rag/transcript/text`、`/rag/transcript/audio`、`/rag/transcript/youtube`、`/rag/unit/mp3-file`、`/rag/unit/youtube-url` 期間全螢幕 LoadingOverlay（來源預覽／文字逐字稿讀取為「檔案讀取中…」，語音／影片逐字稿為「分析逐字稿中…」）；主按鈕文案固定為「載入檔案文字／載入語音文字／載入影片文字」。
  * - 分頁更名：PUT /rag/tab/tab-name（body: rag_id、tab_name）
- * - 試卷用：僅依 GET /rag/tabs 每筆 `for_exam` 顯示分頁列綠點（不再呼叫 system-settings rag-for-exam-*）
+ * - 試卷用：GET /rag/tabs 每筆 Rag.for_exam，或其 units／quizzes 任一有 Rag_Quiz.for_exam，或本機題卡 rag_quiz_for_exam，皆於分頁列顯示綠點並禁止刪除該題庫分頁（不再呼叫 system-settings rag-for-exam-*）
  * - 出題（舊／整庫）：POST /rag/tab/quiz/create（rag_id 必填；rag_tab_id、unit_name 選填可 ""）；評分：POST /rag/tab/unit/quiz/llm-grade（body 以 rag_id、rag_quiz_id、quiz_answer 為核心；quiz_content 可省略）、GET /rag/tab/unit/quiz/grade-result/{job_id}，ready 時 result: quiz_score、quiz_comments、rag_quiz_id、rag_answer_id
  * - 單元子分頁：GET /rag/tab/units；題型列「+」新增題庫 POST /rag/tab/unit/quiz/create（body: rag_tab_id、rag_unit_id；不呼叫 LLM）後推入一列（帶 rag_quiz_id）；後端若未帶 quiz_name 常將該欄預設為所屬 unit_name，故建立成功後前端會 PUT /rag/tab/unit/quiz/quiz-name 寫入「未命名題型」與草稿一致，再上傳／重整才不會被 hydrate 覆寫成單元名。再填題名／出題規則後按「產生題目」POST /rag/tab/unit/quiz/llm-generate；若列上尚無 rag_quiz_id（舊本機草稿），「產生題目」仍會先 create 再 llm；單題設為／取消測驗用 POST /rag/tab/unit/quiz/for-exam（body 僅 rag_quiz_id、for_exam）；題型 sub-tab 更名：PUT /rag/tab/unit/quiz/quiz-name（body: rag_quiz_id、quiz_name）；軟刪題型：PUT /rag/tab/quiz/delete/{rag_quiz_id}；「單元內容」：單元僅見上方子分頁；user_type 1／2／234；設定單元選 unit_type=2/3/4 時共用 Markdown 逐字稿編輯器，於編輯區上方按鈕載入檔案／語音／影片文字，完成載入前編輯區停用且不能開始建立單元；3 僅 `<audio>` 與「逐字稿」Modal（不列 mp3 檔名、不標聽取音訊）；4 內嵌 iframe 與逐字稿 Modal（不標 YouTube 字樣）；3 且已有 rag_unit_id 時 GET `/rag/tab/unit/mp3-file`；RAG（1）僅來源檔案
  * 上述 API 不需 llm_api_key。
@@ -144,8 +144,10 @@ const deleteRagLoading = ref(false);
 const activeTabId = ref(null);
 const showFormWhenNoData = ref(false);
 const newTabIds = ref([]);
+/** POST /rag/tab/unit/quiz/for-exam 成功後，列表尚未含嵌套欄位時仍標記該 rag_tab_id（綠點／鎖刪與目前選中哪個分頁無關） */
+const ragTabExamHintByTabId = ref({});
 
-const { getTabState, currentState, isNewTabId } = useRagTabState(activeTabId, newTabIds, ragList, authStore);
+const { getTabState, currentState, isNewTabId, tabStateMap } = useRagTabState(activeTabId, newTabIds, ragList, authStore);
 
 /** 重新整理後還原主 tab／單元子分頁／題型子分頁（sessionStorage，依使用者分鍵） */
 const CREATE_BANK_TAB_UI_STORAGE_PREFIX = 'myquiz:createBankTabUI:v1:';
@@ -434,6 +436,123 @@ const currentRagIdForQuizCards = computed(() => {
 function ragIsForExamFromListRow(rag) {
   return !!rag?.for_exam;
 }
+
+/** GET /rag/tabs 之 quiz 列是否標為測驗用（與 buildCardFromRagQuiz 一致） */
+function ragQuizApiRowIsForExam(quiz) {
+  if (!quiz || typeof quiz !== 'object') return false;
+  return (
+    quiz.for_exam === true
+    || quiz.for_exam === 1
+    || quiz.rag_quiz_for_exam === true
+    || quiz.rag_quiz_for_exam === 1
+  );
+}
+
+/** 單元列：quizzes／quiz_list／Quizzes */
+function quizRowsFromUnitApiRow(u) {
+  if (!u || typeof u !== 'object') return [];
+  if (Array.isArray(u.quizzes)) return u.quizzes;
+  if (Array.isArray(u.quiz_list)) return u.quiz_list;
+  if (Array.isArray(u.Quizzes)) return u.Quizzes;
+  return [];
+}
+
+/** GET /rag/tabs 單筆：units[] 或頂層 quizzes[] 是否含任一測驗用題型 */
+function ragListRowHasNestedForExamQuiz(rag) {
+  if (!rag || typeof rag !== 'object') return false;
+  const rawUnits = extractUnitsFromRag(rag);
+  if (rawUnits.length > 0) {
+    for (const u of rawUnits) {
+      for (const q of quizRowsFromUnitApiRow(u)) {
+        if (ragQuizApiRowIsForExam(q)) return true;
+      }
+    }
+    return false;
+  }
+  const top = rag.quizzes;
+  return Array.isArray(top) && top.some((q) => ragQuizApiRowIsForExam(q));
+}
+
+/** 本機 tabState：掃描 stacks／cardList 是否有 Rag_Quiz.for_exam */
+function stateHasExamQuizCardsInTabState(st) {
+  if (!st || typeof st !== 'object') return false;
+  const stacks = st.unitSlotQuizCards;
+  if (Array.isArray(stacks)) {
+    for (const stack of stacks) {
+      if (!Array.isArray(stack)) continue;
+      for (const c of stack) {
+        if (c?.rag_quiz_for_exam === true || c?.rag_quiz_for_exam === 1) return true;
+      }
+    }
+  }
+  const flat = st.cardList;
+  if (Array.isArray(flat)) {
+    for (const c of flat) {
+      if (c?.rag_quiz_for_exam === true || c?.rag_quiz_for_exam === 1) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 本機該分頁：任一題卡為測驗用。
+ * 除 tabStateMap[rag_tab_id] 外，亦比對 zipTabId／tabId／map key（避免鍵不一致時換分頁後綠點消失）。
+ */
+function tabStateHasAnyRagQuizForExam(tabStateMapRef, tabId) {
+  const tid = tabId != null ? String(tabId).trim() : '';
+  if (!tid || !tabStateMapRef || typeof tabStateMapRef !== 'object') return false;
+  const seen = new Set();
+  function trySt(st) {
+    if (!st || typeof st !== 'object' || seen.has(st)) return false;
+    seen.add(st);
+    return stateHasExamQuizCardsInTabState(st);
+  }
+  if (trySt(tabStateMapRef[tid])) return true;
+  for (const k of Object.keys(tabStateMapRef)) {
+    const st = tabStateMapRef[k];
+    const z = String(st?.zipTabId ?? '').trim();
+    const td = String(st?.tabId ?? '').trim();
+    const ks = String(k).trim();
+    if (z === tid || td === tid || ks === tid) {
+      if (trySt(st)) return true;
+    }
+  }
+  return false;
+}
+
+/** 分頁列綠點與禁止刪除：整庫 for_exam、列表嵌套題型、本機 tabState、for-exam 成功提示 */
+function ragTabIsExamProtected(rag, tabStateMapRef) {
+  if (!rag || typeof rag !== 'object') return false;
+  if (ragIsForExamFromListRow(rag)) return true;
+  if (ragListRowHasNestedForExamQuiz(rag)) return true;
+  const tabId = rag.rag_tab_id ?? rag.id ?? rag;
+  const tid = tabId != null ? String(tabId).trim() : '';
+  if (tid && ragTabExamHintByTabId.value[tid]) return true;
+  return tabStateHasAnyRagQuizForExam(tabStateMapRef, tabId);
+}
+
+watch(
+  ragList,
+  (list) => {
+    if (!Array.isArray(list)) return;
+    const next = { ...ragTabExamHintByTabId.value };
+    let dirty = false;
+    for (const key of Object.keys(next)) {
+      const rag = list.find((r) => String(r?.rag_tab_id ?? r?.id ?? '').trim() === key);
+      if (!rag) {
+        delete next[key];
+        dirty = true;
+        continue;
+      }
+      if (ragIsForExamFromListRow(rag) || ragListRowHasNestedForExamQuiz(rag)) {
+        delete next[key];
+        dirty = true;
+      }
+    }
+    if (dirty) ragTabExamHintByTabId.value = next;
+  },
+  { deep: true }
+);
 
 /** 當前 tab 的 rag_id、rag_tab_id（僅 console 記錄；未上傳則為「未上傳」） */
 const currentRagIdAndTabId = computed(() => {
@@ -1193,15 +1312,16 @@ async function loadPackUnitPreviewForType(gi, group) {
 
 // ─── RAG Tab 項目與 Unit（單元）解析 ──────────────────────────────────────────
 
-/** Tab 列用：rag 項目含 _tabId、_label、_isExamRag（試卷用者分頁列綠點／刪除確認） */
-const ragItems = computed(() =>
-  ragList.value.map((r) => ({
+/** Tab 列用：rag 項目含 _tabId、_label、_isExamRag（測驗用題型／整庫 for_exam：綠點且鎖刪） */
+const ragItems = computed(() => {
+  void ragTabExamHintByTabId.value;
+  return ragList.value.map((r) => ({
     ...r,
     _tabId: r.rag_tab_id ?? r.id ?? r,
     _label: getRagTabLabel(r),
-    _isExamRag: ragIsForExamFromListRow(r),
-  }))
-);
+    _isExamRag: ragTabIsExamProtected(r, tabStateMap),
+  }));
+});
 /** Tab 列用：新增 tab 項目含 id、label */
 const newTabItems = computed(() =>
   newTabIds.value.map((tid) => ({
@@ -1706,6 +1826,15 @@ async function onMarkRagQuizForExam(card) {
     if (!Number.isFinite(ragUnitId) || ragUnitId < 0) ragUnitId = 0;
     if (ragTabId) card.rag_tab_id = ragTabId;
     if (Number.isFinite(ragUnitId) && ragUnitId >= 1) card.rag_unit_id = ragUnitId;
+    if (ragTabId) {
+      if (nextForExam) {
+        ragTabExamHintByTabId.value = { ...ragTabExamHintByTabId.value, [ragTabId]: true };
+      } else if (!tabStateHasAnyRagQuizForExam(tabStateMap, ragTabId)) {
+        const nextHint = { ...ragTabExamHintByTabId.value };
+        delete nextHint[ragTabId];
+        ragTabExamHintByTabId.value = nextHint;
+      }
+    }
   } catch (err) {
     card.ragQuizForExamError = err?.message || String(err);
   } finally {
@@ -2629,11 +2758,12 @@ async function deleteRag(rag, e) {
     alert('請先登入');
     return;
   }
+  if (ragTabIsExamProtected(rag, tabStateMap)) {
+    alert('此題庫含有已設為測驗用之題型，無法刪除。請先於題型區將「設為測驗用」全部取消後再試。');
+    return;
+  }
   const label = getRagTabLabel(rag);
-  const isExam = ragIsForExamFromListRow(rag);
-  const msg = isExam
-    ? `「${label}」已標為試卷用題庫（for_exam）。確定刪除嗎？`
-    : `確定要刪除「${label}」嗎？`;
+  const msg = `確定要刪除「${label}」嗎？`;
   if (!confirm(msg)) return;
   deleteRagLoading.value = true;
   try {
@@ -3819,27 +3949,34 @@ async function confirmAnswer(item) {
                 >
                   <i class="fa-solid fa-pen" aria-hidden="true" />
                 </button>
+                <!-- 綠點／× 同槽；綠點僅依題庫是否含測驗用，不依是否選中該分頁 -->
                 <span
-                  v-if="item._isExamRag"
+                  v-if="item._isExamRag || activeTabId === item._tabId"
                   class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
-                  title="試卷用題庫"
-                  role="img"
                 >
                   <span
-                    class="rounded-circle d-inline-block my-bgcolor-green"
-                    style="width: 0.5rem; height: 0.5rem"
-                  />
+                    v-if="item._isExamRag"
+                    class="d-inline-flex justify-content-center align-items-center"
+                    title="試卷用題庫"
+                    role="img"
+                    aria-label="試卷用題庫"
+                  >
+                    <span
+                      class="rounded-circle d-inline-block my-bgcolor-green"
+                      style="width: 0.5rem; height: 0.5rem"
+                    />
+                  </span>
+                  <button
+                    v-else
+                    type="button"
+                    class="btn btn-link text-decoration-none my-color-gray-4 p-0 border-0 lh-1 align-middle"
+                    title="刪除此題庫"
+                    :disabled="deleteRagLoading || renameRagTabSaving || renameUnitQuizSaving || deleteUnitQuizLoading"
+                    @click.stop="onDeleteRagTab(item._tabId)"
+                  >
+                    <i class="fa-solid fa-xmark" aria-hidden="true" />
+                  </button>
                 </span>
-                <button
-                  v-if="activeTabId === item._tabId"
-                  type="button"
-                  class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4"
-                  :title="item._isExamRag ? '刪除此題庫（將取消試卷用設定）' : '刪除此設定單元'"
-                  :disabled="deleteRagLoading || renameRagTabSaving || renameUnitQuizSaving || deleteUnitQuizLoading"
-                  @click.stop="onDeleteRagTab(item._tabId)"
-                >
-                  <i class="fa-solid fa-xmark" aria-hidden="true" />
-                </button>
               </div>
             </li>
             <li v-for="item in newTabItems" :key="'new-' + item.id" class="nav-item">
@@ -4727,29 +4864,39 @@ async function confirmAnswer(item) {
                           :title="quizTypeTabLabel(qRow)"
                           @click="currentState.activeUnitQuizTypeIndex = qi"
                         >{{ quizTypeTabLabel(qRow) }}</span>
-                        <template
+                        <button
                           v-if="activeUnitQuizTypeIdxResolved === qi && positiveRagQuizIdFromQuizRow(qRow) != null"
+                          type="button"
+                          class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4 pe-2"
+                          title="重新命名題型"
+                          :disabled="
+                            getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading
+                            || renameUnitQuizSaving
+                            || deleteUnitQuizLoading
+                            || deleteRagLoading
+                            || renameRagTabSaving
+                          "
+                          @click.stop="openRenameUnitQuizTab(qi)"
                         >
-                          <button
-                            type="button"
-                            class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4 pe-2"
-                            title="重新命名題型"
-                            :disabled="
-                              getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading
-                              || renameUnitQuizSaving
-                              || deleteUnitQuizLoading
-                              || deleteRagLoading
-                              || renameRagTabSaving
-                            "
-                            @click.stop="openRenameUnitQuizTab(qi)"
-                          >
-                            <i class="fa-solid fa-pen" aria-hidden="true" />
-                          </button>
+                          <i class="fa-solid fa-pen" aria-hidden="true" />
+                        </button>
+                        <!-- 綠點／× 同槽；測驗用時綠點固定顯示，不依是否選中該題型列 -->
+                        <span
+                          v-if="
+                            isRagQuizMarkedForExam(qRow)
+                            || (
+                              activeUnitQuizTypeIdxResolved === qi
+                              && positiveRagQuizIdFromQuizRow(qRow) != null
+                            )
+                          "
+                          class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
+                        >
                           <span
                             v-if="isRagQuizMarkedForExam(qRow)"
-                            class="d-inline-flex justify-content-center align-items-center flex-shrink-0 my-tab-nav-action-btn"
+                            class="d-inline-flex justify-content-center align-items-center"
                             title="測驗用題型"
                             role="img"
+                            aria-label="測驗用題型"
                           >
                             <span
                               class="rounded-circle d-inline-block my-bgcolor-green"
@@ -4759,7 +4906,7 @@ async function confirmAnswer(item) {
                           <button
                             v-else
                             type="button"
-                            class="btn btn-link text-decoration-none my-tab-nav-action-btn my-color-gray-4"
+                            class="btn btn-link text-decoration-none my-color-gray-4 p-0 border-0 lh-1 align-middle"
                             title="刪除此題型"
                             :disabled="
                               getSlotFormState(activeUnitSlotIndex).unitQuizCreateLoading
@@ -4772,7 +4919,7 @@ async function confirmAnswer(item) {
                           >
                             <i class="fa-solid fa-xmark" aria-hidden="true" />
                           </button>
-                        </template>
+                        </span>
                       </div>
                     </li>
                     <li class="nav-item d-flex align-items-center ms-2">
