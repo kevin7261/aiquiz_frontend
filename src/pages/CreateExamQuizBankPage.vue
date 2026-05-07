@@ -2645,7 +2645,8 @@ async function deleteRag(rag, e) {
       } else if (newTabIds.value.length > 0) {
         activeTabId.value = newTabIds.value[0];
       } else {
-        addNewTab();
+        activeTabId.value = null;
+        showFormWhenNoData.value = false;
       }
     }
   } catch (err) {
@@ -3790,20 +3791,7 @@ async function confirmAnswer(item) {
           <div class="w-100 py-2" aria-busy="true" />
         </template>
         <template v-else-if="ragItems.length === 0 && newTabItems.length === 0">
-          <div class="d-flex justify-content-center align-items-center w-100 py-2 px-2">
-            <button
-              type="button"
-              class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
-              :title="`新增${quizBankNoun}`"
-              :aria-label="`新增${quizBankNoun}`"
-              :disabled="createRagLoading"
-              :aria-busy="createRagLoading"
-              @click="addNewTab"
-            >
-              <i class="fa-solid fa-plus" aria-hidden="true" />
-              新增{{ quizBankNoun }}
-            </button>
-          </div>
+          <div class="w-100 py-2" aria-hidden="true" />
         </template>
         <template v-else>
           <ul class="nav nav-tabs w-100">
@@ -3895,6 +3883,7 @@ async function confirmAnswer(item) {
         class="flex-grow-1 d-flex align-items-center justify-content-center px-3 py-5 min-h-0"
       >
         <button
+          v-if="!ragListLoading"
           type="button"
           class="btn rounded-pill d-flex justify-content-center align-items-center gap-2 my-font-md-400 my-button-gray-3 px-4 py-3"
           :title="`新增${quizBankNoun}`"
